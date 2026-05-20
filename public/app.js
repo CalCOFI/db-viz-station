@@ -64,28 +64,28 @@ function buildERDDAPUrl(variable) {
 
   // required fields
 
-const fields = [
+  const fields = [
 
-  "time",
+    "time",
 
-  "latitude",
+    "latitude",
 
-  "longitude"
-];
+    "longitude"
+  ];
 
-if (
-  usesStaId(dataset)
-) {
+  if (
+    usesStaId(dataset)
+  ) {
 
-  fields.push("sta_id");
+    fields.push("sta_id");
 
-} else {
+  } else {
 
-  fields.push("line");
-  fields.push("station");
-}
+    fields.push("line");
+    fields.push("station");
+  }
 
-fields.push(...variableNames);
+  fields.push(...variableNames);
 
   let url =
     `https://oceanview.pfeg.noaa.gov/erddap/tabledap/${dataset}.html?` +
@@ -101,42 +101,42 @@ fields.push(...variableNames);
     // CASE 1 — sta_id exists
 
     if (
-  usesStaId(dataset)
-) {
+      usesStaId(dataset)
+    ) {
 
-  // SIO hydro datasets
+      // SIO hydro datasets
 
-  url +=
-    `&sta_id=` +
-    encodeURIComponent(
-      `"${s.station_id}"`
-    );
-}
+      url +=
+        `&sta_id=` +
+        encodeURIComponent(
+          `"${s.station_id}"`
+        );
+    }
 
-else {
+    else {
 
-  // NOAA datasets use line/station
+      // NOAA datasets use line/station
 
-  const parsed =
-    parseStationId(
-      s.station_id
-    );
+      const parsed =
+        parseStationId(
+          s.station_id
+        );
 
-  if (parsed) {
+      if (parsed) {
 
-    url +=
-      `&line=` +
-      encodeURIComponent(
-        parsed.line
-      );
+        url +=
+          `&line=` +
+          encodeURIComponent(
+            parsed.line
+          );
 
-    url +=
-      `&station=` +
-      encodeURIComponent(
-        parsed.station
-      );
-  }
-}
+        url +=
+          `&station=` +
+          encodeURIComponent(
+            parsed.station
+          );
+      }
+    }
   }
 
   // selected variable constraints
@@ -388,12 +388,12 @@ function parseStationId(stationId) {
 // --- Station markers ---
 function makeMarkerStyle(highlighted) {
   return {
-    radius:      highlighted ? 9 : 7,
-    fillColor:   highlighted ? '#00c2ff' : '#1a4a6e',
-    color:       highlighted ? '#00ffb3' : '#0d7aad',
-    weight:      1.5,
+    radius: highlighted ? 9 : 7,
+    fillColor: highlighted ? '#00c2ff' : '#1a4a6e',
+    color: highlighted ? '#00ffb3' : '#0d7aad',
+    weight: 1.5,
     fillOpacity: highlighted ? 0.95 : 0.7,
-    opacity:     1,
+    opacity: 1,
   };
 }
 
@@ -568,12 +568,9 @@ async function loadStations() {
         L.circleMarker(
           [station.lat, station.lon],
           {
-            radius: 4,
-            fillColor: "#4db6ff",
-            color: "#ffffff",
-            weight: 1,
-            opacity: 1,
-            fillOpacity: 0.9
+            radius: 10,
+            color: "#00c2ff",
+            fillOpacity: 0.7
           }
         );
 
@@ -619,8 +616,13 @@ async function loadVariables() {
       "./data/variables.json"
     );
 
-    const variables =
+    const data =
       await res.json();
+
+    const variables =
+      Array.isArray(data)
+        ? data
+        : data.variables || [];
 
     // =================================================
     // STORE GLOBALLY
@@ -693,20 +695,10 @@ async function loadVariables() {
   }
 }
 
-// function renderCategoryFilters(categories) {
-//   const container = document.getElementById('category-filters');
-//   categories.forEach(cat => {
-//     const btn = document.createElement('button');
-//     btn.className = 'filter-btn';
-//     btn.textContent = cat;
-//     btn.onclick = () => toggleCategory(cat, btn);
-//     container.appendChild(btn);
-//   });
-// }
 
 // --- Dropdown search ---
 const searchInput = document.getElementById('search');
-const dropdown   = document.getElementById('dropdown');
+const dropdown = document.getElementById('dropdown');
 
 searchInput.addEventListener('input', () => {
   const q = searchInput.value.trim();
@@ -785,7 +777,7 @@ function selectVariable(variableId) {
 
   const variable =
     window.variableMap[
-      variableId
+    variableId
     ];
 
   if (!variable) return;
@@ -950,40 +942,40 @@ function openModal(v) {
       </div>`;
   }
 
-  
 
-let finalUrl = null;
 
-if (v.platform === "erddap") {
+  let finalUrl = null;
 
-  finalUrl =
-    buildERDDAPUrl(v);
-}
+  if (v.platform === "erddap") {
 
-else if (
-  v.dataset_id === "euphausiid"
-) {
+    finalUrl =
+      buildERDDAPUrl(v);
+  }
 
-  finalUrl =
-    buildEuphausiidUrl(v);
-}
+  else if (
+    v.dataset_id === "euphausiid"
+  ) {
 
-else if (
-  v.dataset_id === "zoodb"
-) {
+    finalUrl =
+      buildEuphausiidUrl(v);
+  }
 
-  finalUrl =
-    buildZooDBUrl(v);
-}
+  else if (
+    v.dataset_id === "zoodb"
+  ) {
 
-else {
+    finalUrl =
+      buildZooDBUrl(v);
+  }
 
-  finalUrl =
-    v.source?.access_url ||
-    v.url;
-}
+  else {
 
-footer.innerHTML = `
+    finalUrl =
+      v.source?.access_url ||
+      v.url;
+  }
+
+  footer.innerHTML = `
 
   <div style="
     width:100%;

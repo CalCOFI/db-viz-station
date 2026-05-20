@@ -1032,6 +1032,7 @@ function openModal(v) {
   </div>
 `;
 }
+
 function openVariableModal(v) {
 
   console.log(
@@ -1042,6 +1043,11 @@ function openVariableModal(v) {
   const backdrop =
     document.getElementById(
       "modal-backdrop"
+    );
+
+  const modal =
+    document.getElementById(
+      "modal"
     );
 
   const title =
@@ -1064,10 +1070,33 @@ function openVariableModal(v) {
       "external-warning"
     );
 
+  if (
+    !backdrop ||
+    !modal ||
+    !title ||
+    !body ||
+    !footer
+  ) {
+
+    console.error(
+      "Modal elements missing"
+    );
+
+    return;
+  }
+
+  // prevent backdrop click bubbling
+  modal.onclick = (e) => {
+    e.stopPropagation();
+  };
+
+  // title
   title.textContent =
     v.display_name ||
-    v.variable_name;
+    v.variable_name ||
+    "Dataset";
 
+  // body
   body.innerHTML = `
 
     <div class="variable-description">
@@ -1078,38 +1107,43 @@ function openVariableModal(v) {
 
     <div class="variable-meta">
 
-      <strong>Dataset:</strong>
-      ${v.dataset_name || ""}
+      <div>
+        <strong>Dataset:</strong>
+        ${v.dataset_name || ""}
+      </div>
 
-      <br>
+      <div>
+        <strong>Provider:</strong>
+        ${v.provider || ""}
+      </div>
 
-      <strong>Provider:</strong>
-      ${v.provider || ""}
+      <div>
+        <strong>Platform:</strong>
+        ${v.platform || ""}
+      </div>
 
-      <br>
-
-      <strong>Platform:</strong>
-      ${v.platform || ""}
+      ${
+        v.units
+          ? `
+          <div>
+            <strong>Units:</strong>
+            ${v.units}
+          </div>
+        `
+          : ""
+      }
 
     </div>
   `;
 
+  // clear footer
   footer.innerHTML = "";
 
-  const button =
-    document.createElement("button");
+  // build URL safely
+  let url = "#";
 
-  button.className =
-    "btn-docs";
+  try {
 
-  button.textContent =
-    "Open Dataset ↗";
-
-  button.onclick = () => {
-
-    let url = "#";
-
-    // ERDDAP
     if (
       v.platform === "erddap"
     ) {
@@ -1117,7 +1151,6 @@ function openVariableModal(v) {
       url =
         buildERDDAPUrl(v);
 
-    // euphausiid
     } else if (
       v.platform === "euphausiid"
     ) {
@@ -1125,7 +1158,6 @@ function openVariableModal(v) {
       url =
         buildEuphausiidUrl(v);
 
-    // zoodb
     } else if (
       v.platform === "zoodb"
     ) {
@@ -1133,7 +1165,6 @@ function openVariableModal(v) {
       url =
         buildZooDBUrl(v);
 
-    // external fallback
     } else {
 
       url =
@@ -1141,22 +1172,56 @@ function openVariableModal(v) {
         "#";
     }
 
-    console.log(
-      "Opening URL:",
-      url
-    );
+  } catch (err) {
 
-    window.open(
-      url,
-      "_blank"
+    console.error(
+      "URL generation failed:",
+      err
     );
-  };
+  }
 
-  footer.appendChild(
-    button
+  // force https for deployed app compatibility
+  if (
+    url &&
+    url.startsWith("http://")
+  ) {
+
+    url =
+      url.replace(
+        "http://",
+        "https://"
+      );
+  }
+
+  console.log(
+    "Generated dataset URL:",
+    url
   );
 
-  // re-add warning
+  // create REAL anchor link
+  const link =
+    document.createElement("a");
+
+  link.href =
+    url;
+
+  link.target =
+    "_blank";
+
+  link.rel =
+    "noopener noreferrer";
+
+  link.className =
+    "btn-docs";
+
+  link.textContent =
+    "Open Dataset ↗";
+
+  footer.appendChild(
+    link
+  );
+
+  // external dataset warning
   footer.appendChild(
     warning
   );
@@ -1172,6 +1237,7 @@ function openVariableModal(v) {
       "none";
   }
 
+  // show modal
   backdrop.style.display =
     "flex";
 }

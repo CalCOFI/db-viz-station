@@ -59,7 +59,7 @@ function buildERDDAPUrl(variable) {
 
   const variableNames = selected
     .filter(v => v.dataset_id === dataset)
-    .map(v => v.erddap_variable)
+    .map(v => v.variable_name)
     .filter(Boolean);
 
   // required fields
@@ -145,21 +145,21 @@ function buildERDDAPUrl(variable) {
 
     if (
       v.constraint_min !== undefined &&
-      v.erddap_variable
+      v.variable_name
     ) {
 
       url +=
-        `&${encodeURIComponent(v.erddap_variable + ">=")}` +
+        `&${encodeURIComponent(v.variable_name + ">=")}` +
         `${encodeURIComponent(v.constraint_min)}`;
     }
 
     if (
       v.constraint_max !== undefined &&
-      v.erddap_variable
+      v.variable_name
     ) {
 
       url +=
-        `&${encodeURIComponent(v.erddap_variable + "<=")}` +
+        `&${encodeURIComponent(v.variable_name + "<=")}` +
         `${encodeURIComponent(v.constraint_max)}`;
     }
   });
@@ -638,75 +638,47 @@ async function loadVariables() {
       "./data/variables.json"
     );
 
-    const data =
+    const raw =
       await res.json();
 
     const variables =
-      Array.isArray(data)
-        ? data
-        : data.variables || [];
+      Array.isArray(raw)
+        ? raw
+        : raw.variables || [];
 
-    // =================================================
-    // STORE GLOBALLY
-    // =================================================
 
-    window.allVariables = variables;
 
-    window.variableMap = {};
+    window.allVariables =
+      variables;
 
-    // selected variables
-
-    window.selectedVariables = [];
-
-    // =================================================
-    // BUILD LOOKUP MAP
-    // =================================================
-
-    variables.forEach(v => {
-
-      // IMPORTANT
-
-      v.variable_id =
-        v.variable_id ||
-        `${v.dataset_id}::${v.variable_name}`;
-
-      window.variableMap[
-        v.variable_id
-      ] = v;
-
-      // normalize arrays
-
-      v.station_ids =
-        v.station_ids || [];
-
-      v.keywords =
-        v.keywords || [];
-
-      v.science_concepts =
-        v.science_concepts || [];
-
-      // normalize fields
-
-      v.display_name =
-        v.display_name ||
-        v.variable_name;
-
-      v.provider =
-        v.provider ||
-        "Unknown";
-
-      v.entity_type =
-        v.entity_type ||
-        "Other";
-
-      v.platform =
-        v.platform ||
-        "external";
-    });
+    console.log(window.allVariables)
 
     console.log(
-      `Loaded ${variables.length} variables`
-    );
+      "Variables loaded:",
+      variables.length
+    )
+    window.variableMap = {};
+
+  variables.forEach(v => {
+
+    const variableId =
+      (
+        v.variable_id ||
+        `${v.dataset_id}::${v.variable_name}`
+      )
+      .trim()
+      .toLowerCase();
+
+    v.variable_id = variableId;
+
+    v.station_ids =
+      v.station_ids || [];
+
+    window.variableMap[
+      variableId
+    ] = v;
+  })
+    ;
 
   } catch (err) {
 
@@ -722,10 +694,27 @@ async function loadVariables() {
 const searchInput = document.getElementById('search');
 const dropdown = document.getElementById('dropdown');
 
+dropdown.addEventListener("mousedown", (e) => {
+
+  const item = e.target.closest(".dropdown-item");
+
+  if (!item) return;
+
+  selectVariable(item.dataset.id);
+
+  closeDropdown();
+
+});
+
+searchInput.addEventListener("input", (e) => {
+  renderDropdown(e.target.value);
+});
+
 searchInput.addEventListener('input', () => {
   const q = searchInput.value.trim();
   dropdownFocusIdx = -1;
   if (!q) { closeDropdown(); clearHighlights(); return; }
+  openDropdown();
   renderDropdown(q);
 });
 
@@ -748,73 +737,124 @@ searchInput.addEventListener('keydown', e => {
   }
 });
 
-searchInput.addEventListener('blur', () => {
-  // small delay so clicks on dropdown register first
+
+searchInput.addEventListener("blur", () => {
   setTimeout(closeDropdown, 150);
 });
 
-function renderDropdown(filtered = null) {
+searchInput.addEventListener('focusout', (e) => {
+  closeDropdown();
+});
 
-  const list =
-    document.getElementById(
-      "dropdown-list"
-    );
-
-  const vars =
-    filtered || window.allVariables;
-
-  list.innerHTML = vars.map(v => `
-
-    <div class="dropdown-item"
-         onclick='selectVariable("${v.variable_id}")'>
-
-      <div class="dropdown-title">
-        ${v.display_name}
-      </div>
-
-      <div class="dropdown-meta">
-
-        ${v.provider}
-        •
-        ${v.entity_type}
-
-      </div>
-
-    </div>
-
-  `).join("");
-}
 
 function updateDropdownFocus(items) {
   items.forEach((el, i) => el.classList.toggle('focused', i === dropdownFocusIdx));
   if (items[dropdownFocusIdx]) items[dropdownFocusIdx].scrollIntoView({ block: 'nearest' });
 }
 
+function openDropdown() {
+  dropdown.classList.add('open');
+}
+
 function closeDropdown() {
+  console.log("closing dropdown");
   dropdown.classList.remove('open');
   dropdownFocusIdx = -1;
 }
 
+function renderDropdown(searchTerm = "") {
+  const vars = window.allVariables || [];
+
+  if (!Array.isArray(vars)) {
+    console.error("renderDropdown expected array:", vars);
+    return;
+  }
+
+  const list = document.getElementById("dropdown");
+
+  if (!list) {
+    console.error("Dropdown element not found (#dropdown)");
+    return;
+  }
+
+  const filtered = vars.filter(v => {
+    const text = (
+      (v.display_name || "") +
+      " " +
+      (v.keywords || []).join(" ")
+    ).toLowerCase();
+
+    return text.includes(searchTerm.toLowerCase());
+  });
+
+  if (filtered.length === 0 || !searchTerm) {
+    list.innerHTML = "";
+    list.classList.remove("open");
+    return;
+  }
+
+  list.classList.add("open");
+
+  list.innerHTML = filtered.map(v => `
+    <div class="dropdown-item"
+         data-id="${v.variable_id}">
+
+      <div class="dropdown-title">
+        ${v.display_name}
+      </div>
+
+
+    </div>
+  `).join("");
+}
+
+document.getElementById("dropdown").addEventListener("mousedown", (e) => {
+  const item = e.target.closest(".dropdown-item");
+  if (!item) return;
+
+  const id = item.dataset.id;
+
+  const selected = (window.allVariables || [])
+    .find(v => v.variable_id === id);
+
+  if (selected) {
+    selectVariable(selected.variable_id);
+    closeDropdown();
+  }
+});
+
+
+
+
+
 function selectVariable(variableId) {
 
-  const variable =
-    window.variableMap[
-    variableId
-    ];
+  const v =
+    window.allVariables.find(v => v.variable_id === variableId);
 
-  if (!variable) return;
+  console.log(v)
 
-  window.selectedVariables =
-    [variable];
+  if (!v) {
 
-  console.log(
-    "Selected variable:",
-    variable
-  );
+    console.error(
+      "Variable not found:",
+      variableId
+    );
 
-  highlightStations(variable);
+    console.log(
+      "Available keys sample:",
+      Object.keys(
+        window.variableMap || {}
+      ).slice(0, 10)
+    );
 
-  openModal(variable);
+    return;
+  }
+
+
+  highlightStations(v);
+
+  openVariableModal(v);
 }
 
 function escapeRe(str) {
@@ -899,46 +939,20 @@ function openModal(v) {
   const modalBody = document.getElementById('modal-body');
   const footer = document.getElementById('modal-footer');
 
-  modalTitle.textContent = v.name;
+  modalTitle.textContent = v.display_name;
 
   // ---------- BODY ----------
   modalBody.innerHTML = `
     <div class="modal-row">
       <span class="modal-row-label">Source</span>
-      <span class="modal-row-value accent">${v.source || 'Unknown'}</span>
+      <span class="modal-row-value accent">${v.platform || 'Unknown'}</span>
     </div>
 
     <div class="modal-row">
       <span class="modal-row-label">Category</span>
-      <span class="modal-row-value">${v.category || 'Uncategorized'}</span>
+      <span class="modal-row-value">${v.entity_type || 'Uncategorized'}</span>
     </div>
 
-    ${v.unit ? `
-      <div class="modal-row">
-        <span class="modal-row-label">Unit</span>
-        <span class="modal-row-value">${v.unit}</span>
-      </div>` : ''}
-
-    ${v.date_range_start ? `
-      <div class="modal-row">
-        <span class="modal-row-label">Date Range</span>
-        <span class="modal-row-value">
-          ${v.date_range_start} → ${v.date_range_end || 'Present'}
-        </span>
-      </div>` : ''}
-
-    <div class="modal-row">
-      <span class="modal-row-label">Format</span>
-      <span class="modal-row-value">${v.format || 'ERDDAP / CSV'}</span>
-    </div>
-
-    ${v.notes ? `
-      <div class="modal-row">
-        <span class="modal-row-label">Notes</span>
-        <span class="modal-row-value" style="font-size:10px;color:var(--muted)">
-          ${v.notes}
-        </span>
-      </div>` : ''}
   `;
 
   // ---------- WARNINGS ----------
@@ -1017,6 +1031,171 @@ function openModal(v) {
 
   </div>
 `;
+}
+function openVariableModal(v) {
+
+  console.log(
+    "Opening variable modal:",
+    v
+  );
+
+  const backdrop =
+    document.getElementById(
+      "modal-backdrop"
+    );
+
+  const title =
+    document.getElementById(
+      "modal-title"
+    );
+
+  const body =
+    document.getElementById(
+      "modal-body"
+    );
+
+  const footer =
+    document.getElementById(
+      "modal-footer"
+    );
+
+  const warning =
+    document.getElementById(
+      "external-warning"
+    );
+
+  title.textContent =
+    v.display_name ||
+    v.variable_name;
+
+  body.innerHTML = `
+
+    <div class="variable-description">
+
+      ${v.description || ""}
+
+    </div>
+
+    <div class="variable-meta">
+
+      <strong>Dataset:</strong>
+      ${v.dataset_name || ""}
+
+      <br>
+
+      <strong>Provider:</strong>
+      ${v.provider || ""}
+
+      <br>
+
+      <strong>Platform:</strong>
+      ${v.platform || ""}
+
+    </div>
+  `;
+
+  footer.innerHTML = "";
+
+  const button =
+    document.createElement("button");
+
+  button.className =
+    "btn-docs";
+
+  button.textContent =
+    "Open Dataset ↗";
+
+  button.onclick = () => {
+
+    let url = "#";
+
+    // ERDDAP
+    if (
+      v.platform === "erddap"
+    ) {
+
+      url =
+        buildERDDAPUrl(v);
+
+    // euphausiid
+    } else if (
+      v.platform === "euphausiid"
+    ) {
+
+      url =
+        buildEuphausiidUrl(v);
+
+    // zoodb
+    } else if (
+      v.platform === "zoodb"
+    ) {
+
+      url =
+        buildZooDBUrl(v);
+
+    // external fallback
+    } else {
+
+      url =
+        v.source?.access_url ||
+        "#";
+    }
+
+    console.log(
+      "Opening URL:",
+      url
+    );
+
+    window.open(
+      url,
+      "_blank"
+    );
+  };
+
+  footer.appendChild(
+    button
+  );
+
+  // re-add warning
+  footer.appendChild(
+    warning
+  );
+
+  if (!v.station_based) {
+
+    warning.style.display =
+      "block";
+
+  } else {
+
+    warning.style.display =
+      "none";
+  }
+
+  backdrop.style.display =
+    "flex";
+}
+
+function closeModal(event) {
+
+  // allow backdrop click close
+  if (
+    event &&
+    event.target &&
+    event.target.id !== "modal-backdrop"
+  ) {
+    return;
+  }
+
+  const backdrop =
+    document.getElementById(
+      "modal-backdrop"
+    );
+
+  if (backdrop) {
+    backdrop.style.display =
+      "none";
+  }
 }
 
 // --- Boot ---

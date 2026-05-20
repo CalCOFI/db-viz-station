@@ -359,6 +359,17 @@ function buildZooDBUrl(variable) {
   );
 }
 
+function normalizeStationId(id) {
+
+  if (!id)
+    return "";
+
+  return id
+    .replace(/"/g, "")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
 function parseStationId(stationId) {
 
   if (!stationId)
@@ -384,6 +395,8 @@ function parseStationId(stationId) {
       parts[1]
   };
 }
+
+
 
 // --- Station markers ---
 function makeMarkerStyle(highlighted) {
@@ -445,8 +458,12 @@ function openStation(station) {
 
       return (
         v.station_ids &&
-        v.station_ids.includes(
-          station.station_id
+        (v.station_ids || []).some(id =>
+
+          normalizeStationId(id) ===
+          normalizeStationId(
+            station.station_id
+          )
         )
       );
     });
@@ -518,8 +535,13 @@ async function loadStations() {
       "./data/stations.json"
     );
 
-    const stations =
+    const data =
       await res.json();
+
+    const stations =
+      Array.isArray(data)
+        ? data
+        : data.stations || [];
 
     // =================================================
     // STORE GLOBALLY

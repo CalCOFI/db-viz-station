@@ -1,6 +1,6 @@
 -- build_crosswalk.sql — generate metadata/crosswalk_variables.csv
 --
--- Maps every existing portal variable (public/data/variables.json) to the
+-- Maps every existing portal variable (metadata/variables_harvested.json) to the
 -- integrated-DB measurement_type vocabulary, inheriting the dataset-level
 -- classification from metadata/crosswalk_datasets.csv (hand-curated).
 --
@@ -23,7 +23,7 @@ FROM read_csv_auto('metadata/crosswalk_datasets.csv');
 -- portal variable catalog
 CREATE OR REPLACE TABLE v AS
 SELECT dataset_id AS portal_dataset_id, variable_name, display_name, units, entity_type
-FROM read_json_auto('public/data/variables.json');
+FROM read_json_auto('metadata/variables_harvested.json');
 
 -- normalize a token for fuzzy name matching (t_degc <-> t_deg_c, chlora <-> chlor_a)
 CREATE OR REPLACE MACRO norm(s) AS lower(regexp_replace(coalesce(s, ''), '[^a-z0-9]', '', 'g'));

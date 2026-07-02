@@ -1,0 +1,34 @@
+portal_dataset_id,portal_name,realm,db_provider_dataset,match_class,notes
+siocalcofiHydroBottle,CalCOFI SIO Hydrographic Bottle Data,env,calcofi_bottle,matching,bottle-grain physical/chemical measurements
+siocalcofiHydroCast,CalCOFI SIO Hydrographic Cast Data,env,calcofi_bottle,matching,cast-level metadata of the bottle program (casts table)
+erdCalCOFINOAAhydros,CalCOFI NOAA Additional CTD,env,calcofi_ctd-cast,matching,additional CTD hydro
+ctd-cast-files/,CTD cast data (SIO),env,calcofi_ctd-cast,matching,SIO CTD cast files
+gov.noaa.nodc:0301029,Carbonate chemistry - bottles,env,calcofi_dic,matching,NCEI accession 0301029 is the DIC source
+underway/,Weather - underway/METS data,env,,missing,underway meteorological/METS stream not ingested
+erdCalCOFIlrvcnt,CalCOFI NOAA Fish Larvae Counts,bio,swfsc_ichthyo,matching,larval tally
+erdCalCOFIlrvsiz,CalCOFI NOAA Fish Larvae Sizes,bio,swfsc_ichthyo,matching,measurement_type=size
+erdCalCOFIlrvstg,CalCOFI NOAA Fish Larvae Stages,bio,swfsc_ichthyo,matching,measurement_type=stage
+erdCalCOFIeggcnt,CalCOFI NOAA Fish Egg Counts,bio,swfsc_ichthyo,matching,egg counts within ichthyoplankton
+erdCalCOFIeggstg,CalCOFI NOAA Fish Egg Stages,bio,swfsc_ichthyo,matching,egg stages
+erdCalCOFItows,CalCOFI NOAA Ichthyoplankton Tows,bio,swfsc_ichthyo,matching,tow/net metadata
+erdCalCOFIinvcnt,Invertebrate count (Cephalopods),bio,swfsc_invert,matching,swfsc_invert folded into swfsc_ichthyo per prior merge
+erdCalCOFIinvsiz,Invertebrate size (Cephalopods),bio,swfsc_invert,matching,swfsc_invert folded into swfsc_ichthyo
+erdCalCOFIcufes,CalCOFI NOAA Continuous Underway Fish-Egg Sampler (CUFES),bio,swfsc_cufes,matching,underway fish eggs
+erdCalCOFIzoovol,Zooplankton biovolume,bio,pic_zooplankton,matching,SIO PIC net-tow biovolume
+euphausiid,CalCOFI Euphausiid Database,bio,cce-lter_euphausiids,matching,krill abundance by species/life-stage
+/euphausiid/save.php?mode=save,Krill (Euphausiids),bio,cce-lter_euphausiids,matching,duplicate access-URL entry of euphausiid
+zoodb,CalCOFI ZooDB,bio,cce-lter_zoodb,matching,holoplankton community
+zoodb/save.php?mode=save,Permanent zooplankton (Holoplankton) community: ZooDb,bio,cce-lter_zoodb,matching,duplicate access-URL entry of zoodb
+datazoo/catalogs/ccelter/datasets/254,Phytoplankton community (visual estimates),bio,calcofi_phytoplankton,matching,"Venrick EDI knb-lter-cce.254; NOTE calcofi_phytoplankton is in measurement_type but missing from metadata/dataset.csv"
+CAC_FI_SBAS_obs,CalCOFI Farallon Institute Seabirds: Observations,bio,calcofi_bird_mammal_census,partial,Farallon Institute seabird obs; overlaps bird/mammal census (different provider slice)
+CAC_FI_SBAS_sp,CalCOFI Farallon Institute Seabirds: Transect Log,bio,calcofi_bird_mammal_census,partial,transect log for seabird census
+CAC_FL_SBAS_tr,CalCOFI Farallon Institute Seabirds: Species Table,bio,calcofi_bird_mammal_census,partial,species table for seabird census
+knb-lter-cce.262.2,Marine mammal sightings- underway,bio,calcofi_bird_mammal_census,partial,CCE-LTER underway mammal sightings vs CalCOFI census; different source
+datazoo/catalogs/ccelter/datasets/159,Heterotrophic bacteria & picoautotrophs,bio,,missing,microbial abundance not ingested
+knb-lter-cce.188.4,Dungeness crab postlarvae (Metacarcinus/Cancer magister),bio,,missing,crab megalopae; not ingested (calcofi_phyllosoma is spiny-lobster larvae)
+nt620vn7810,Stanford CalCOFI zooplankton data,bio,,missing,Stanford historical zooplankton archive; not ingested
+bb9217084g,Mesopelagic Fish,bio,,missing,mesopelagic fish archive; not ingested
+555783,Genomics of microbial/plankton assemblage (ASVs) - 16S,omics,,missing,genomics/eDNA not in integrated DB
+ruizt/marine-mammal-edna,Genomics of plankton assemblage (ASVs) - 18S,omics,,missing,genomics/eDNA not in integrated DB
+,,bio,calcofi_phyllosoma,new,CalCOFI Lobster Phyllosoma in DB but no portal dataset yet
+,,bio,cce-lter_zooscan,new,ZooScan PRPOOS zooplankton in DB but no portal dataset yet (portal has zoodb only)

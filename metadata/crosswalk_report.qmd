@@ -1,0 +1,170 @@
+---
+title: "CalCOFI Station Portal ↔ Integrated Database — Crosswalk Report"
+subtitle: "Which portal datasets & variables are matching, partial, missing, or new"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 2
+    embed-resources: true
+    theme: cosmo
+    df-print: paged
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+librarian::shelf(readr, dplyr, tidyr, DT, glue, quiet = TRUE)
+
+xd <- read_csv("crosswalk_datasets.csv",  show_col_types = FALSE)
+xv <- read_csv("crosswalk_variables.csv", show_col_types = FALSE)
+
+# consistent class ordering + colors
+class_lvls <- c("matching", "partial", "missing", "new")
+class_pal  <- c(matching = "#2f9e44", partial = "#f08c00",
+                missing = "#e03131", new = "#1971c2")
+
+dt <- function(d, ...) datatable(
+  d, rownames = FALSE, filter = "top", extensions = "Buttons",
+  options = list(pageLength = 15, scrollX = TRUE, dom = "Bfrtip",
+                 buttons = c("copy", "csv")), ...)
+```
+
+This report reconciles the **existing station portal** (its `data_sources.csv`
+datasets and harvested `variables.json`) against the **CalCOFI integrated
+database** (`provider_dataset` + `measurement_type`/taxa). Names differ between
+the two, so each entry is classed:
+
+- **matching** — portal entry has a direct integrated-DB counterpart
+- **partial** — overlapping but a different provider slice / grain
+- **missing** — portal has it, the DB does *not* (→ ingest backlog)
+- **new** — the DB has it, the portal does *not* yet surface it
+
+Source tables: `crosswalk_datasets.csv`, `crosswalk_variables.csv` (regenerate
+the latter with `duckdb -c ".read scripts/build_crosswalk.sql"`).
+
+# Datasets
+
+```{r ds-topline}
+ds_by_class <- xd |>
+  mutate(match_class = factor(match_class, class_lvls)) |>
+  count(match_class, .drop = FALSE) |>
+  mutate(pct = round(100 * n / sum(n)))
+```
+
+**`r nrow(xd)` dataset rows** — `r sum(xd$match_class=='matching')` matching ·
+`r sum(xd$match_class=='partial')` partial ·
+`r sum(xd$match_class=='missing')` missing ·
+`r sum(xd$match_class=='new')` new.
+
+```{r ds-by-class}
+ds_by_class |>
+  transmute(`match class` = match_class, count = n, `%` = pct) |>
+  dt(caption = "Dataset rows by match class")
+```
+
+```{r ds-by-realm}
+xd |> count(realm, match_class) |>
+  pivot_wider(names_from = match_class, values_from = n, values_fill = 0) |>
+  dt(caption = "Dataset match class × realm")
+```
+
+## Full dataset crosswalk
+
+```{r ds-full}
+xd |>
+  select(portal_dataset_id, portal_name, realm, db_provider_dataset, match_class, notes) |>
+  dt(caption = "Every portal dataset mapped to the integrated DB") |>
+  formatStyle("match_class", target = "cell",
+    backgroundColor = styleEqual(names(class_pal), unname(class_pal)),
+    color = "white", fontWeight = "bold")
+```
+
+# Variables
+
+```{r var-topline}
+n_env  <- sum(grepl("measurement_type", xv$var_note))
+n_tax  <- sum(grepl("taxon", xv$var_note))
+n_unm  <- sum(xv$var_note == "unmatched")
+n_nod  <- sum(grepl("no DB dataset", xv$var_note))
+```
+
+**`r nrow(xv)` variable rows** — `r n_env` matched to a DB `measurement_type`,
+`r n_tax` classed as taxa (resolved at build time by species name), `r n_unm`
+unmatched (mostly identifier/QC columns), `r n_nod` with no DB dataset
+(missing/omics).
+
+```{r var-by-note}
+xv |> count(var_note, sort = TRUE) |>
+  dt(caption = "Variable rows by crosswalk outcome")
+```
+
+```{r var-by-dataset}
+xv |>
+  mutate(dataset_match_class = factor(dataset_match_class, class_lvls)) |>
+  count(db_provider_dataset, dataset_match_class, .drop = FALSE) |>
+  filter(!is.na(db_provider_dataset)) |>
+  pivot_wider(names_from = dataset_match_class, values_from = n, values_fill = 0) |>
+  dt(caption = "Variables per integrated-DB dataset, by the dataset's match class")
+```
+
+## Full variable crosswalk
+
+```{r var-full}
+xv |>
+  select(portal_dataset_id, variable_name, display_name, units, entity_type,
+         db_provider_dataset, realm, dataset_match_class, measurement_type_match, var_note) |>
+  dt(caption = "Every portal variable mapped to the integrated DB")
+```
+
+# Insights & recommendations
+
+```{r gaps}
+missing_ds <- xd |> filter(match_class == "missing") |> pull(portal_name)
+new_ds     <- xd |> filter(match_class == "new")     |> pull(db_provider_dataset)
+partial_ds <- xd |> filter(match_class == "partial") |> pull(portal_name)
+```
+
+**Coverage is strong for the core program.** Every headline environmental and
+biological program the portal advertises resolves to an integrated-DB dataset:
+hydrographic bottle → `calcofi_bottle`, CTD → `calcofi_ctd-cast`, carbonate
+chemistry → `calcofi_dic`, the six ERDDAP ichthyoplankton tables →
+`swfsc_ichthyo`, CUFES → `swfsc_cufes`, zooplankton biovolume →
+`pic_zooplankton`, euphausiids → `cce-lter_euphausiids`, ZooDB → `cce-lter_zoodb`,
+phytoplankton → `calcofi_phytoplankton`.
+
+**Ingest backlog (portal advertises, DB lacks — `missing`):**
+`r glue::glue_collapse(missing_ds, sep = "; ")`. These are candidate future
+ingests (underway meteorology, microbial/picoplankton, Dungeness crab
+postlarvae, the Stanford historical zooplankton archive, mesopelagic fish, and
+two eDNA/genomics ASV datasets — genomics is out of scope for the current
+observation model).
+
+**Surface in the portal (DB has, portal lacks — `new`):**
+`r glue::glue_collapse(new_ds, sep = "; ")`. `calcofi_phyllosoma` and
+`cce-lter_zooscan` are fully ingested but not yet advertised — add them to
+`data_sources.csv` / the map legend.
+
+**Partial mappings to review (`partial`):**
+`r glue::glue_collapse(partial_ds, sep = "; ")` all fold into
+`calcofi_bird_mammal_census`, but come from different provider slices (Farallon
+Institute seabirds; CCE-LTER underway mammal sightings) than the CalCOFI census
+— confirm these are the same underlying observations before merging.
+
+**Data-quality fixes surfaced by the crosswalk:**
+
+- `calcofi_phytoplankton` was present in `measurement_type.csv` and had a full
+  ingest, but was **missing from `metadata/dataset.csv`** — now added.
+- **Euphausiids lack per-species resolution** in the integrated DB (only total
+  `euphausiid_abundance`); the portal's ~39 harvested krill species are not
+  backed by DB data. Re-ingest with the species dimension to close this.
+- The **taxon → harvested-extras** join is currently name-based and low-yield;
+  a future pass should match on WoRMS `aphia_id` (the DB taxa carry it) rather
+  than scientific-name strings.
+
+**Bottom line:** the portal can be driven entirely by the integrated DB today
+for the core datasets, with a short, explicit backlog (above) rather than silent
+gaps.
+```

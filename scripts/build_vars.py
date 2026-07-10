@@ -32,6 +32,46 @@ CANONICAL_STATIONS = set(
     normalize_station_id(s) for s in ALL_STATION_IDS
 )
 
+# (station_id, lat, lon) for every canonical station -- used by the
+# lat/lon spatial match in fetch_erddap_stations(). Diagnostic run
+# (diagnose_station_fetch.py) showed several ERDDAP datasets
+# (erdCalCOFIeggcnt, erdCalCOFINOAAhydros, and by extension the other
+# non-hydro ERDDAP datasets that share this same fetch path) are broader
+# NOAA-aggregated collections spanning far more of the North Pacific than
+# just the CalCOFI grid -- their own line/station numbering isn't the
+# CalCOFI convention at all, so no amount of reformatting would make it
+# match. Real lat/lon proximity to the known 115 stations is the only
+# reliable filter regardless of what each source dataset calls its own
+# line/station fields.
+CANONICAL_STATION_COORDS = [
+    (normalize_station_id(s["station_id"]), s["lat"], s["lon"])
+    for s in stations if s.get("station_id") and "lat" in s and "lon" in s
+]
+
+# Max distance (km) for a point to be considered "at" a canonical station.
+# CalCOFI stations are tens of km apart; this is deliberately tight so
+# genuinely different surveys (Gulf of Alaska, etc.) can't accidentally
+# match just because they're the least-bad option in a huge search space.
+MAX_STATION_MATCH_KM = 5.0
+
+
+def haversine_km(lat1, lon1, lat2, lon2):
+    from math import radians, sin, cos, sqrt, atan2
+    R = 6371.0
+    dlat = radians(lat2 - lat1)
+    dlon = radians(lon2 - lon1)
+    a = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
+    return R * 2 * atan2(sqrt(a), sqrt(1 - a))
+
+
+def nearest_canonical_station(lat, lon):
+    best_id, best_dist = None, None
+    for sid, slat, slon in CANONICAL_STATION_COORDS:
+        d = haversine_km(lat, lon, slat, slon)
+        if best_dist is None or d < best_dist:
+            best_id, best_dist = sid, d
+    return best_id, best_dist
+
 
 def clean(value):
     if value is None:
@@ -204,21 +244,29 @@ def fetch_erddap_stations(dataset_id):
             return sorted(list(set(found)))
 
         else:
-            url = f"{base}/{dataset_id}.json?line%2Cstation&distinct()"
+            # Previously queried ?line,station&distinct() and matched
+            # against CANONICAL_STATIONS directly. Diagnostic run showed
+            # this always returned 0 matches -- these datasets are broader
+            # NOAA-aggregated collections (confirmed: some line/station
+            # combos correspond to real coordinates in the Gulf of Alaska
+            # and off British Columbia, nowhere near the CalCOFI grid), so
+            # their line/station numbering isn't the CalCOFI convention at
+            # all. Using lat/lon + spatial proximity instead correctly
+            # filters down to just the real CalCOFI-area subset regardless
+            # of what the source survey calls its own line/station fields.
+            url = f"{base}/{dataset_id}.json?latitude%2Clongitude&distinct()"
             r = requests.get(url, timeout=60)
             r.raise_for_status()
             rows = r.json()["table"]["rows"]
-            found = []
+            found = set()
             for row in rows:
-                if len(row) < 2:
+                if len(row) < 2 or row[0] is None or row[1] is None:
                     continue
-                line, station = row[0], row[1]
-                if line is None or station is None:
-                    continue
-                sid = normalize_station_id(f"{line} {station}")
-                if sid in CANONICAL_STATIONS:
-                    found.append(sid)
-            return sorted(list(set(found)))
+                lat, lon = row[0], row[1]
+                sid, dist = nearest_canonical_station(lat, lon)
+                if sid is not None and dist <= MAX_STATION_MATCH_KM:
+                    found.add(sid)
+            return sorted(found)
 
     except Exception as e:
         print(f"Station fetch failed for {dataset_id}:", e)
@@ -288,10 +336,19 @@ for _, row in df.iterrows():
             response = requests.get(metadata_url)
             metadata_json = response.json()
 
-            if dataset_id not in station_groups:
-                station_groups[dataset_id] = fetch_erddap_stations(dataset_id)
-
-            dataset_station_ids = station_groups[dataset_id]
+            # Respect the CSV's own station_based flag. Continuous/underway
+            # datasets (CUFES, zooplankton biovolume, the seabird transect
+            # log) are explicitly marked non-station-based in the source
+            # metadata -- a spatial match finding the ship's track passes
+            # near a station doesn't mean the reading belongs TO that
+            # station the way a discrete cast does. Skip matching entirely
+            # for these rather than silently overriding that distinction.
+            if not station_based:
+                dataset_station_ids = []
+            else:
+                if dataset_id not in station_groups:
+                    station_groups[dataset_id] = fetch_erddap_stations(dataset_id)
+                dataset_station_ids = station_groups[dataset_id]
 
         except Exception as e:
             print("FAILED:", dataset_id, e)

@@ -178,7 +178,7 @@ function parseStationId(stationId) {
 const METADATA_KEYWORDS = [
   "time", "date", "latitude", "longitude", "lat", "lon",
   "cast count", "bottle count", "bottle identifier",
-  "line and station", "station id", "depth"
+  "line and station", "station id", "depth", "end time"
 ];
 
 // Distinctive multi-word admin/identifier fields — safe to match anywhere
@@ -191,7 +191,7 @@ const ADMIN_KEYWORDS = [
   "visibility code", "wave direction code", "weather code",
   "civil twilight", "local apparent noon", "incubation start time",
   "incubation end time", "reported station", "reported line number",
-  "time zone",
+  "time zone", "calcofi line", "calcofi station",
 ];
 
 // Single ambiguous words — only exact match to avoid over-catching
@@ -299,7 +299,7 @@ function buildStationTabs(stationVariables) {
 // can be tested/audited independently, same as isMetadataField/isCruiseField.
 const PANEL_EXCLUDE = [
   "quality", " quality", "flag", "bottle number", "bottle depth",
-  "bottle identifier", "cast count", "bottle count",
+  "bottle identifier", "cast count", "bottle count", "tow number",
   // pH already has its own clean field ("pH", from ph1); the un-numbered
   // "Replicate" variant (ph2) isn't caught by the Replicate-N merge logic
   // since its raw label has no trailing digit, so it needs its own exclude
@@ -329,10 +329,14 @@ function renderStationTab(vars) {
   // group scientific vars by entity_type, alphabetically within each
   // override entity_type for known misclassified variables
   function getDisplayType(v) {
-    // Classify by the rendered label, not the raw display_name -- raw
-    // ERDDAP names are often abbreviated ("O2", "O2Sat") in ways that don't
-    // contain the obvious keyword even though the rendered label ("Oxygen
-    // (mL/L)", "Oxygen Saturation") clearly does.
+    // Taxon entries (species) must never go through the keyword matching
+    // below -- "ph" (meant to catch pH measurements) is a bare substring
+    // match, and it happens to appear inside "Euphausia" itself, plus
+    // "Pasiphaea", "Xiphias", and others -- silently misclassifying real
+    // species as "Chemical". Route taxa straight to their real
+    // entity_type before any of that runs.
+    if (v.entity_type === "taxon") return "Taxa";
+
     const n = fixDisplayName(v.display_name || "").toLowerCase();
     if (n.includes("c14") || n.includes("chlorophyll") || n.includes("phaeopigment") || n.includes("productivity")) {
       return "Productivity & Pigments";
@@ -515,9 +519,23 @@ async function loadStations() {
           // show that instead of also replacing the panel.
           const key = normalizeStationId(station.station_id);
           const stationVars = window.stationVariableMap?.[key] || [];
-          const hasVariable = stationVars.some(v => v.variable_id === selectedVariable.variable_id);
-          if (hasVariable) {
-            openVariableModal(selectedVariable);
+
+          if (selectedVariable.is_umbrella) {
+            const matches = stationVars.filter(v =>
+              selectedVariable.constituent_variable_ids.includes(v.variable_id));
+            if (matches.length === 1) {
+              openVariableModal(matches[0]);
+            } else if (matches.length > 1) {
+              openSourceChooser(matches, station, selectedVariable.display_name);
+            }
+            // matches.length === 0: station was highlighted via the union
+            // but isn't in this particular constituent's real index -- do
+            // nothing rather than show a misleading popup.
+          } else {
+            const hasVariable = stationVars.some(v => v.variable_id === selectedVariable.variable_id);
+            if (hasVariable) {
+              openVariableModal(selectedVariable);
+            }
           }
         } else {
           // Browsing mode, no variable selected -- clicking a station opens
@@ -558,7 +576,7 @@ function contentKeywordGroup(v) {
     return "Carbonate system";
   if (["wind","wave","weather","cloud","visibility","bulb","atmospheric","pump speed"].some(k => n.includes(k)))
     return "Meteorology & sea state";
-  if (["temperature","salinity","density","oxygen","o2","pressure","depth","secchi","forel"].some(k => n.includes(k)))
+  if (["temperature","salinity","density","oxygen","o2","pressure","depth","secchi","forel","dynamic height"].some(k => n.includes(k)))
     return "Physical oceanography";
   return null;
 }
@@ -606,6 +624,7 @@ async function loadVariables() {
 
     // FIX: build browse groups while we load
     window.browseGroups = {};
+    window.datasetGroups = {};
 
     variables.forEach(v => {
       const variableId = (v.variable_id || `${v.dataset_id}::${v.variable_name}`)
@@ -639,6 +658,16 @@ async function loadVariables() {
       const group = contentKeywordGroup(v) || v.browse_group || runtimeGroup(v);
       if (!window.browseGroups[group]) window.browseGroups[group] = [];
       window.browseGroups[group].push(v);
+
+      // Index by dataset too, for the "browse by dataset" view -- lets
+      // someone start from "what does the Hydrographic Bottle dataset
+      // measure?" instead of only from a subject category.
+      if (!window.datasetGroups) window.datasetGroups = {};
+      const dsKey = v.dataset_id || "unknown";
+      if (!window.datasetGroups[dsKey]) {
+        window.datasetGroups[dsKey] = { name: v.dataset_name || dsKey, variables: [] };
+      }
+      window.datasetGroups[dsKey].variables.push(v);
     });
 
     // render inventory panel (right side)
@@ -771,10 +800,23 @@ function toggleInventoryGroup(groupName) {
   renderInventoryPanel();
 }
 
-function renderInventoryPanel() {
-  const empty = document.getElementById("panel-empty");
-  if (!empty) return;
+// Tracks which umbrella rows (labels backed by >1 dataset) have their
+// per-dataset breakdown expanded. Collapsed by default -- the breakdown
+// only appears once the person explicitly clicks the umbrella row's
+// source toggle, rather than being shown open for every umbrella at once.
+window.expandedUmbrellaKeys = window.expandedUmbrellaKeys || new Set();
 
+function toggleUmbrellaSources(key, event) {
+  if (event) event.stopPropagation();
+  if (window.expandedUmbrellaKeys.has(key)) {
+    window.expandedUmbrellaKeys.delete(key);
+  } else {
+    window.expandedUmbrellaKeys.add(key);
+  }
+  renderInventoryPanel();
+}
+
+function buildCategoryRows() {
   const groups = window.browseGroups || {};
 
   // ORDER uses current group names from browseGroups (old names until build_vars_v2.py runs)
@@ -810,7 +852,7 @@ function renderInventoryPanel() {
     ...ALL_KEYS.filter(g => !PREFERRED_ORDER.includes(g))
   ];
 
-  const rows = ORDER
+  return ORDER
     .filter(g => groups[g] && !HIDE_FROM_INVENTORY.has(g))
     .map(g => {
       const count = groups[g].length;
@@ -825,22 +867,59 @@ function renderInventoryPanel() {
 
       const subItems = isOpen
         ? groupedSubVars.map(entries => {
-            const { v, rawLabel } = entries[0];
+            const { v: firstV, rawLabel } = entries[0];
             const label = fixDisplayName(rawLabel);
             const datasetNames = [...new Set(entries.map(e => e.v.dataset_name || e.v.provider || e.v.dataset_id))];
-            const countBadge = (typeof v.sighting_count === "number")
+            const umbrella = entries.length > 1 ? buildUmbrellaVariable(entries, label) : null;
+
+            const countBadgeFor = (v) => (typeof v.sighting_count === "number")
               ? `<span class="inventory-subitem-count">${v.sighting_count.toLocaleString()} sighted</span>`
               : (typeof v.tow_occurrence_count === "number")
               ? `<span class="inventory-subitem-count">${v.tow_occurrence_count.toLocaleString()} of ${v.total_tows_surveyed.toLocaleString()} tows</span>`
               : "";
-            return `
-              <div class="inventory-subitem" onclick='event.stopPropagation(); selectVariable("${v.variable_id}")'>
-                <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">
-                  <span class="inventory-subitem-name">${label}</span>
-                  ${countBadge}
+
+            if (!umbrella) {
+              // Single dataset behind this label -- unchanged from before.
+              return `
+                <div class="inventory-subitem" onclick='event.stopPropagation(); selectVariable("${firstV.variable_id}")'>
+                  <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">
+                    <span class="inventory-subitem-name">${label}</span>
+                    ${countBadgeFor(firstV)}
+                  </div>
+                  <span class="inventory-subitem-meta">${datasetNames.join("; ")}</span>
                 </div>
-                <span class="inventory-subitem-meta">${datasetNames.join("; ")}</span>
+              `;
+            }
+
+            // Multiple datasets share this label -- clicking the label
+            // itself only expands/collapses the per-dataset breakdown.
+            // It intentionally does NOT navigate to the map: showing the
+            // umbrella's unioned view left it unclear which dataset the
+            // map/slider was actually reflecting, so a specific dataset
+            // must be chosen below before anything renders.
+            const umbrellaKey = `${safeG}::${label}`.replace(/'/g, "\\'");
+            const sourcesOpen = window.expandedUmbrellaKeys.has(umbrellaKey);
+
+            const subLinks = sourcesOpen
+              ? `<div class="inventory-sublinks">${entries.map(({ v }, i) => `
+                  ${i > 0 ? '<div class="inventory-sublink-divider"></div>' : ''}
+                  <div class="inventory-subitem inventory-subitem-nested" onclick='event.stopPropagation(); selectVariable("${v.variable_id}")'>
+                    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">
+                      <span class="inventory-subitem-name">${v.dataset_name || v.dataset_id}</span>
+                      ${countBadgeFor(v)}
+                    </div>
+                  </div>
+                `).join("")}</div>`
+              : "";
+
+            return `
+              <div class="inventory-subitem" onclick='toggleUmbrellaSources("${umbrellaKey}", event)'>
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                  <span class="inventory-subitem-name">${label}</span>
+                  <span class="inventory-umbrella-caret">${sourcesOpen ? '▾' : '▸'}</span>
+                </div>
               </div>
+              ${subLinks}
             `;
           }).join("")
         : "";
@@ -859,11 +938,148 @@ function renderInventoryPanel() {
         ${subList}
       `;
     }).join("");
+}
+
+// -------------------------------------------------------
+// "Browse by dataset" view -- same accordion pattern as categories,
+// but the top-level grouping is the source dataset itself (e.g. "CalCOFI
+// SIO Hydrographic Bottle Data") instead of a subject category. Answers
+// "what does THIS dataset measure?" directly, which the category view
+// can't: a dataset's parameters are often scattered across several
+// categories there (e.g. Hydrographic Bottle contributes to Physical
+// Oceanography, Water Chemistry, and Primary Production all at once).
+// -------------------------------------------------------
+window.expandedInventoryDataset = window.expandedInventoryDataset || null;
+
+function toggleInventoryDataset(datasetId) {
+  window.expandedInventoryDataset =
+    (window.expandedInventoryDataset === datasetId) ? null : datasetId;
+  renderInventoryPanel();
+}
+
+function buildDatasetRows() {
+  const datasets = window.datasetGroups || {};
+
+  const sortedIds = Object.keys(datasets).sort((a, b) =>
+    (datasets[a].name || a).localeCompare(datasets[b].name || b));
+
+  return sortedIds
+    .map(dsId => {
+      const ds = datasets[dsId];
+
+      // Same visibility rule as the category view: a variable only
+      // counts as a real measured parameter if it isn't excluded by name
+      // AND its computed group isn't QC/metadata (identifiers, timestamps,
+      // coordinate fields, ship/cruise bookkeeping -- real columns in the
+      // source table, but not something anyone is "measuring").
+      const visibleVars = ds.variables.filter(v =>
+        !isExcludedFromBrowse(v) &&
+        !HIDE_FROM_INVENTORY.has(contentKeywordGroup(v) || v.browse_group || runtimeGroup(v)));
+      const count = visibleVars.length;
+      if (count === 0) return "";
+
+      const isOpen = window.expandedInventoryDataset === dsId;
+      const arrow = isOpen ? "↓" : "→";
+      const safeId = dsId.replace(/'/g, "\\'");
+      const anyUnderway = visibleVars.some(v => !v.station_based);
+
+      const subItems = isOpen
+        ? (() => {
+            // Group by the same stripped label groupVariablesByLabel/
+            // fixDisplayName use for cross-dataset merging. Within a
+            // single dataset that stripping can collapse genuinely
+            // different columns to one label (e.g. "C14 Assimilation of
+            // replicate 1" / "...replicate 2" both -> "C14 Assimilation").
+            // There's no cross-dataset ambiguity to resolve here, so when
+            // that happens each row falls back to its fuller, un-stripped
+            // label instead of silently looking like a repeated entry.
+            const grouped = {};
+            visibleVars.forEach(v => {
+              const rawLabel = v.display_name === "All genera and species"
+                ? "Zooplankton (All Genera & Species)"
+                : v.display_name;
+              const baseLabel = fixDisplayName(rawLabel);
+              if (!grouped[baseLabel]) grouped[baseLabel] = [];
+              grouped[baseLabel].push({ v, rawLabel });
+            });
+
+            const rows = [];
+            Object.values(grouped).forEach(entries => {
+              entries.forEach(({ v, rawLabel }) => {
+                const label = entries.length > 1 ? fullVariableLabel(rawLabel) : fixDisplayName(rawLabel);
+                rows.push({ v, label });
+              });
+            });
+
+            return rows
+              .sort((a, b) => a.label.localeCompare(b.label))
+              .map(({ v, label }) => {
+                const countBadge = (typeof v.sighting_count === "number")
+                  ? `<span class="inventory-subitem-count">${v.sighting_count.toLocaleString()} sighted</span>`
+                  : (typeof v.tow_occurrence_count === "number")
+                  ? `<span class="inventory-subitem-count">${v.tow_occurrence_count.toLocaleString()} of ${v.total_tows_surveyed.toLocaleString()} tows</span>`
+                  : "";
+                return `
+                  <div class="inventory-subitem" onclick='event.stopPropagation(); selectVariable("${v.variable_id}")'>
+                    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;">
+                      <span class="inventory-subitem-name">${label}</span>
+                      ${countBadge}
+                    </div>
+                  </div>
+                `;
+              }).join("");
+          })()
+        : "";
+
+      const subList = isOpen
+        ? `<div class="inventory-sublist">${subItems || '<div style="color:var(--muted);padding:8px 12px;font-size:11px;">No parameters found.</div>'}</div>`
+        : "";
+
+      return `
+        <div class="inventory-row${isOpen ? ' inventory-row-open' : ''}" onclick="toggleInventoryDataset('${safeId}')">
+          <span class="inventory-label">
+            ${toTitleCase(ds.name || dsId)}
+            ${anyUnderway ? '<span class="inventory-subitem-meta" style="display:inline;margin-left:6px;">Underway/Transect</span>' : ''}
+          </span>
+          <span class="inventory-count">${count}</span>
+          <span class="inventory-arrow">${arrow}</span>
+        </div>
+        ${subList}
+      `;
+    }).join("");
+}
+
+window.inventoryViewMode = window.inventoryViewMode || "category";
+
+function setInventoryViewMode(mode) {
+  if (window.inventoryViewMode === mode) return;
+  window.inventoryViewMode = mode;
+  // Switching views starts from a clean slate rather than carrying over
+  // an expanded row from the other view (its key namespace doesn't match).
+  window.expandedInventoryGroup = null;
+  window.expandedInventoryDataset = null;
+  renderInventoryPanel();
+}
+
+function renderInventoryPanel() {
+  const empty = document.getElementById("panel-empty");
+  if (!empty) return;
+
+  const mode = window.inventoryViewMode || "category";
+  const rows = mode === "dataset" ? buildDatasetRows() : buildCategoryRows();
+
+  const subtitle = mode === "dataset"
+    ? "Click a dataset below to see every parameter it measures, or click any station on the map to see everything measured there"
+    : "Click a category below to see which stations record it, or click any station on the map to see everything measured there";
 
   empty.innerHTML = `
     <div class="inventory-panel">
       <div class="inventory-title">WHAT CALCOFI MEASURES</div>
-      <div class="inventory-subtitle">Click a category below to see which stations record it, or click any station on the map to see everything measured there</div>
+      <div class="inventory-subtitle">${subtitle}</div>
+      <div class="inventory-view-tabs">
+        <button class="inventory-view-tab${mode === "category" ? " inventory-view-tab-active" : ""}" onclick="setInventoryViewMode('category')">By Category</button>
+        <button class="inventory-view-tab${mode === "dataset" ? " inventory-view-tab-active" : ""}" onclick="setInventoryViewMode('dataset')">By Dataset</button>
+      </div>
       <div class="inventory-list">
         ${rows || '<div style="color:var(--muted);padding:12px;">Loading...</div>'}
       </div>
@@ -888,15 +1104,24 @@ dropdown.addEventListener("mousedown", (e) => {
 searchInput.addEventListener('focus', () => {
   // if a browse group is already showing, don't override it
   if (window.browseGroupActive) return;
+  // Previously this opened with a default ~100-item list the instant the
+  // (empty) search box was focused -- clicking in was enough to dump a
+  // huge dropdown before typing anything. Only open once there's an
+  // actual query; browsing everything is already covered by the category
+  // inventory panel, so this isn't losing functionality, just clutter.
+  const query = searchInput.value.trim();
+  if (!query) return;
   openDropdown();
-  renderDropdown(searchInput.value.trim());
+  renderDropdown(query);
 });
 
 searchInput.addEventListener('input', () => {
   dropdownFocusIdx = -1;
   window.browseGroupActive = null; // user is typing, leave browse mode
+  const query = searchInput.value.trim();
+  if (!query) { closeDropdown(); return; }
   openDropdown();
-  renderDropdown(searchInput.value.trim());
+  renderDropdown(query);
 });
 
 searchInput.addEventListener('keydown', e => {
@@ -975,7 +1200,14 @@ function isExcludedFromBrowse(v) {
   return isExactExclude(v.display_name) ||
     EXCLUDE_DISPLAY_KEYWORDS.some(k => n.includes(k)) ||
     isMetadataField(v.display_name) ||
-    isRemovedField(v.display_name);
+    isRemovedField(v.display_name) ||
+    // Dataset-level placeholder entries (e.g. a stub row named "Krill
+    // (Euphausiids)" whose only content is the dataset itself, left over
+    // from before that dataset had real per-variable data). These aren't
+    // a measured parameter -- showing one is either empty clutter or, as
+    // with Krill, a confusing duplicate of the real dataset that DOES
+    // have its variables broken out (dataset_id "euphausiid").
+    v.entity_type === "scientific_dataset";
 }
 
 // Shared by search dropdown AND the category accordion: groups variables
@@ -996,6 +1228,84 @@ function groupVariablesByLabel(vars) {
     grouped[baseLabel].push({ v, rawLabel });
   });
   return Object.values(grouped);
+}
+
+// When a label is shared across multiple datasets (e.g. "Oxygen" from both
+// siocalcofiHydroBottle in µmol/kg and erdCalCOFINOAAhydros in mL/L), a
+// single click can only ever open one of them -- silently hiding the
+// other's data even though the search/browse UI lists both dataset names.
+// This builds a synthetic "umbrella" variable representing the union of
+// all contributing datasets' station coverage, for browsing/highlighting
+// purposes only. It is NOT a real measurement and carries no single value
+// of its own -- selecting a specific station still routes to (or, when
+// more than one contributor applies, offers a choice between) the real
+// underlying variables, never blends their values together. Returns null
+// if the group is all one dataset (nothing to do -- existing behavior,
+// entries[0], is already correct and unambiguous).
+function buildUmbrellaVariable(entries, label) {
+  const constituents = entries.map(e => e.v);
+  const datasetIds = [...new Set(constituents.map(v => v.dataset_id))];
+  if (datasetIds.length <= 1) return null;
+
+  const stationIdSet = new Set();
+  constituents.forEach(v => (v.station_ids || []).forEach(id => stationIdSet.add(id)));
+
+  const hasAnyStationYears = constituents.some(v => v.station_years && Object.keys(v.station_years).length > 0);
+  let stationYears = null;
+  if (hasAnyStationYears) {
+    stationYears = {};
+    constituents.forEach(v => {
+      if (!v.station_years) return;
+      Object.entries(v.station_years).forEach(([sid, years]) => {
+        if (!stationYears[sid]) stationYears[sid] = [];
+        years.forEach(y => { if (!stationYears[sid].includes(y)) stationYears[sid].push(y); });
+      });
+    });
+  }
+
+  let firstYear, lastYear;
+  if (stationYears) {
+    const allYears = Object.values(stationYears).flat().map(y => parseInt(y, 10));
+    if (allYears.length) {
+      firstYear = String(Math.min(...allYears));
+      lastYear = String(Math.max(...allYears));
+    }
+  }
+
+  const base = constituents[0];
+  const units = [...new Set(constituents.map(v => v.units).filter(Boolean))];
+  const safeLabel = label.replace(/"/g, "'");
+
+  const umbrella = {
+    variable_id: `umbrella::${safeLabel}`,
+    is_umbrella: true,
+    constituent_variable_ids: constituents.map(v => v.variable_id),
+    display_name: safeLabel,
+    variable_name: safeLabel,
+    dataset_id: null,
+    dataset_name: [...new Set(constituents.map(v => v.dataset_name || v.dataset_id))].join(" + "),
+    description: base.description || "",
+    // Joining distinct units (rather than picking one) is deliberate: if
+    // the contributing datasets disagree on units, that's exactly the kind
+    // of thing that should be visible here, not hidden by only showing one.
+    units: units.join(" / "),
+    entity_type: base.entity_type,
+    station_based: true,
+    station_ids: [...stationIdSet],
+    browse_group: base.browse_group,
+  };
+  if (stationYears) {
+    umbrella.station_years = stationYears;
+    umbrella.first_year = firstYear;
+    umbrella.last_year = lastYear;
+  }
+
+  // Register immediately so selectVariable(umbrella.variable_id) -- fired
+  // from the onclick handlers that create these on the fly -- can find it
+  // via the same window.variableMap lookup real variables already use.
+  if (window.variableMap) window.variableMap[umbrella.variable_id] = umbrella;
+
+  return umbrella;
 }
 
 function renderDropdown(searchTerm = "") {
@@ -1029,19 +1339,20 @@ function renderDropdown(searchTerm = "") {
   const groups = groupVariablesByLabel(filtered.slice(0, 200));
 
   list.innerHTML = groups.map(entries => {
-    const { v, rawLabel } = entries[0];
+    const { v: firstV, rawLabel } = entries[0];
     const baseLabel = fixDisplayName(rawLabel);
-    const datasetPrefix = VAGUE_LABELS.has(rawLabel.toLowerCase()) && v.dataset_name
-      ? v.dataset_name.replace("CalCOFI Farallon Institute ", "").replace("CalCOFI NOAA ", "") + " — "
+    const datasetPrefix = VAGUE_LABELS.has(rawLabel.toLowerCase()) && firstV.dataset_name
+      ? firstV.dataset_name.replace("CalCOFI Farallon Institute ", "").replace("CalCOFI NOAA ", "") + " — "
       : "";
     const label = datasetPrefix + baseLabel;
 
     // combine dataset names across every entry that shares this exact label
     const datasetNames = [...new Set(entries.map(e => e.v.dataset_name || e.v.provider || e.v.dataset_id))];
     const anyUnderway = entries.some(e => !e.v.station_based);
+    const umbrella = entries.length > 1 ? buildUmbrellaVariable(entries, baseLabel) : null;
 
-    return `
-      <div class="dropdown-item" data-id="${v.variable_id}">
+    const mainRow = `
+      <div class="dropdown-item" data-id="${umbrella ? umbrella.variable_id : firstV.variable_id}">
         <div class="dropdown-name">
           ${label}
           <span style="color:var(--muted);margin-left:6px;font-size:10px;">
@@ -1051,6 +1362,23 @@ function renderDropdown(searchTerm = "") {
         </div>
       </div>
     `;
+
+    // Per-dataset sub-rows only when there's genuinely more than one
+    // dataset behind this label -- clicking one behaves exactly like a
+    // normal single-dataset selection always has, no ambiguity. The
+    // umbrella row above them represents their union for browsing/map
+    // purposes only, never a blended value.
+    const subRows = umbrella
+      ? entries.map(({ v }) => `
+          <div class="dropdown-item dropdown-subitem" data-id="${v.variable_id}">
+            <div class="dropdown-name" style="font-size:11px;color:var(--muted);padding-left:14px;">
+              └ ${v.dataset_name || v.dataset_id}
+            </div>
+          </div>
+        `).join("")
+      : "";
+
+    return mainRow + subRows;
   }).join("");
 }
 
@@ -1116,7 +1444,7 @@ function restoreMarkerStyle(marker) {
 }
 
 function selectVariable(variableId) {
-  const v = window.allVariables.find(v => v.variable_id === variableId);
+  const v = window.variableMap?.[variableId] || window.allVariables.find(v => v.variable_id === variableId);
   if (!v) return;
 
   selectedVariable = v;
@@ -1236,11 +1564,14 @@ function renderVariableSelectionPanel(v) {
         Collected at ${stationCount} station${stationCount === 1 ? '' : 's'}
       </span>
       <span class="panel-hint">
-        Click a highlighted station on the map to open the data portal
+        ${v.is_umbrella
+          ? 'Click a highlighted station -- if it has more than one source for this, you\'ll be asked which to view'
+          : 'Click a highlighted station on the map to open the data portal'}
       </span>
+      ${v.is_umbrella ? '' : `
       <a href="${getDatasetUrl(v)}" target="_blank" rel="noopener noreferrer" class="panel-open-dataset-btn">
         Open Dataset ↗
-      </a>
+      </a>`}
     </div>
   `;
 }
@@ -1621,6 +1952,20 @@ function fixDisplayName(name) {
   return toTitleCase(cleaned);
 }
 
+// Same cleanup as fixDisplayName, but keeps a "Replicate N" suffix
+// intact. Used when listing every parameter within a single dataset
+// (Browse by Dataset): there's no cross-dataset ambiguity to resolve
+// there, so if stripping "Replicate N" would collapse two genuinely
+// different columns onto the same label, the fuller label is used
+// instead so they still read as two distinct rows.
+function fullVariableLabel(name) {
+  if (!name) return name;
+  const cleaned = cleanFieldName(name);
+  if (DISPLAY_NAME_FIXES[cleaned]) return DISPLAY_NAME_FIXES[cleaned];
+  if (DISPLAY_NAME_FIXES[cleaned.toLowerCase()]) return DISPLAY_NAME_FIXES[cleaned.toLowerCase()];
+  return toTitleCase(cleaned);
+}
+
 // Renders a taxon-grouped (Birds / Mammals / Other), count-sorted species
 // breakdown for the generic "Species" fields. Returns "" if no data.
 function renderSpeciesBreakdown(speciesList) {
@@ -1815,6 +2160,54 @@ async function openVariableModal(v) {
   }
 
   backdrop.style.display = "flex";
+}
+
+// Shown when an umbrella variable (see buildUmbrellaVariable) is selected
+// and the clicked station has more than one real underlying variable that
+// applies -- e.g. a station reporting "Oxygen" from both Hydrographic
+// Bottle and NOAA CTD. Reuses the same modal shell as openVariableModal,
+// but lists the real options instead of showing any single one's info, so
+// nothing gets silently picked for the person and nothing gets blended.
+function openSourceChooser(matches, station, umbrellaLabel) {
+  const backdrop = document.getElementById("modal-backdrop");
+  const modal = document.getElementById("modal");
+  const title = document.getElementById("modal-title");
+  const body = document.getElementById("modal-body");
+  const footer = document.getElementById("modal-footer");
+  const warning = document.getElementById("external-warning");
+
+  if (!backdrop || !modal || !title || !body || !footer) return;
+
+  modal.onclick = (e) => e.stopPropagation();
+  title.textContent = `${toTitleCase(umbrellaLabel)} — choose a source`;
+
+  body.innerHTML = `
+    <div style="color:var(--muted);font-size:12px;margin-bottom:12px;">
+      Station ${station.station_id} reports ${toTitleCase(umbrellaLabel)} from more than one source.
+      Pick one to see its data -- these aren't combined, since they may use
+      different units or methods.
+    </div>
+    ${matches.map(v => `
+      <div class="dropdown-item" style="border:1px solid var(--border);border-radius:4px;margin-bottom:6px;"
+           onclick='selectSourceFromChooser("${v.variable_id}")'>
+        <div class="dropdown-name">
+          ${v.dataset_name || v.dataset_id}
+          ${v.units ? `<span style="color:var(--muted);margin-left:6px;font-size:10px;">(${v.units})</span>` : ""}
+        </div>
+      </div>
+    `).join("")}
+  `;
+
+  footer.innerHTML = "";
+  if (warning) warning.style.display = "none";
+  backdrop.style.display = "flex";
+}
+
+// Called from the chooser's onclick -- closes the chooser and opens the
+// real variable's normal modal, exactly as if it had been selected directly.
+function selectSourceFromChooser(variableId) {
+  const v = window.variableMap?.[variableId];
+  if (v) openVariableModal(v);
 }
 
 function closeModal(event) {

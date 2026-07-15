@@ -1,0 +1,495 @@
+portal_dataset_id,variable_name,display_name,units,entity_type,db_provider_dataset,realm,dataset_match_class,measurement_type_match,var_note
+/euphausiid/save.php?mode=save,Krill (Euphausiids),Krill (Euphausiids),"",scientific_dataset,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+555783,Genomics of microbial/plankton assemblage (ASVs) - 16S,Genomics of microbial/plankton assemblage (ASVs) - 16S,"",scientific_dataset,,omics,missing,,no DB dataset (missing/omics)
+CAC_FI_SBAS_obs,behavior,behavior,"",scientific_variable,calcofi_bird_mammal_census,bio,partial,,taxon (build-time species match)
+CAC_FI_SBAS_obs,count,count,"",scientific_variable,calcofi_bird_mammal_census,bio,partial,,taxon (build-time species match)
+CAC_FI_SBAS_obs,gis_key,gis_key,"",scientific_variable,calcofi_bird_mammal_census,bio,partial,,taxon (build-time species match)
+CAC_FI_SBAS_obs,idnum,idnum,"",scientific_variable,calcofi_bird_mammal_census,bio,partial,,taxon (build-time species match)
+CAC_FI_SBAS_obs,species,species,"",scientific_variable,calcofi_bird_mammal_census,bio,partial,,taxon (build-time species match)
+CAC_FI_SBAS_sp,common_name,common_name,"",scientific_variable,calcofi_bird_mammal_census,bio,partial,,taxon (build-time species match)
+CAC_FI_SBAS_sp,scientific_name,scientific_name,"",scientific_variable,calcofi_bird_mammal_census,bio,partial,,taxon (build-time species match)
+CAC_FI_SBAS_sp,species,Species,"",scientific_variable,calcofi_bird_mammal_census,bio,partial,,taxon (build-time species match)
+CAC_FI_SBAS_sp,type,type,"",scientific_variable,calcofi_bird_mammal_census,bio,partial,,taxon (build-time species match)
+bb9217084g,Mesopelagic Fish,Mesopelagic Fish,"",scientific_dataset,,bio,missing,,taxon (build-time species match)
+ctd-cast-files/,CTD cast data (SIO),CTD cast data (SIO),"",scientific_dataset,calcofi_ctd-cast,env,matching,,unmatched
+datazoo/catalogs/ccelter/datasets/159,Heterotrophic bacteria & picoautotrophs,Heterotrophic bacteria & picoautotrophs,"",scientific_dataset,,bio,missing,,taxon (build-time species match)
+datazoo/catalogs/ccelter/datasets/254,Phytoplankton community (visual estimates),Phytoplankton community (visual estimates),"",scientific_dataset,calcofi_phytoplankton,bio,matching,,taxon (build-time species match)
+erdCalCOFINOAAhydros,cruise,Cruise,"",scientific_variable,calcofi_ctd-cast,env,matching,,unmatched
+erdCalCOFINOAAhydros,ctd_depth,CTD Depth,meters,scientific_variable,calcofi_ctd-cast,env,matching,,unmatched
+erdCalCOFINOAAhydros,latitude,Latitude,degrees_north,scientific_variable,calcofi_ctd-cast,env,matching,,unmatched
+erdCalCOFINOAAhydros,line,CalCOFI Line,"",scientific_variable,calcofi_ctd-cast,env,matching,,unmatched
+erdCalCOFINOAAhydros,longitude,Longitude,degrees_east,scientific_variable,calcofi_ctd-cast,env,matching,,unmatched
+erdCalCOFINOAAhydros,order_occupied,Order Occupied,"",scientific_variable,calcofi_ctd-cast,env,matching,,unmatched
+erdCalCOFINOAAhydros,oxygen,Oxygen,ml/l,chemical_variable,calcofi_ctd-cast,env,matching,,unmatched
+erdCalCOFINOAAhydros,percent_saturation,Oxygen Saturation (%),percent,scientific_variable,calcofi_ctd-cast,env,matching,,unmatched
+erdCalCOFINOAAhydros,salinity,Salinity,practical salinity units,physical_variable,calcofi_ctd-cast,env,matching,,unmatched
+erdCalCOFINOAAhydros,ship,Ship Name,"",scientific_variable,calcofi_ctd-cast,env,matching,,unmatched
+erdCalCOFINOAAhydros,ship_code,Ship Code,"",scientific_variable,calcofi_ctd-cast,env,matching,,unmatched
+erdCalCOFINOAAhydros,station,CalCOFI Station,"",scientific_variable,calcofi_ctd-cast,env,matching,,unmatched
+erdCalCOFINOAAhydros,temperature,Temperature,degrees Celsius,physical_variable,calcofi_ctd-cast,env,matching,,unmatched
+erdCalCOFINOAAhydros,time,CTD Start Time,seconds since 1970-01-01T00:00:00Z,scientific_variable,calcofi_ctd-cast,env,matching,,unmatched
+erdCalCOFIcufes,anchovy_eggs,Anchovy Eggs,count,scientific_variable,swfsc_cufes,bio,matching,anchovy_eggs,measurement_type (source_column/name)
+erdCalCOFIcufes,cruise,Cruise,"",scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
+erdCalCOFIcufes,hake_eggs,Hake Eggs,count,scientific_variable,swfsc_cufes,bio,matching,hake_eggs,measurement_type (source_column/name)
+erdCalCOFIcufes,jack_mackerel_eggs,Jack Mackerel Eggs,count,scientific_variable,swfsc_cufes,bio,matching,jack_mackerel_eggs,measurement_type (source_column/name)
+erdCalCOFIcufes,latitude,Start Latitude,degrees_north,scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
+erdCalCOFIcufes,longitude,Start Longitude,degrees_east,scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
+erdCalCOFIcufes,other_fish_eggs,Other Fish Eggs,count,scientific_variable,swfsc_cufes,bio,matching,other_fish_eggs,measurement_type (source_column/name)
+erdCalCOFIcufes,sample_number,Sample Number,"",scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
+erdCalCOFIcufes,sardine_eggs,Sardine Eggs,count,scientific_variable,swfsc_cufes,bio,matching,sardine_eggs,measurement_type (source_column/name)
+erdCalCOFIcufes,ship,Ship Name,"",scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
+erdCalCOFIcufes,ship_code,Ship Code,"",scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
+erdCalCOFIcufes,squid_eggs,Squid Eggs,count,scientific_variable,swfsc_cufes,bio,matching,squid_eggs,measurement_type (source_column/name)
+erdCalCOFIcufes,start_pump_speed,Start Pump Speed,M^3 per minute,scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
+erdCalCOFIcufes,start_salinity,Start Salinity,practical salinity units,physical_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
+erdCalCOFIcufes,start_temperature,Start Temperature,degrees Celsius,physical_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
+erdCalCOFIcufes,start_wind_direction,Start Wind Direction,degrees,scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
+erdCalCOFIcufes,start_wind_speed,Start Wind Speed,knotts,scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
+erdCalCOFIcufes,stop_latitude,Stop Latitude,decimal degrees,scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
+erdCalCOFIcufes,stop_longitude,Stop longitude,decimal degrees,scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
+erdCalCOFIcufes,stop_pump_speed,Stop Pump Speed,M^3 per minute,scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
+erdCalCOFIcufes,stop_salinity,Stop Salinity,practical salinity units,physical_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
+erdCalCOFIcufes,stop_temperature,Stop Temperature,degrees Celsius,physical_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
+erdCalCOFIcufes,stop_time,Stop Time,datetime (UTC),scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
+erdCalCOFIcufes,stop_wind_direction,Stop Wind Direction,degrees,scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
+erdCalCOFIcufes,stop_wind_speed,Stop Wind Speed,knotts,scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
+erdCalCOFIcufes,time,Start Time,seconds since 1970-01-01T00:00:00Z,scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggcnt,calcofi_species_code,Calcofi Species Code,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggcnt,common_name,Common Name,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggcnt,cruise,Cruise,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggcnt,egg_count,Egg Count,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggcnt,eggs_100m3,Eggs 100/M^3,Eggs 100/M^3,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggcnt,eggs_10m2,Eggs 10/M^2,Eggs 10/M^2,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggcnt,itis_tsn,ITIS TSN,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggcnt,latitude,Latitude,degrees_north,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggcnt,line,CalCOFI Line,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggcnt,longitude,Longitude,degrees_east,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggcnt,net_location,Net Location (side),"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggcnt,order_occupied,Order Occupied,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggcnt,proportion_sorted,Proportion Sorted,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggcnt,scientific_name,Scientific Name,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggcnt,ship,Ship Name,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggcnt,ship_code,Ship Code,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggcnt,standard_haul_factor,Standard Haul Factor,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggcnt,station,CalCOFI Station,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggcnt,time,Time,seconds since 1970-01-01T00:00:00Z,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggcnt,tow_number,Tow Number,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggcnt,tow_type,Tow Type,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggcnt,volume_sampled,Volume Sampled,meters^3,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggstg,calcofi_species_code,Calcofi Species Code,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggstg,common_name,Common Name,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggstg,cruise,Cruise,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggstg,egg_stage,Egg Stage,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggstg,egg_stage_count,Egg Count,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggstg,eggs_100m3,Eggs 100/M^3,Eggs 100/M^3,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggstg,eggs_10m2,Eggs 10/M^2,Eggs 10/M^2,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggstg,itis_tsn,ITIS TSN,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggstg,latitude,Latitude,degrees_north,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggstg,line,CalCOFI Line,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggstg,longitude,Longitude,degrees_east,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggstg,net_location,Net Location (side),"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggstg,order_occupied,Order Occupied,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggstg,proportion_sorted,Proportion Sorted,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggstg,scientific_name,Scientific Name,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggstg,ship,Ship Name,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggstg,ship_code,Ship Code,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggstg,standard_haul_factor,Standard Haul Factor,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggstg,station,CalCOFI Station,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggstg,time,Time,seconds since 1970-01-01T00:00:00Z,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggstg,tow_number,Tow Number,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggstg,tow_type,Tow Type,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIeggstg,volume_sampled,Volume Sampled,meters^3,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvcnt,calcofi_species_code,Calcofi Species Code,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvcnt,common_name,Common Name,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvcnt,cruise,Cruise,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvcnt,invert_count,Invertebrate Count,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvcnt,inverts_100m3,Invertebrates 100/M^3,Invertebrates 100/M^3,scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvcnt,inverts_10m2,Invertebrates 10/M^2,Invertebrates 10/M^2,scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvcnt,itis_tsn,ITIS TSN,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvcnt,latitude,Latitude,degrees_north,scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvcnt,line,CalCOFI Line,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvcnt,longitude,Longitude,degrees_east,scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvcnt,net_location,Net Location (side),"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvcnt,order_occupied,Order Occupied,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvcnt,proportion_sorted,Proportion Sorted,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvcnt,scientific_name,Scientific Name,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvcnt,ship,Ship Name,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvcnt,ship_code,Ship Code,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvcnt,standard_haul_factor,Standard Haul Factor,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvcnt,station,CalCOFI Station,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvcnt,time,Time,seconds since 1970-01-01T00:00:00Z,scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvcnt,tow_number,Tow Number,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvcnt,tow_type,Tow Type,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvcnt,volume_sampled,Volume Sampled,meters^3,scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvsiz,calcofi_species_code,Calcofi Species Code,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvsiz,common_name,Common Name,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvsiz,cruise,Cruise,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvsiz,invert_count,Invertebrate Count,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvsiz,invert_size,Invertebrate Size,millimeters,scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvsiz,inverts_100m3,Invertebrates 100/M^3,Invertebrates 100/M^3,scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvsiz,inverts_10m2,Invertebrates 10/M^2,Invertebrates 10/M^2,scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvsiz,itis_tsn,ITIS TSN,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvsiz,latitude,Latitude,degrees_north,scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvsiz,line,CalCOFI Line,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvsiz,longitude,Longitude,degrees_east,scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvsiz,net_location,Net Location (side),"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvsiz,order_occupied,Order Occupied,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvsiz,proportion_sorted,Proportion Sorted,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvsiz,scientific_name,Scientific Name,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvsiz,ship,Ship Name,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvsiz,ship_code,Ship Code,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvsiz,standard_haul_factor,Standard Haul Factor,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvsiz,station,CalCOFI Station,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvsiz,time,Time,seconds since 1970-01-01T00:00:00Z,scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvsiz,tow_number,Tow Number,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvsiz,tow_type,Tow Type,"",scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIinvsiz,volume_sampled,Volume Sampled,meters^3,scientific_variable,swfsc_invert,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvcnt,calcofi_species_code,Calcofi Species Code,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvcnt,common_name,Common Name,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvcnt,cruise,Cruise,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvcnt,itis_tsn,ITIS TSN,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvcnt,larvae_100m3,Larvae 100/M^3,Larvae 100/M^3,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvcnt,larvae_10m2,Larvae 10/M^2,Larvae 10/M^2,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvcnt,larvae_count,Larvae Count,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvcnt,latitude,Latitude,degrees_north,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvcnt,line,CalCOFI Line,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvcnt,longitude,Longitude,degrees_east,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvcnt,net_location,Net Location (side),"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvcnt,order_occupied,Order Occupied,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvcnt,proportion_sorted,Proportion Sorted,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvcnt,scientific_name,Scientific Name,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvcnt,ship,Ship Name,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvcnt,ship_code,Ship Code,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvcnt,standard_haul_factor,Standard Haul Factor,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvcnt,station,CalCOFI Station,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvcnt,time,Time,seconds since 1970-01-01T00:00:00Z,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvcnt,tow_number,Tow Number,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvcnt,tow_type,Tow Type,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvcnt,volume_sampled,Volume Sampled,meters^3,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvsiz,calcofi_species_code,Calcofi Species Code,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvsiz,common_name,Common Name,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvsiz,cruise,Cruise,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvsiz,itis_tsn,ITIS TSN,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvsiz,larvae_100m3,Larvae 100/M^3,Larvae 100/M^3,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvsiz,larvae_10m2,Larvae 10/M^2,Larvae 10/M^2,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvsiz,larvae_count,Larvae Count,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvsiz,larvae_size,Larvae Size,millimeters,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvsiz,latitude,Latitude,degrees_north,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvsiz,line,CalCOFI Line,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvsiz,longitude,Longitude,degrees_east,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvsiz,net_location,Net Location (side),"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvsiz,order_occupied,Order Occupied,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvsiz,proportion_sorted,Proportion Sorted,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvsiz,scientific_name,Scientific Name,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvsiz,ship,Ship Name,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvsiz,ship_code,Ship Code,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvsiz,standard_haul_factor,Standard Haul Factor,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvsiz,station,CalCOFI Station,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvsiz,time,Time,seconds since 1970-01-01T00:00:00Z,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvsiz,tow_number,Tow Number,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvsiz,tow_type,Tow Type,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvsiz,volume_sampled,Volume Sampled,meters^3,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvstg,calcofi_species_code,Calcofi Species Code,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvstg,common_name,Common Name,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvstg,cruise,Cruise,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvstg,itis_tsn,ITIS TSN,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvstg,larvae_100m3,Larvae 100/M^3,Larvae 100/M^3,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvstg,larvae_10m2,Larvae 10/M^2,Larvae 10/M^2,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvstg,larvae_stage,Larvae Stage,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvstg,larvae_stage_count,Larvae Stage Count,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvstg,latitude,Latitude,degrees_north,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvstg,line,CalCOFI Line,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvstg,longitude,Longitude,degrees_east,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvstg,net_location,Net Location (side),"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvstg,order_occupied,Order Occupied,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvstg,proportion_sorted,Proportion Sorted,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvstg,scientific_name,Scientific Name,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvstg,ship,Ship Name,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvstg,ship_code,Ship Code,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvstg,standard_haul_factor,Standard Haul Factor,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvstg,station,CalCOFI Station,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvstg,time,Time,seconds since 1970-01-01T00:00:00Z,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvstg,tow_number,Tow Number,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvstg,tow_type,Tow Type,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIlrvstg,volume_sampled,Volume Sampled,meters^3,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFItows,cruise,Cruise,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFItows,end_time,End Time,datetime (UTC),scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFItows,latitude,Latitude,degrees_north,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFItows,line,CalCOFI Line,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFItows,longitude,Longitude,degrees_east,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFItows,mesh_size,Mesh Size (),microns,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFItows,net_location,Net Location (side),"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFItows,order_occupied,Order Occupied,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFItows,proportion_sorted,Proportion Sorted,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFItows,ship,Ship Name,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFItows,ship_code,Ship Code,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFItows,standard_haul_factor,Standard Haul Factor,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFItows,station,CalCOFI Station,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFItows,time,Time,seconds since 1970-01-01T00:00:00Z,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFItows,tow_number,Tow Number,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFItows,tow_type,Tow Type,"",scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFItows,volume_sampled,Volume Sampled,meters^3,scientific_variable,swfsc_ichthyo,bio,matching,,taxon (build-time species match)
+erdCalCOFIzoovol,cruise,Cruise,"",scientific_variable,pic_zooplankton,bio,matching,,taxon (build-time species match)
+erdCalCOFIzoovol,latitude,Latitude,degrees_north,scientific_variable,pic_zooplankton,bio,matching,,taxon (build-time species match)
+erdCalCOFIzoovol,line,CalCOFI Line,"",scientific_variable,pic_zooplankton,bio,matching,,taxon (build-time species match)
+erdCalCOFIzoovol,longitude,Longitude,degrees_east,scientific_variable,pic_zooplankton,bio,matching,,taxon (build-time species match)
+erdCalCOFIzoovol,net_location,Net Location (side),"",scientific_variable,pic_zooplankton,bio,matching,,taxon (build-time species match)
+erdCalCOFIzoovol,order_occupied,Order Occupied,"",scientific_variable,pic_zooplankton,bio,matching,,taxon (build-time species match)
+erdCalCOFIzoovol,ship,Ship Name,"",scientific_variable,pic_zooplankton,bio,matching,,taxon (build-time species match)
+erdCalCOFIzoovol,ship_code,Ship Code,"",scientific_variable,pic_zooplankton,bio,matching,,taxon (build-time species match)
+erdCalCOFIzoovol,small_plankton,Small Plankton Volume,"ml/1,000 m^3 of water sampled",scientific_variable,pic_zooplankton,bio,matching,,taxon (build-time species match)
+erdCalCOFIzoovol,station,CalCOFI Station,"",scientific_variable,pic_zooplankton,bio,matching,,taxon (build-time species match)
+erdCalCOFIzoovol,time,Time,seconds since 1970-01-01T00:00:00Z,scientific_variable,pic_zooplankton,bio,matching,,taxon (build-time species match)
+erdCalCOFIzoovol,total_plankton,Total Plankton Volume,"ml/1,000 m^3 of water sampled",scientific_variable,pic_zooplankton,bio,matching,,taxon (build-time species match)
+erdCalCOFIzoovol,tow_number,Tow Number,"",scientific_variable,pic_zooplankton,bio,matching,,taxon (build-time species match)
+erdCalCOFIzoovol,tow_type,Tow Type,"",scientific_variable,pic_zooplankton,bio,matching,,taxon (build-time species match)
+erdCalCOFIzoovol,volume_sampled,Volume Sampled,meters^3,scientific_variable,pic_zooplankton,bio,matching,,taxon (build-time species match)
+euphausiid,Bentheuphausia amblyops,Bentheuphausia amblyops,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Euphausia brevis,Euphausia brevis,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Euphausia diomedeae,Euphausia diomedeae,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Euphausia distinguenda,Euphausia distinguenda,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Euphausia eximia,Euphausia eximia,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Euphausia gibboides,Euphausia gibboides,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Euphausia hemigibba,Euphausia hemigibba,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Euphausia lamelligera,Euphausia lamelligera,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Euphausia mutica,Euphausia mutica,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Euphausia pacifica,Euphausia pacifica,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Euphausia recurva,Euphausia recurva,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Euphausia tenera,Euphausia tenera,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Hansarsia atlantica,Hansarsia atlantica,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Hansarsia difficilis,Hansarsia difficilis,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Hansarsia gracilis,Hansarsia gracilis,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Hansarsia microps,Hansarsia microps,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Hansarsia tenella,Hansarsia tenella,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Nematobrachion boopis,Nematobrachion boopis,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Nematobrachion flexipes,Nematobrachion flexipes,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Nyctiphanes simplex,Nyctiphanes simplex,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Stylocheiron abbreviatum,Stylocheiron abbreviatum,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Stylocheiron affine,Stylocheiron affine,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Stylocheiron carinatum,Stylocheiron carinatum,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Stylocheiron elongatum,Stylocheiron elongatum,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Stylocheiron longicorne,Stylocheiron longicorne,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Stylocheiron maximum,Stylocheiron maximum,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Stylocheiron suhmi,Stylocheiron suhmi,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Tessarabrachion oculatum,Tessarabrachion oculatum,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Thysanoessa gregaria,Thysanoessa gregaria,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Thysanoessa longipes,Thysanoessa longipes,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Thysanoessa spinifera,Thysanoessa spinifera,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Thysanopoda astylata,Thysanopoda astylata,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Thysanopoda cornuta,Thysanopoda cornuta,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Thysanopoda cristata,Thysanopoda cristata,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Thysanopoda egregia,Thysanopoda egregia,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Thysanopoda monacantha,Thysanopoda monacantha,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Thysanopoda obtusifrons,Thysanopoda obtusifrons,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Thysanopoda orientalis,Thysanopoda orientalis,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+euphausiid,Thysanopoda pectinata,Thysanopoda pectinata,count,taxon,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
+gov.noaa.nodc:0301029,Carbonate chemistry - bottles,Carbonate chemistry - bottles,"",scientific_dataset,calcofi_dic,env,matching,,unmatched
+knb-lter-cce.188.4,Dungeness crab postlarvae (Metacarcinus/Cancer magister),Dungeness crab postlarvae (Metacarcinus/Cancer magister),"",scientific_dataset,,bio,missing,,taxon (build-time species match)
+knb-lter-cce.262.2,Marine mammal sightings- underway,Marine mammal sightings- underway,"",scientific_dataset,calcofi_bird_mammal_census,bio,partial,,taxon (build-time species match)
+nt620vn7810,Stanford CalCOFI zooplankton data,Stanford CalCOFI zooplankton data,"",scientific_dataset,,bio,missing,,taxon (build-time species match)
+ruizt/marine-mammal-edna,Genomics of plankton assemblage (ASVs) - 18S,Genomics of plankton assemblage (ASVs) - 18S,"",scientific_dataset,,omics,missing,,no DB dataset (missing/omics)
+siocalcofiHydroBottle,btl_cnt,Bottle Count,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,btlnum,Bottle Number,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,c14a1p,Precision of C14 Assimilation of replicate 1,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,c14a1q,Replicate 1 C14 Assimilation Quality,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,c14a2p,Precision of C14 assimilation of replicate 2,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,c14a2q,Replicate 2 C14 Assimilation Quality,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,c14as1,C14 Assimilation of replicate 1,milligrams C per cubic meter per half light day,scientific_variable,calcofi_bottle,env,matching,c14_rep1,measurement_type (source_column/name)
+siocalcofiHydroBottle,c14as2,C14 Assimilation of replicate 2,milligrams C per cubic meter per half light day,scientific_variable,calcofi_bottle,env,matching,c14_rep2,measurement_type (source_column/name)
+siocalcofiHydroBottle,chlora,Chlorophyll-a,micrograms per liter,scientific_variable,calcofi_bottle,env,matching,chlorophyll_a,measurement_type (source_column/name)
+siocalcofiHydroBottle,chlqua,Chlorophyll-a quality,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,cst_cnt,Cast Count,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,darkap,Precision of the experimental control,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,darkaq,Experimental Control C14 Assimilation Quality,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,darkas,C14 Assimilation of the experimental control (dark bottle),milligrams C per cubic meter per half light day,scientific_variable,calcofi_bottle,env,matching,c14_dark,measurement_type (source_column/name)
+siocalcofiHydroBottle,depth_id,Bottle Identifier,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,depthm,Bottle Depth,meters,scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,dic1,"Dissolved Inorganic Carbon, Replicate 1",micromoles per kilogram,scientific_variable,calcofi_bottle,env,matching,dic_rep1,measurement_type (source_column/name)
+siocalcofiHydroBottle,dic2,"Dissolved Inorganic Carbon, Replicate 2",micromoles per kilogram,scientific_variable,calcofi_bottle,env,matching,dic_rep2,measurement_type (source_column/name)
+siocalcofiHydroBottle,dic_quality_comment,DIC Quality Comment,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,inctim,Time of primary productivity experimental incubation,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,latitude,Latitude,degrees_north,scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,lightp,Light Intensities,percent,scientific_variable,calcofi_bottle,env,matching,light_pct,measurement_type (source_column/name)
+siocalcofiHydroBottle,longitude,Longitude,degrees_east,scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,meanap,C14 Mean Assimilation precision,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,meanaq,C14 Mean Assimilation quality,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,meanas,C14 Mean Assimilation,milligrams C per cubic meter per half light day,scientific_variable,calcofi_bottle,env,matching,c14_mean,measurement_type (source_column/name)
+siocalcofiHydroBottle,nh3q,Ammonium Quality,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,nh3um,Measured Ammonium concentration,micromoles per liter,scientific_variable,calcofi_bottle,env,matching,ammonia,measurement_type (source_column/name)
+siocalcofiHydroBottle,no2q,Nitrite quality,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,no2um,Nitrite,micromoles per liter,scientific_variable,calcofi_bottle,env,matching,nitrite,measurement_type (source_column/name)
+siocalcofiHydroBottle,no3q,Nitrate quality,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,no3um,Measured Nitrate concentration,micromoles per liter,scientific_variable,calcofi_bottle,env,matching,nitrate,measurement_type (source_column/name)
+siocalcofiHydroBottle,o2ml_l,O2,milliliters per liter,scientific_variable,calcofi_bottle,env,matching,oxygen_ml_l,measurement_type (source_column/name)
+siocalcofiHydroBottle,o2sat,O2Sat,percent saturation,scientific_variable,calcofi_bottle,env,matching,oxygen_saturation,measurement_type (source_column/name)
+siocalcofiHydroBottle,o2satq,Oxygen saturation Quality,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,o_qual,Oxygen Quality,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,oxy,Oxygen,micromoles per kilogram,scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,p_qual,Pressure Quality,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,ph1,pH,pH scale,chemical_variable,calcofi_bottle,env,matching,ph_rep1,measurement_type (source_column/name)
+siocalcofiHydroBottle,ph2,pH replicate,pH scale,chemical_variable,calcofi_bottle,env,matching,ph_rep2,measurement_type (source_column/name)
+siocalcofiHydroBottle,phaeop,Phaeopigment Concentratio,micrograms per liter,chemical_variable,calcofi_bottle,env,matching,phaeopigment,measurement_type (source_column/name)
+siocalcofiHydroBottle,phaqua,Phaeopigments quality,"",chemical_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,po4q,Phosphate quality,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,po4um,Measured Phosphate Concentration,micromoles per liter,scientific_variable,calcofi_bottle,env,matching,phosphate,measurement_type (source_column/name)
+siocalcofiHydroBottle,r_depth,Reported Depth,meters,scientific_variable,calcofi_bottle,env,matching,r_depth,measurement_type (source_column/name)
+siocalcofiHydroBottle,r_dynht,Reported Dynamic Height,dynamic meters,scientific_variable,calcofi_bottle,env,matching,r_dynamic_height,measurement_type (source_column/name)
+siocalcofiHydroBottle,r_nuts,Reported Ammonium Concentration,micromoles per liter,scientific_variable,calcofi_bottle,env,matching,r_ammonium,measurement_type (source_column/name)
+siocalcofiHydroBottle,r_oxy,Reported Oxygen,micromoles per kilogram,scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,r_sal,Reported Salinity,Practical Salinity Scale,scientific_variable,calcofi_bottle,env,matching,r_salinity_sva,measurement_type (source_column/name)
+siocalcofiHydroBottle,r_temp,Reported Potential Temperature,degrees Celsius,physical_variable,calcofi_bottle,env,matching,r_temperature,measurement_type (source_column/name)
+siocalcofiHydroBottle,recind,Data Descriptor Code,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,s_prec,Salinity Precision,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,s_qual,Salinity Quality,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,salinity,Salinity,Practical Salinity Scale,physical_variable,calcofi_bottle,env,matching,salinity,measurement_type (source_column/name)
+siocalcofiHydroBottle,sio3qu,Silicate quality,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,sio3um,Measured Silicate concentration,micromoles per liter,scientific_variable,calcofi_bottle,env,matching,silicate,measurement_type (source_column/name)
+siocalcofiHydroBottle,sta_id,Line and Station,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,stheta,Potential Density of water,kilograms per cubic meter,scientific_variable,calcofi_bottle,env,matching,sigma_theta,measurement_type (source_column/name)
+siocalcofiHydroBottle,sthtaq,Potential Density Quality,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,t_degc,Temperature,degrees Celsius,scientific_variable,calcofi_bottle,env,matching,temperature,measurement_type (source_column/name)
+siocalcofiHydroBottle,t_prec,Temperature Precision,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,t_qual,Temperature Quality,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroBottle,ta1,"Measured Total Alkalinity, Replicate 1",micromoles per kilogram,scientific_variable,calcofi_bottle,env,matching,alkalinity_rep1,measurement_type (source_column/name)
+siocalcofiHydroBottle,ta2,"Measured Total Alkalinity, Replicate 2",micromoles per kilogram,scientific_variable,calcofi_bottle,env,matching,alkalinity_rep2,measurement_type (source_column/name)
+siocalcofiHydroBottle,time,Time,seconds since 1970-01-01T00:00:00Z,scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,ac_line,Actual Line Number,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,ac_sta,Actual Station,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,barometer,Atmospheric Pressure,millibars,scientific_variable,calcofi_bottle,env,matching,barometric_pressure,measurement_type (source_column/name)
+siocalcofiHydroCast,bottom_d,Station Bottom Depth,meters,scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,cast_id,Cast Id,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,civil_t,Civil Twilight PST,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,cloud_amt,Cloud Amount Code,"",scientific_variable,calcofi_bottle,env,matching,cloud_amount,measurement_type (source_column/name)
+siocalcofiHydroCast,cloud_typ,Cloud Type Code,"",scientific_variable,calcofi_bottle,env,matching,cloud_type,measurement_type (source_column/name)
+siocalcofiHydroCast,cruise,Cruise,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,cruise_id,Cruise ID,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,cruz_leg,Cruise Leg,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,cruz_num,Cruise Number,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,cruz_sta,Cruise ID,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,cst_cnt,Cast Count,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,data_or,Organizational ID,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,data_type,Data Type,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,date,Date,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,dbsta_id,CalCOFI Line and Station,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,distance,Distance from shore,nautical miles,scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,dry_t,Dry Bulb Temperature,degrees Celcius,scientific_variable,calcofi_bottle,env,matching,dry_air_temp,measurement_type (source_column/name)
+siocalcofiHydroCast,event_num,Event Number,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,fore_iu,ForelU,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,inc_end,Incubation End Time PST,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,inc_str,Incubation Start Time PST,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,intc14,Integrated C14 Assimilation,milligrams C per square meter per half light day,scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,intchl,Integrated Chlorophyll,milligrams chl per square meter per half light day,scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,julian_date,Julian Date,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,julian_day,Julian Day,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,lat_deg,latitude_degrees,degrees,scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,lat_hem,latitude_hemisphere,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,lat_min,latitude_minutes,minutes,scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,latitude,Latitude,degrees_north,scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,lon_deg,longitude_degrees,degrees,scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,lon_hem,longitude_hemisphere,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,lon_min,longitude_minutes,minutes,scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,longitude,Longitude,degrees_east,scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,month,Month,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,order_occ,Order Occupied,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,orig_sta_id,Original Station Identifier,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,pst_lan,Local Apparent Noon PST,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,quarter,Quarter of Year,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,rpt_line,Reported Line Number,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,rpt_sta,Reported Station,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,secchi,Secchi,meters,scientific_variable,calcofi_bottle,env,matching,secchi_depth,measurement_type (source_column/name)
+siocalcofiHydroCast,ship_code,Ship Code,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,ship_name,Ship Name,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,st_line,Nominal CalCOFI Line,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,st_station,Nominal CalCOFI Station,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,sta_code,Station,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,sta_id,Line and Station,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,time,Time,seconds since 1970-01-01T00:00:00Z,scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,time_string,Time of Cast,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,timezone,Time Zone,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+siocalcofiHydroCast,visibility,Visibility Code,"",scientific_variable,calcofi_bottle,env,matching,visibility,measurement_type (source_column/name)
+siocalcofiHydroCast,wave_dir,Wave Direction Code,degrees,scientific_variable,calcofi_bottle,env,matching,wave_direction,measurement_type (source_column/name)
+siocalcofiHydroCast,wave_ht,Wave Height,feet,scientific_variable,calcofi_bottle,env,matching,wave_height,measurement_type (source_column/name)
+siocalcofiHydroCast,wave_prd,Wave Period,seconds,scientific_variable,calcofi_bottle,env,matching,wave_period,measurement_type (source_column/name)
+siocalcofiHydroCast,wea,Weather Code,"",scientific_variable,calcofi_bottle,env,matching,weather_code,measurement_type (source_column/name)
+siocalcofiHydroCast,wet_t,Wet Bulb Temperature,degrees Celcius,scientific_variable,calcofi_bottle,env,matching,wet_air_temp,measurement_type (source_column/name)
+siocalcofiHydroCast,wind_dir,Wind Direction,degrees,scientific_variable,calcofi_bottle,env,matching,wind_direction,measurement_type (source_column/name)
+siocalcofiHydroCast,wind_spd,Wind Speed,knots,scientific_variable,calcofi_bottle,env,matching,wind_speed,measurement_type (source_column/name)
+siocalcofiHydroCast,year,Year,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
+underway/,Weather - underway/METS data,Weather - underway/METS data,"",scientific_dataset,,env,missing,,no DB dataset (missing/omics)
+zoodb,All genera and species,All genera and species,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,aetideus bradyi,aetideus bradyi,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,aetideus divergens,aetideus divergens,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,atlanta spp.,atlanta spp.,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,calanus pacificus,calanus pacificus,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,candacia aethiopica,candacia aethiopica,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,candacia bipinnata,candacia bipinnata,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,candacia curta,candacia curta,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,cyclosalpa affinis,cyclosalpa affinis,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,cyclosalpa bakeri,cyclosalpa bakeri,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,cyclosalpa pinnata,cyclosalpa pinnata,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,cyclosalpa quadriluminis,cyclosalpa quadriluminis,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,cyclosalpa spp.,cyclosalpa spp.,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,dolioletta gegenbauri,dolioletta gegenbauri,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,dolioletta sp.,dolioletta sp.,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,eucalanus californicus,eucalanus californicus,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,eucalanus hyalinus,eucalanus hyalinus,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,euchaeta acuta,euchaeta acuta,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,euchaeta media,euchaeta media,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,euchaeta rimana,euchaeta rimana,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,euchirella pseudopulchra,euchirella pseudopulchra,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,euchirella pulchra,euchirella pulchra,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,gaidius pungens,gaidius pungens,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,gaussia princeps,gaussia princeps,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,helicosalpa virgula,helicosalpa virgula,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,heterorhabdus abyssalis,heterorhabdus abyssalis,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,heterorhabdus papilliger,heterorhabdus papilliger,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,ihlea punctata,ihlea punctata,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,labidocera trispinosa,labidocera trispinosa,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,lucicutia flavicornis,lucicutia flavicornis,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,lucicutia spp.,lucicutia spp.,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,mesocalanus lighti,mesocalanus lighti,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,mesocalanus tenuicornis,mesocalanus tenuicornis,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,metridia cf. pacifica,metridia cf. pacifica,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,nannocalanus minor,nannocalanus minor,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,neocalanus cristatus,neocalanus cristatus,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,neocalanus flemingeri,neocalanus flemingeri,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,neocalanus gracilis,neocalanus gracilis,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,neocalanus plumchrus,neocalanus plumchrus,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,neocalanus robustior,neocalanus robustior,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,pareucalanus attenuatus,pareucalanus attenuatus,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,pasiphaea pacifica,pasiphaea pacifica,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,pasiphaea spp.,pasiphaea spp.,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,pegea confoederata,pegea confoederata,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,pegea socia,pegea socia,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,pegea spp.,pegea spp.,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,pleuromamma abdominalis edentata,pleuromamma abdominalis edentata,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,pleuromamma abdominalis typica,pleuromamma abdominalis typica,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,pleuromamma borealis,pleuromamma borealis,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,pleuromamma gracilis,pleuromamma gracilis,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,pleuromamma piseki,pleuromamma piseki,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,pleuromamma quadrungulata,pleuromamma quadrungulata,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,pleuromamma xiphias,pleuromamma xiphias,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,pleuroncodes planipes,pleuroncodes planipes,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,pyrosoma atlanticum,pyrosoma atlanticum,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,pyrosoma spp.,pyrosoma spp.,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,pyrosomella verticillata,pyrosomella verticillata,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,rhincalanus nasutus,rhincalanus nasutus,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,ritteriella amboinensis,ritteriella amboinensis,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,ritteriella picteti,ritteriella picteti,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,ritteriella retracta,ritteriella retracta,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,ritteriella spp.,ritteriella spp.,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,salpa aspera,salpa aspera,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,salpa fusiformis,salpa fusiformis,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,salpa maxima,salpa maxima,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,salpa spp.,salpa spp.,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,scolecithrix danae,scolecithrix danae,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,sergestes similis,sergestes similis,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,sergestes spp.,sergestes spp.,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,sergia spp.,sergia spp.,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,soestia zonaria,soestia zonaria,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,subeucalanus crassus,subeucalanus crassus,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,thalia democratica,thalia democratica,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,thetys vagina,thetys vagina,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,tomopteris spp.,tomopteris spp.,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb,weelia cylindrica,weelia cylindrica,count,taxon,cce-lter_zoodb,bio,matching,,taxon (build-time species match)
+zoodb/save.php?mode=save,Permanent zooplankton (Holoplankton) community: ZooDb,Permanent zooplankton (Holoplankton) community: ZooDb,"",scientific_dataset,cce-lter_zoodb,bio,matching,,taxon (build-time species match)

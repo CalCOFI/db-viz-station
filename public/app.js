@@ -45,6 +45,8 @@ Promise.all([
   renderStations();
   wireSearch();
   initYearSlider();
+  buildCategories();
+  renderCategoryChips();
 }).catch(e => console.error('load failed', e));
 
 // ---- year-range filter -------------------------------------------------------
@@ -65,6 +67,7 @@ function datasetInRange(d) {
 const activeDatasets = s => (s.datasets || []).filter(datasetInRange);
 
 function applyStyles() {
+  const catSet = activeCategory ? (CAT_DATASETS[activeCategory] || new Set()) : null;
   STATIONS.forEach(s => {
     const mk = MARKERS[s.grid_key]; if (!mk) return;
     const active = activeDatasets(s), nd = active.length;
@@ -73,6 +76,11 @@ function applyStyles() {
       const on = active.some(d => d.dataset_key === selectedVar.dataset_key);
       mk.setStyle(on
         ? { ...baseStyle(s), color: '#fff', weight: 1.5, fillColor: meta.color, fillOpacity: 0.95, opacity: 1 }
+        : baseStyle(s, true));
+    } else if (catSet) {
+      const on = active.some(d => catSet.has(d.dataset_key));
+      mk.setStyle(on
+        ? { ...baseStyle({ ...s, n_datasets: nd }), color: '#fff', weight: 1.4, fillColor: '#00c2ff', fillOpacity: 0.9, opacity: 1 }
         : baseStyle(s, true));
     } else {
       mk.setStyle(baseStyle({ ...s, n_datasets: nd }, nd === 0));
@@ -115,6 +123,79 @@ function resetYearFilter() {
   document.getElementById('ys-min-label').textContent = G_MIN;
   document.getElementById('ys-max-label').textContent = G_MAX;
   setFill(G_MIN, G_MAX); applyStyles(); if (selectedVar) highlight(selectedVar);
+}
+
+// ---- category browse (chips) -------------------------------------------------
+// Coarse one-click categories. Environmental measurements classify by name
+// (contentKeywordGroup, ported from PR #1); biological taxa fall back to their
+// dataset's category. Clicking a chip highlights the stations with any dataset
+// in that category (year-aware); clicking again clears.
+let activeCategory = null;
+const CAT_DATASETS = {};     // category -> Set(dataset_key)
+const CAT_COUNTS = {};       // category -> variable count
+
+function contentKeywordGroup(v) {
+  const n = (v.display_name || v.name || '').toLowerCase();
+  if (n === 'ph' || n.startsWith('ph ') || n.includes('ph replicate')) return 'Carbonate system';
+  if (['alkalinity', 'dic', 'dissolved inorganic carbon', 'carbonate', 'pco2'].some(k => n.includes(k))) return 'Carbonate system';
+  if (['phosphate', 'silicate', 'nitrate', 'nitrite', 'ammoni'].some(k => n.includes(k))) return 'Nutrients & chemistry';
+  if (['chlorophyll', 'phaeopigment', 'c14', 'productivity', 'pigment', 'fluorescence'].some(k => n.includes(k))) return 'Productivity & pigments';
+  if (['wind', 'wave', 'weather', 'cloud', 'visibility', 'bulb', 'atmospheric', 'barometric', 'secchi', 'forel'].some(k => n.includes(k))) return 'Meteorology & sea state';
+  if (['temperature', 'salinity', 'density', 'sigma', 'oxygen', 'o2', 'pressure', 'depth', 'dynamic height', 'par'].some(k => n.includes(k))) return 'Physical oceanography';
+  return null;
+}
+const DATASET_CATEGORY = {
+  'swfsc_ichthyo': 'Fish larvae & eggs', 'swfsc_cufes': 'Fish larvae & eggs',
+  'cce-lter_zoodb': 'Zooplankton', 'cce-lter_zooscan': 'Zooplankton',
+  'pic_zooplankton': 'Zooplankton', 'calcofi_phyllosoma': 'Zooplankton',
+  'cce-lter_euphausiids': 'Euphausiids', 'calcofi_bird_mammal_census': 'Seabirds & mammals',
+  'calcofi_phytoplankton': 'Phytoplankton'
+};
+function categoryOf(v) {
+  return contentKeywordGroup(v) || DATASET_CATEGORY[v.dataset_key]
+    || (dsMeta(v.dataset_key).realm === 'env' ? 'Physical oceanography' : 'Other');
+}
+const CATEGORY_ORDER = ['Physical oceanography', 'Nutrients & chemistry', 'Productivity & pigments',
+  'Carbonate system', 'Meteorology & sea state', 'Phytoplankton', 'Zooplankton', 'Euphausiids',
+  'Fish larvae & eggs', 'Seabirds & mammals'];
+const CATEGORY_ICON = {
+  'Physical oceanography': '🌊', 'Nutrients & chemistry': '🧪', 'Productivity & pigments': '🌿',
+  'Carbonate system': '🫧', 'Meteorology & sea state': '🌦', 'Phytoplankton': '🦠',
+  'Zooplankton': '🦐', 'Euphausiids': '🦐', 'Fish larvae & eggs': '🐟', 'Seabirds & mammals': '🐦'
+};
+
+function buildCategories() {
+  VARS.forEach(v => {
+    const c = categoryOf(v); if (c === 'Other') return;
+    (CAT_DATASETS[c] ||= new Set()).add(v.dataset_key);
+    CAT_COUNTS[c] = (CAT_COUNTS[c] || 0) + 1;
+  });
+}
+function renderCategoryChips() {
+  const el = document.getElementById('category-filters'); if (!el) return;
+  el.innerHTML = CATEGORY_ORDER.filter(c => CAT_COUNTS[c]).map(c =>
+    `<button class="cat-chip" data-cat="${c}" onclick="toggleCategory(this.dataset.cat)">`
+    + `${CATEGORY_ICON[c] || '📊'} ${c} <span class="cat-n">${CAT_COUNTS[c]}</span></button>`).join('');
+}
+function catStations(cat) {
+  const ds = CAT_DATASETS[cat] || new Set(), out = new Set();
+  STATIONS.forEach(s => { if (activeDatasets(s).some(d => ds.has(d.dataset_key))) out.add(s.grid_key); });
+  return out;
+}
+function toggleCategory(cat) {
+  activeCategory = (activeCategory === cat) ? null : cat;
+  selectedVar = null; searchInput.value = ''; dropdown.classList.remove('open');
+  document.querySelectorAll('.cat-chip').forEach(b =>
+    b.classList.toggle('active', b.dataset.cat === activeCategory));
+  applyStyles();
+  const banner = document.getElementById('search-banner');
+  if (activeCategory) {
+    banner.innerHTML = `<b>${CATEGORY_ICON[activeCategory] || ''} ${activeCategory}</b> — `
+      + `${catStations(activeCategory).size} stations`
+      + (yearRange ? ` in <b>${yearRange[0]}–${yearRange[1]}</b>` : '')
+      + ` · ${CAT_COUNTS[activeCategory]} variables`;
+    banner.style.display = 'block';
+  } else { banner.style.display = 'none'; banner.innerHTML = ''; }
 }
 
 // ---- station markers ----
@@ -243,6 +324,8 @@ function selectVariable(vid) {
   const v = VARS.find(x => x.variable_id === vid);
   if (!v) return;
   selectedVar = v;
+  activeCategory = null;  // a specific variable supersedes a category highlight
+  document.querySelectorAll('.cat-chip.active').forEach(b => b.classList.remove('active'));
   dropdown.classList.remove('open');
   searchInput.value = v.display_name || v.name;
   highlight(v);
@@ -288,11 +371,13 @@ function showVariablePanel(v) {
 // ---- inline-handler globals (referenced by index.html) ----
 function clearAll() {
   selectedVar = null;
+  activeCategory = null;
+  document.querySelectorAll('.cat-chip.active').forEach(b => b.classList.remove('active'));
   searchInput.value = '';
   dropdown.classList.remove('open');
   const banner = document.getElementById('search-banner');
   banner.style.display = 'none'; banner.innerHTML = '';
-  applyStyles();  // clears the variable highlight but keeps any year window
+  applyStyles();  // clears the variable/category highlight but keeps any year window
   document.getElementById('panel-header').style.display = 'none';
   document.getElementById('panel-content').innerHTML = '';
   document.getElementById('panel-empty').style.display = '';

@@ -38,12 +38,13 @@ jobs:
           duckdb -c ".read scripts/build_crosswalk.sql"
           sed "s/__RELEASE__/$REL/g" scripts/build_stations.sql | duckdb
           sed "s/__RELEASE__/$REL/g" scripts/build_vars.sql | duckdb
+          sed "s/__RELEASE__/$REL/g" scripts/build_decades.sql | duckdb
 
       - name: Commit if changed
         run: |
           git config user.name  "calcofi-bot"
           git config user.email "bot@calcofi.io"
-          git add public/data/stations.json public/data/variables.json metadata/crosswalk_variables.csv
+          git add public/data/stations.json public/data/variables.json public/data/decades.json metadata/crosswalk_variables.csv
           if git diff --cached --quiet; then
             echo "no coverage changes"
           else

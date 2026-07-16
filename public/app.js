@@ -30,14 +30,19 @@ const MONTHS = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
 
 let STATIONS = [], VARS = [];
 const BY_KEY = {}, MARKERS = {}, DS_STATIONS = {};   // dataset_key -> Set(grid_key)
+const DECADES = {};   // dataset_key -> station_id -> [{decade, mean_density, n_tows}]
 let selectedVar = null;
 
 // ---- load prebuilt data ----
+// decades.json (per-station decade-means for the plankton datasets) is optional —
+// tolerate its absence so the map still loads before the first refresh builds it.
 Promise.all([
   fetch('./data/stations.json').then(r => r.json()),
-  fetch('./data/variables.json').then(r => r.json())
-]).then(([st, va]) => {
+  fetch('./data/variables.json').then(r => r.json()),
+  fetch('./data/decades.json').then(r => r.ok ? r.json() : []).catch(() => [])
+]).then(([st, va, dm]) => {
   STATIONS = st; VARS = va;
+  (dm || []).forEach(r => { ((DECADES[r.dataset_key] ||= {})[r.station_id] ||= []).push(r); });
   STATIONS.forEach(s => {
     BY_KEY[s.grid_key] = s;
     (s.datasets || []).forEach(d => { (DS_STATIONS[d.dataset_key] ||= new Set()).add(s.grid_key); });
@@ -283,7 +288,26 @@ function openStation(s) {
       <div><span class="k">surveys</span><span class="v">${num(s.n_surveys)}</span></div>
       <div><span class="k">observations</span><span class="v">${num(s.n_obs)}</span></div>
       <div><span class="k">span</span><span class="v">${yr(s.time_min)}–${yr(s.time_max)}</span></div>
-    </div>${cards}`;
+    </div>${cards}${decadeBlocks(s)}`;
+}
+
+// ---- plankton decade-means (station panel) ----------------------------------
+// For the two CCE-LTER plankton datasets, decades.json carries the mean community
+// density by decade at this station (built from the release DB by
+// scripts/build_decades.sql). Ports PR #1's decade-means onto the release-DB data.
+const DECADE_UNITS = { 'cce-lter_zoodb': 'count/1000 m³', 'cce-lter_euphausiids': 'count/tow' };
+function decadeBlocks(s) {
+  return (s.datasets || []).map(d => {
+    const rows = DECADES[d.dataset_key] && DECADES[d.dataset_key][s.station_id];
+    if (!rows || !rows.length) return '';
+    const meta = dsMeta(d.dataset_key), unit = DECADE_UNITS[d.dataset_key] || '';
+    const items = rows.slice().sort((a, b) => a.decade.localeCompare(b.decade)).map(r =>
+      `<div class="dec-row"><span class="dec-yr">${r.decade}</span>`
+      + `<span class="dec-val">${num(Math.round(r.mean_density))} <span class="dec-unit">${unit}</span>`
+      + `<span class="dec-n">· ${r.n_tows} tow${r.n_tows === 1 ? '' : 's'}</span></span></div>`).join('');
+    return `<div class="dec-block" style="--c:${meta.color}">`
+      + `<div class="dec-head">Mean ${meta.label} density by decade</div>${items}</div>`;
+  }).join('');
 }
 
 // ---- variable search ----

@@ -1,7 +1,7 @@
 portal_dataset_id,variable_name,display_name,units,entity_type,db_provider_dataset,realm,dataset_match_class,measurement_type_match,var_note
 /euphausiid/save.php?mode=save,Krill (Euphausiids),Krill (Euphausiids),"",scientific_dataset,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
 555783,Genomics of microbial/plankton assemblage (ASVs) - 16S,Genomics of microbial/plankton assemblage (ASVs) - 16S,"",scientific_dataset,,omics,missing,,no DB dataset (missing/omics)
-CAC_FI_SBAS_obs,behavior,behavior,"",scientific_variable,calcofi_bird_mammal_census,bio,partial,,taxon (build-time species match)
+CAC_FI_SBAS_obs,behavior,behavior,"",scientific_variable,calcofi_bird_mammal_census,bio,partial,behavior,measurement_type (source_column/name)
 CAC_FI_SBAS_obs,count,count,"",scientific_variable,calcofi_bird_mammal_census,bio,partial,count,measurement_type (source_column/name)
 CAC_FI_SBAS_obs,gis_key,gis_key,"",scientific_variable,calcofi_bird_mammal_census,bio,partial,,taxon (build-time species match)
 CAC_FI_SBAS_obs,idnum,idnum,"",scientific_variable,calcofi_bird_mammal_census,bio,partial,,taxon (build-time species match)
@@ -28,18 +28,18 @@ erdCalCOFINOAAhydros,ship_code,Ship Code,"",scientific_variable,calcofi_ctd-cast
 erdCalCOFINOAAhydros,station,CalCOFI Station,"",scientific_variable,calcofi_ctd-cast,env,matching,,unmatched
 erdCalCOFINOAAhydros,temperature,Temperature,degrees Celsius,physical_variable,calcofi_ctd-cast,env,matching,,unmatched
 erdCalCOFINOAAhydros,time,CTD Start Time,seconds since 1970-01-01T00:00:00Z,scientific_variable,calcofi_ctd-cast,env,matching,,unmatched
-erdCalCOFIcufes,anchovy_eggs,Anchovy Eggs,count,scientific_variable,swfsc_cufes,bio,matching,anchovy_eggs,measurement_type (source_column/name)
+erdCalCOFIcufes,anchovy_eggs,Anchovy Eggs,count,scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
 erdCalCOFIcufes,cruise,Cruise,"",scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
-erdCalCOFIcufes,hake_eggs,Hake Eggs,count,scientific_variable,swfsc_cufes,bio,matching,hake_eggs,measurement_type (source_column/name)
-erdCalCOFIcufes,jack_mackerel_eggs,Jack Mackerel Eggs,count,scientific_variable,swfsc_cufes,bio,matching,jack_mackerel_eggs,measurement_type (source_column/name)
+erdCalCOFIcufes,hake_eggs,Hake Eggs,count,scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
+erdCalCOFIcufes,jack_mackerel_eggs,Jack Mackerel Eggs,count,scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
 erdCalCOFIcufes,latitude,Start Latitude,degrees_north,scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
 erdCalCOFIcufes,longitude,Start Longitude,degrees_east,scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
-erdCalCOFIcufes,other_fish_eggs,Other Fish Eggs,count,scientific_variable,swfsc_cufes,bio,matching,other_fish_eggs,measurement_type (source_column/name)
+erdCalCOFIcufes,other_fish_eggs,Other Fish Eggs,count,scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
 erdCalCOFIcufes,sample_number,Sample Number,"",scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
-erdCalCOFIcufes,sardine_eggs,Sardine Eggs,count,scientific_variable,swfsc_cufes,bio,matching,sardine_eggs,measurement_type (source_column/name)
+erdCalCOFIcufes,sardine_eggs,Sardine Eggs,count,scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
 erdCalCOFIcufes,ship,Ship Name,"",scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
 erdCalCOFIcufes,ship_code,Ship Code,"",scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
-erdCalCOFIcufes,squid_eggs,Squid Eggs,count,scientific_variable,swfsc_cufes,bio,matching,squid_eggs,measurement_type (source_column/name)
+erdCalCOFIcufes,squid_eggs,Squid Eggs,count,scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
 erdCalCOFIcufes,start_pump_speed,Start Pump Speed,M^3 per minute,scientific_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
 erdCalCOFIcufes,start_salinity,Start Salinity,practical salinity units,physical_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)
 erdCalCOFIcufes,start_temperature,Start Temperature,degrees Celsius,physical_variable,swfsc_cufes,bio,matching,,taxon (build-time species match)

@@ -22,19 +22,20 @@ SELECT measurement_type, description, units, (is_canonical = 'TRUE') AS is_canon
 FROM read_csv_auto('https://raw.githubusercontent.com/CalCOFI/workflows/main/metadata/measurement_type.csv')
 WHERE _source_datasets IS NOT NULL;
 
--- authoritative taxa spine (datasets with clean taxon tables)
+-- authoritative taxa spine — the unified `taxon` (one deduped row per taxon)
+-- joined to the `dataset_taxon` crosswalk (dataset_key) from the LATEST frozen
+-- release. `__RELEASE__` is substituted by refresh.yml (curl latest.txt), the
+-- same mechanism build_stations.sql uses. Supersedes the per-dataset ingest
+-- parquet UNION (species/zoodb_taxon/zooscan_taxon/phyto_taxon); now also covers
+-- seabirds/mammals + resolves coarse taxa to real WoRMS/ITIS.
+CREATE TEMP MACRO r(p) AS
+  'https://storage.googleapis.com/calcofi-db/ducklake/releases/__RELEASE__/parquet/' || p;
 CREATE TEMP TABLE tx AS
-SELECT 'swfsc_ichthyo' dataset_key, scientific_name, CAST(worms_id AS VARCHAR) aphia_id, NULL rank, common_name
-  FROM read_parquet(u('swfsc_ichthyo/species.parquet')) WHERE scientific_name IS NOT NULL
-UNION ALL
-SELECT 'cce-lter_zoodb', scientific_name, CAST(aphia_id AS VARCHAR), rank, NULL
-  FROM read_parquet(u('cce-lter_zoodb/zoodb_taxon.parquet')) WHERE scientific_name IS NOT NULL
-UNION ALL
-SELECT 'cce-lter_zooscan', scientific_name, CAST(aphia_id AS VARCHAR), rank, NULL
-  FROM read_parquet(u('cce-lter_zooscan/zooscan_taxon.parquet')) WHERE scientific_name IS NOT NULL
-UNION ALL
-SELECT 'calcofi_phytoplankton', scientific_name_accepted, CAST(aphia_id AS VARCHAR), rank, NULL
-  FROM read_parquet(u('calcofi_phytoplankton/phyto_taxon.parquet')) WHERE scientific_name_accepted IS NOT NULL;
+SELECT dt.dataset_key, t.scientific_name,
+       CAST(t.worms_id AS VARCHAR) AS aphia_id, t.rank, t.common_name
+FROM read_parquet(r('dataset_taxon.parquet')) dt
+JOIN read_parquet(r('taxon.parquet')) t USING (taxon_key)
+WHERE t.scientific_name IS NOT NULL;
 
 -- harvested catalog (extras source) + crosswalks
 CREATE TEMP TABLE hv AS

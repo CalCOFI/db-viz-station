@@ -44,7 +44,78 @@ Promise.all([
   });
   renderStations();
   wireSearch();
+  initYearSlider();
 }).catch(e => console.error('load failed', e));
+
+// ---- year-range filter -------------------------------------------------------
+// Filter the map to stations with coverage in a [minYear, maxYear] window, using
+// the per-dataset `years` bins already in stations.json (no live query). Null =
+// full range. `applyStyles()` is the single source of truth for marker styling
+// (combines the year window with any selected variable).
+let yearRange = null, G_MIN = null, G_MAX = null;
+
+function datasetInRange(d) {
+  if (!yearRange) return true;
+  const [a, b] = yearRange;
+  if (d.years && d.years.length) return d.years.some(o => o.y >= a && o.y <= b);
+  const y0 = d.time_min ? +String(d.time_min).slice(0, 4) : null;   // fallback: extent overlap
+  const y1 = d.time_max ? +String(d.time_max).slice(0, 4) : y0;
+  return y0 == null || (y1 >= a && y0 <= b);
+}
+const activeDatasets = s => (s.datasets || []).filter(datasetInRange);
+
+function applyStyles() {
+  STATIONS.forEach(s => {
+    const mk = MARKERS[s.grid_key]; if (!mk) return;
+    const active = activeDatasets(s), nd = active.length;
+    if (selectedVar) {
+      const meta = dsMeta(selectedVar.dataset_key);
+      const on = active.some(d => d.dataset_key === selectedVar.dataset_key);
+      mk.setStyle(on
+        ? { ...baseStyle(s), color: '#fff', weight: 1.5, fillColor: meta.color, fillOpacity: 0.95, opacity: 1 }
+        : baseStyle(s, true));
+    } else {
+      mk.setStyle(baseStyle({ ...s, n_datasets: nd }, nd === 0));
+    }
+  });
+}
+
+function initYearSlider() {
+  let mn = Infinity, mx = -Infinity;
+  STATIONS.forEach(s => (s.datasets || []).forEach(d => (d.years || []).forEach(o => {
+    if (o.y < mn) mn = o.y; if (o.y > mx) mx = o.y;
+  })));
+  if (!isFinite(mn) || mn === mx) return;
+  G_MIN = mn; G_MAX = mx;
+  const smin = document.getElementById('ys-min'), smax = document.getElementById('ys-max');
+  smin.min = smax.min = mn; smin.max = smax.max = mx; smin.value = mn; smax.value = mx;
+  const upd = () => {
+    let a = +smin.value, b = +smax.value; if (a > b) [a, b] = [b, a];
+    yearRange = (a === G_MIN && b === G_MAX) ? null : [a, b];
+    document.getElementById('ys-min-label').textContent = a;
+    document.getElementById('ys-max-label').textContent = b;
+    setFill(a, b); applyStyles(); if (selectedVar) highlight(selectedVar);
+  };
+  smin.addEventListener('input', () => { if (+smin.value > +smax.value) smin.value = smax.value; upd(); });
+  smax.addEventListener('input', () => { if (+smax.value < +smin.value) smax.value = smin.value; upd(); });
+  document.getElementById('ys-min-label').textContent = mn;
+  document.getElementById('ys-max-label').textContent = mx;
+  setFill(mn, mx);
+  document.getElementById('year-slider').style.display = '';
+}
+function setFill(a, b) {
+  const pct = x => 100 * (x - G_MIN) / ((G_MAX - G_MIN) || 1);
+  const f = document.getElementById('ys-fill');
+  f.style.left = pct(a) + '%'; f.style.right = (100 - pct(b)) + '%';
+}
+function resetYearFilter() {
+  if (G_MIN == null) return;
+  const smin = document.getElementById('ys-min'), smax = document.getElementById('ys-max');
+  smin.value = G_MIN; smax.value = G_MAX; yearRange = null;
+  document.getElementById('ys-min-label').textContent = G_MIN;
+  document.getElementById('ys-max-label').textContent = G_MAX;
+  setFill(G_MIN, G_MAX); applyStyles(); if (selectedVar) highlight(selectedVar);
+}
 
 // ---- station markers ----
 function baseStyle(s, dim = false) {
@@ -178,17 +249,14 @@ function selectVariable(vid) {
   showVariablePanel(v);
 }
 function highlight(v) {
+  selectedVar = v;
   const meta = dsMeta(v.dataset_key);
-  const set = DS_STATIONS[v.dataset_key] || new Set();
-  STATIONS.forEach(s => {
-    const on = set.has(s.grid_key), mk = MARKERS[s.grid_key];
-    if (on) mk.setStyle({ ...baseStyle(s), color: '#fff', weight: 1.5,
-                          fillColor: meta.color, fillOpacity: 0.95, opacity: 1 });
-    else mk.setStyle(baseStyle(s, true));
-  });
+  applyStyles();  // year window + selected variable
+  const n = STATIONS.filter(s => activeDatasets(s).some(d => d.dataset_key === v.dataset_key)).length;
   const banner = document.getElementById('search-banner');
   banner.innerHTML = `<b style="color:${meta.color}">${v.display_name || v.name}</b> — `
-    + `${set.size} stations with <b>${meta.label}</b> coverage`;
+    + `${n} stations with <b>${meta.label}</b> coverage`
+    + (yearRange ? ` in <b>${yearRange[0]}–${yearRange[1]}</b>` : '');
   banner.style.display = 'block';
 }
 function showVariablePanel(v) {
@@ -224,7 +292,7 @@ function clearAll() {
   dropdown.classList.remove('open');
   const banner = document.getElementById('search-banner');
   banner.style.display = 'none'; banner.innerHTML = '';
-  STATIONS.forEach(s => MARKERS[s.grid_key].setStyle(baseStyle(s)));
+  applyStyles();  // clears the variable highlight but keeps any year window
   document.getElementById('panel-header').style.display = 'none';
   document.getElementById('panel-content').innerHTML = '';
   document.getElementById('panel-empty').style.display = '';

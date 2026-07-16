@@ -43,6 +43,20 @@
 
   <div class="search-banner" id="search-banner"></div>
 
+  <!-- Year-range slider: filter the map to stations with coverage in a year window
+       (uses the per-dataset `years` bins in stations.json). -->
+  <div class="year-slider" id="year-slider" style="display:none">
+    <span class="ys-caption">Years</span>
+    <span class="ys-label" id="ys-min-label"></span>
+    <div class="ys-track">
+      <div class="ys-fill" id="ys-fill"></div>
+      <input type="range" id="ys-min" class="ys-range" aria-label="start year">
+      <input type="range" id="ys-max" class="ys-range" aria-label="end year">
+    </div>
+    <span class="ys-label" id="ys-max-label"></span>
+    <button class="ys-reset" id="ys-reset" onclick="resetYearFilter()" title="reset to full range">↺</button>
+  </div>
+
   <div class="main">
     <div id="map"></div>
     <div id="panel-resizer" class="panel-resizer">

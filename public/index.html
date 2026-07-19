@@ -8,77 +8,77 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link
-    href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Instrument+Serif:ital@0;1&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap"
     rel="stylesheet">
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=61" />
 </head>
 
 <body>
 
-  <header>
-    <div class="logo">
-      <span class="logo-title">CalCOFI</span>
-      <span class="logo-sub">Station Data Portal</span>
-    </div>
-  </header>
-
-  <div class="search-bar">
-    <div class="search-wrapper">
-      <input class="search-input" id="search" type="text"
-        placeholder="Search variables (e.g. chlorophyll, nitrate, salinity)…" autocomplete="off" />
-      <div class="dropdown" id="dropdown"></div>
-    </div>
-    <div class="category-filters" id="category-filters"></div>
-
-    <button class="clear-btn" id="clear-btn" onclick="clearAll()">
-
-      ✕ Clear
-
-    </button>
-  </div>
-
-  <div class="search-banner" id="search-banner"></div>
-
-  <!-- Year-range slider: filter the map to stations with coverage in a year window
-       (uses the per-dataset `years` bins in stations.json). -->
-  <div class="year-slider" id="year-slider" style="display:none">
-    <span class="ys-caption">Years</span>
-    <span class="ys-label" id="ys-min-label"></span>
-    <div class="ys-track">
-      <div class="ys-fill" id="ys-fill"></div>
-      <input type="range" id="ys-min" class="ys-range" aria-label="start year">
-      <input type="range" id="ys-max" class="ys-range" aria-label="end year">
-    </div>
-    <span class="ys-label" id="ys-max-label"></span>
-    <button class="ys-reset" id="ys-reset" onclick="resetYearFilter()" title="reset to full range">↺</button>
-  </div>
-
   <div class="main">
-    <div id="map"></div>
-    <div id="panel-resizer" class="panel-resizer">
-    </div>
-    <aside id="side-panel" class="panel">
-      <div class="panel" id="panel">
-        <div id="panel-toggle" class="panel-toggle" onclick="togglePanel()">
-          ❯
-        </div>
-        <div class="panel-empty" id="panel-empty">
-          <div class="panel-empty-icon">🌊</div>
-          <div class="panel-empty-text">Click any station<br>to explore its data. Note some stations have no data & will
-            be blank</div>
-        </div>
-        <div class="panel-header" id="panel-header" style="display:none">
-          <div class="panel-station-id" id="panel-station-id"></div>
-          <div class="panel-coords" id="panel-coords"></div>
-        </div>
-        <div class="panel-content" id="panel-content"></div>
+    <header>
+      <div class="logo">
+        <span class="logo-title">CalCOFI</span>
+        <span class="logo-sub">Station Data Portal</span>
       </div>
-    </aside>
+    </header>
+
+    <div class="search-bar">
+      <div class="search-wrapper">
+        <input class="search-input" id="search" type="text"
+          placeholder="Search variables (e.g. chlorophyll, nitrate, salinity)…" autocomplete="off" />
+        <div class="dropdown" id="dropdown"></div>
+      </div>
+      <button class="clear-btn" id="clear-btn" onclick="clearAll()">
+
+        ✕ Clear
+
+      </button>
+    </div>
+
+    <div class="search-banner" id="search-banner"></div>
+
+    <!-- Year-range slider: filter the map to stations with coverage in a year window
+         (uses the per-dataset `years` bins in stations.json). -->
+    <div class="year-slider" id="year-slider" style="display:none">
+      <span class="ys-caption">Years</span>
+      <span class="ys-label" id="ys-min-label"></span>
+      <div class="ys-track">
+        <div class="ys-fill" id="ys-fill"></div>
+        <input type="range" id="ys-min" class="ys-range" aria-label="start year">
+        <input type="range" id="ys-max" class="ys-range" aria-label="end year">
+      </div>
+      <span class="ys-label" id="ys-max-label"></span>
+      <button class="ys-reset" id="ys-reset" onclick="resetYearFilter()" title="reset to full range">↺</button>
+    </div>
+
+    <div id="map"></div>
   </div>
+
+  <div id="panel-resizer" class="panel-resizer">
+  </div>
+  <aside id="side-panel" class="panel">
+    <div class="panel" id="panel">
+      <div id="panel-toggle" class="panel-toggle" onclick="togglePanel()">
+        ❯
+      </div>
+      <div class="panel-empty" id="panel-empty">
+        <div class="panel-empty-icon">🌊</div>
+        <div class="panel-empty-text">Click any station<br>to explore its data. Note some stations have no data & will
+          be blank</div>
+      </div>
+      <div class="panel-header" id="panel-header" style="display:none">
+        <button id="panel-back-btn" class="panel-back-btn" style="display:none"></button>
+        <div class="panel-station-id" id="panel-station-id"></div>
+        <div class="panel-coords" id="panel-coords"></div>
+      </div>
+      <div class="panel-content" id="panel-content"></div>
+    </div>
+  </aside>
 
   <div class="modal-backdrop" id="modal-backdrop" onclick="closeModal(event)">
     <div class="modal" id="modal">
@@ -121,60 +121,55 @@
       <div class="about-content">
 
         <p>
-          CalCOFI Data Explorer is a prototype data
-          discovery tool developed by <a href="https://www.linkedin.com/in/nicolezxu/" target="_blank">Nicole Xu</a>, <a
-            href="https://www.linkedin.com/in/aashish-krishnan/" target="_blank">Aashish Krishnan</a>, and <a
-            href="https://www.linkedin.com/in/qiongwen-cao-b0955b242/" target="_blank">Qiongwen (Lucy) Cao</a>,
-          a team of students from the University of California, Santa Barbara as part of the
-          <a href="https://pstat197.github.io/" target="_blank">UCSB Data Science Capstone Program</a>, in partnership
-          with <a href="https://calcofi.org/" target="_blank">CalCOFI</a>, <a href="https://caseagrant.ucsd.edu/"
-            target="_blank">CA SeaGrant</a>, and <a href="https://scripps.ucsd.edu/" target="_blank">Scripps Institute
-            of Oceanography</a>, under the
+          CalCOFI Station Data Portal is a data
+          discovery tool built by <a href="http://linkedin.com/in/ben-best" target="_blank">Ben Best</a> and
+          <a href="https://www.linkedin.com/in/betty-huang-0aa57a201/" target="_blank">Betty Huang</a>, under the
           direction of <a href="https://www.linkedin.com/in/erin-satterthwaite-309a79164/" target="_blank">Dr. Erin
-            Satterthwaite</a>.
+            Satterthwaite</a>, in partnership with <a href="https://calcofi.org/" target="_blank">CalCOFI</a> and
+          <a href="https://scripps.ucsd.edu/" target="_blank">Scripps Institution of Oceanography</a>. It builds on
+          an <a href="https://calcofi.io/2026-ucsb-station-data-portal/" target="_blank">earlier prototype</a>
+          developed as part of the UCSB Data Science Student Capstone.
         </p>
 
         <p>
-          The application aggregates metadata from
-          multiple marine science repositories to
-          help users discover variables, stations,
-          and datasets across the California Current
-          Ecosystem.
+          The portal aggregates metadata across CalCOFI's integrated
+          release database &mdash; 12 datasets spanning physical
+          oceanography, nutrients and carbonate chemistry, phytoplankton
+          and zooplankton, fish larvae and eggs, and seabirds and marine
+          mammals &mdash; to help you find what's measured, where, and
+          when.
         </p>
-        <br>
-        <h3>Disclaimers</h3>
+
+        <h3>What you can do here</h3>
 
         <ul>
-
           <li>
-            This app is still <b><u>under development</u></b>. Many features are a work in progress, such as the station variable
-            lists which only display <u>hydrographic data</u> as of this moment.
-            Please use the search bar to explore the full range of available data.
+            <b>Browse by category or by dataset</b> from the panel on the
+            right &mdash; each entry expands to show its variables, grouped
+            by measurement so related readings from different instruments
+            or datasets (e.g. bottle vs. CTD temperature) sit together.
           </li>
-
           <li>
-            This application does not host the
-            underlying scientific data. Data availability and metadata are
-            provided by external organizations.
-            <ul>
-              <li>
-                Dataset contents, coverage, and access
-                policies may change without notice.
-              </li>
-              <li>
-                Users should consult the original data
-                providers for authoritative information.
-              </li>
-            </ul>
+            <b>Click any station</b> on the map for its full coverage:
+            which datasets have data there, observations by year, and
+            seasonality by month.
           </li>
-
-
-
-
-
+          <li>
+            <b>Search by name</b> &mdash; common or scientific &mdash; with
+            results grouped by category.
+          </li>
+          <li>
+            <b>Filter by year range</b> with the slider; stations with
+            coverage for a selected parameter highlight on the map, and a
+            marker on the slider shows that parameter's own actual data
+            span.
+          </li>
         </ul>
 
       </div>
+
+
+
 
     </div>
 
@@ -186,7 +181,7 @@
     ⓘ
   </button>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=61"></script>
 </body>
 
 </html>

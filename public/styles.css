@@ -3,7 +3,7 @@
   --deep: #061020;
   --surface: #0d2040;
   --accent: #00c2ff;
-  --accent2: #00ffb3;
+  --accent2: #facc15;
   --warm: #ff6b35;
   --text: #e8f4f8;
   --muted: #aac4d1;
@@ -30,7 +30,7 @@ body {
   font-family: 'Space Mono', monospace;
   height: 100vh;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   overflow: hidden;
 }
 
@@ -55,7 +55,6 @@ header {
 }
 
 .logo-title {
-  font-family: 'Instrument Serif', serif;
   font-size: 22px;
   color: var(--accent);
   letter-spacing: 0.5px;
@@ -121,17 +120,45 @@ a:visited {
   min-width: 250px;
 }
 
+/* Search icon (drawn with CSS, no image asset needed) */
+.search-wrapper::before {
+  content: "";
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 13px;
+  height: 13px;
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  border-radius: 50%;
+  z-index: 1;
+  pointer-events: none;
+}
+.search-wrapper::after {
+  content: "";
+  position: absolute;
+  left: 23px;
+  top: calc(50% + 5px);
+  width: 6px;
+  height: 1.5px;
+  background: rgba(255, 255, 255, 0.85);
+  transform: rotate(45deg);
+  transform-origin: left center;
+  z-index: 1;
+  pointer-events: none;
+}
+
 .search-input {
   width: 100%;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
+  border-radius: 6px;
   color: var(--text);
   font-family: 'Space Mono', monospace;
-  font-size: 12px;
-  padding: 8px 14px;
+  font-size: 14px;
+  padding: 9px 14px 9px 40px;
   outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 }
 
 .search-input::placeholder {
@@ -139,8 +166,9 @@ a:visited {
 }
 
 .search-input:focus {
-  border-color: var(--accent);
-  box-shadow: var(--glow);
+  border-color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.15);
 }
 
 .about-backdrop {
@@ -486,6 +514,15 @@ ol {
   border-color: var(--accent);
 }
 
+/* Amber/gold state — applied only while a variable is selected, so the
+   slider visibly signals "this is now filtering that parameter" instead
+   of always looking the same regardless of selection. */
+#year-slider.var-active .ys-label { color: var(--accent2); }
+#year-slider.var-active .ys-fill { background: var(--accent2); box-shadow: 0 0 20px rgba(250, 204, 21, 0.3); }
+#year-slider.var-active .ys-range::-webkit-slider-thumb { background: var(--accent2); box-shadow: 0 0 6px rgba(250, 204, 21, 0.6); }
+#year-slider.var-active .ys-range::-moz-range-thumb { background: var(--accent2); }
+#year-slider.var-active .ys-reset:hover { color: var(--accent2); border-color: var(--accent2); }
+
 /* category browse chips (in the search bar) */
 .category-filters {
   display: flex;
@@ -530,10 +567,17 @@ ol {
   opacity: 0.9;
 }
 
-/* Main layout */
+/* Main layout — left column: header, search bar, year-slider, map stacked
+   vertically. The side panel is a full-height sibling (see body's
+   flex-direction: row), so it spans the whole viewport height instead of
+   starting below the header — and the year-slider/search bar stop at the
+   map's edge instead of spanning across the panel too. */
 .main {
   display: flex;
+  flex-direction: column;
   flex: 1;
+  min-width: 0;
+  height: 100%;
   overflow: hidden;
 }
 
@@ -545,12 +589,13 @@ ol {
 
 /* side panel */
 .panel {
-  width: min(360px, 40vw);
+  width: min(385px, 40vw);
   background: var(--panel);
   border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   flex-shrink: 0;
   position: relative;
   transition: transform 0.3s ease;
@@ -596,7 +641,33 @@ ol {
   display: none
 }
 
+/* Back button — single slot at top of panel header, shown for
+   both "back to station" and "back to all categories" */
+.panel-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font-family: 'Space Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-bottom: 16px;
+  transition: background 0.15s, border-color 0.15s;
+  width: 100%;
+  text-align: left;
+}
+.panel-back-btn:hover {
+  background: rgba(0, 194, 255, 0.08);
+  border-color: var(--accent);
+}
+
 .panel-station-id {
+  font-family: 'Space Mono', monospace;
   font-size: 22px;
   color: var(--accent);
   font-weight: 700;
@@ -604,9 +675,10 @@ ol {
 }
 
 .panel-coords {
-  font-size: 20px;
-  color: var(--accent2);
-  margin-top: 4px;
+  font-family: 'Space Mono', monospace;
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 10px;
 }
 
 .panel-empty {
@@ -627,7 +699,6 @@ ol {
 }
 
 .panel-empty-text {
-  font-family: 'Instrument Serif', serif;
   font-style: italic;
   font-size: 15px;
   line-height: 1.8;
@@ -697,10 +768,17 @@ ol {
 }
 
 .data-link-name {
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.4;
   flex: 1;
 }
+
+/* Description line under each parameter name in the per-station accordion,
+   matching the "By Category" browse panel's clean name+sentence style.
+   Wrapped in .data-link-main so it stacks vertically without breaking
+   .data-link's existing flex-row layout (used elsewhere for unit/arrow). */
+.data-link-main { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.data-link-desc { font-size: 10px; color: var(--muted); line-height: 1.4; }
 
 .data-link-unit {
   font-size: 9px;
@@ -884,6 +962,12 @@ select optgroup {
 /* Leaflet overrides */
 .leaflet-container {
   background: #06121f !important;
+}
+
+/* Smooth fade for marker opacity/color changes (year-slider filtering,
+   variable selection) instead of an instant snap while dragging. */
+.leaflet-interactive {
+  transition: fill-opacity 0.2s ease, opacity 0.2s ease, fill 0.2s ease, stroke 0.2s ease;
 }
 
 .leaflet-control-zoom a {
@@ -1084,13 +1168,14 @@ select optgroup {
 }
 .cov-summary > div {
   background: var(--panel, #24272b); border: 1px solid var(--border, #3a3f44);
-  border-radius: 6px; padding: 8px 6px; text-align: center;
+  border-radius: 6px; padding: 10px 6px; text-align: center;
+  min-width: 0;
 }
 .cov-summary .k { display: block; font-size: 9px; letter-spacing: .06em;
-  text-transform: uppercase; color: var(--muted, #9aa0a6); }
-.cov-summary .v { display: block; font-size: 16px; font-weight: 700;
-  color: var(--text, #e6e9ed); margin-top: 2px; }
-.cov-empty { color: var(--muted, #9aa0a6); font-family: 'Instrument Serif', serif;
+  text-transform: uppercase; color: var(--muted, #9aa0a6); margin-bottom: 3px; }
+.cov-summary .v { display: block; font-size: 14px; font-weight: 700; line-height: 1.3;
+  color: var(--text, #e6e9ed); margin-top: 2px; overflow-wrap: break-word; }
+.cov-empty { color: var(--muted, #9aa0a6);
   font-size: 16px; padding: 24px 8px; text-align: center; }
 
 /* per-dataset coverage card */
@@ -1158,8 +1243,7 @@ select optgroup {
 .src-link { display: inline-block; margin-top: 9px; font-size: 12px;
   color: var(--c); text-decoration: none; }
 .src-link:hover { text-decoration: underline; }
-.var-hint { font-size: 11px; color: var(--muted, #9aa0a6); margin-top: 10px;
-  font-family: 'Instrument Serif', serif; }
+.var-hint { font-size: 11px; color: var(--muted, #9aa0a6); margin-top: 10px; }
 
 /* collapsed side panel */
 #side-panel.collapsed { width: 30px !important; min-width: 30px; }
@@ -1168,7 +1252,341 @@ select optgroup {
 #side-panel.collapsed .panel-empty { display: none !important; }
 
 /* keep coverage cards within the panel width */
-.panel-content { overflow-x: hidden; box-sizing: border-box; padding-right: 12px; }
+.panel-content { overflow-x: hidden; box-sizing: border-box; }
 .ds-card, .cov-summary, .var-panel, .bars, .mbars { box-sizing: border-box; max-width: 100%; }
 .ds-stats span { overflow-wrap: anywhere; }
 .ybars { min-width: 0; }
+
+/* ============================================
+   INVENTORY PANEL — "What CalCOFI Measures"
+   Shown in the right side panel (#panel-empty) before any station is
+   clicked. Ported from Betty's original station-portal build
+   (2026-ucsb-station-data-portal, year-slider-and-integrated-db branch) —
+   replaces the earlier horizontal browse-panel-under-search-bar attempt.
+   ============================================ */
+.panel-empty {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 0;
+  overflow-y: auto;
+  text-align: left;
+}
+.inventory-panel { padding: 28px 22px 16px; width: 100%; }
+.inventory-title {
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  text-align: center;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+.inventory-title::after {
+  content: "";
+  display: block;
+  width: 32px;
+  height: 2px;
+  background: var(--accent);
+  opacity: 0.6;
+  margin: 10px auto 0;
+  border-radius: 2px;
+}
+.inventory-subtitle {
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+  max-width: 85%;
+  margin: 0 auto 16px;
+  text-align: center;
+}
+/* By Category / By Dataset segmented toggle */
+.inventory-view-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin: 0 auto 20px;
+  padding: 3px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  width: fit-content;
+}
+.inventory-view-tab {
+  font-family: 'Inter', sans-serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.inventory-view-tab:hover { color: #e4f1f8; }
+.inventory-view-tab-active { background: rgba(0, 194, 255, 0.14); color: var(--accent); }
+.inventory-view-tab-active:hover { color: var(--accent); }
+
+.inventory-list { display: flex; flex-direction: column; gap: 0; }
+.inventory-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.inventory-row:last-child { border-bottom: none; }
+.inventory-row:hover {
+  background: rgba(0, 194, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(0, 194, 255, 0.15);
+}
+.inventory-row-open { background: rgba(0, 194, 255, 0.08); }
+.inventory-label { font-size: 12.5px; font-weight: 500; letter-spacing: 0.1px; color: #e4f1f8; flex: 1; }
+.inventory-count {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(0, 194, 255, 0.14);
+  padding: 3px 9px;
+  border-radius: 10px;
+  min-width: 32px;
+  text-align: center;
+}
+.inventory-arrow { font-size: 11px; color: var(--muted); transition: color 0.15s, transform 0.15s; }
+.inventory-row:hover .inventory-arrow { color: var(--accent); transform: translateX(3px); }
+
+.inventory-sublist { padding: 2px 8px 10px 30px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+.inventory-subitem {
+  padding: 7px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.12s;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.inventory-subitem:hover { background: rgba(0, 194, 255, 0.08); }
+.inventory-subitem-name { font-size: 13px; font-weight: 600; color: #ffffff; }
+.inventory-subitem-meta { font-size: 11px; color: #9aa7ae; font-weight: 400; }
+
+/* dropdown group header — search results grouped by category */
+.dropdown-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px 6px;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--accent2);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
+}
+.dropdown-group-icon { margin-right: 4px; }
+.dropdown-group-count {
+  background: rgba(0, 194, 255, .12);
+  color: var(--accent);
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  min-width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+/* station panel: sub-category header within a dataset's variable list */
+.inventory-subcategory-header {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--accent2);
+  padding: 10px 0 4px;
+  margin-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, .06);
+}
+.inventory-subcategory-header:first-child { margin-top: 0; border-top: none; }
+
+/* station panel accordion — one row per dataset, native <details>/<summary>
+   so open/close state and the chevron rotation need no JS bookkeeping. */
+.ds-accordion-row {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.ds-accordion-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  background: var(--surface);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+.ds-accordion-header::-webkit-details-marker { display: none; }
+.ds-accordion-header:hover { background: var(--panel); }
+.ds-accordion-label { font-size: 14px; color: var(--muted); }
+.ds-accordion-row[open] .ds-accordion-label { color: var(--text); font-weight: 600; }
+.ds-accordion-right { display: flex; align-items: center; gap: 8px; }
+.ds-accordion-count {
+  background: var(--border);
+  color: var(--accent);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.ds-accordion-chevron { color: var(--accent); font-size: 12px; width: 14px; text-align: center; display: inline-block; transition: transform .15s; }
+.ds-accordion-row[open] .ds-accordion-chevron { transform: rotate(90deg); }
+.ds-accordion-body { padding: 12px 14px; background: var(--ocean); }
+
+/* ============================================
+   FONT UPDATE — Inter for UI, Space Mono for codes
+   Ported from Betty's original station-portal build: Space Mono
+   everywhere read as dense/technical for body text, so most UI
+   text moved to Inter (clearer, more plain), keeping Space Mono
+   only where a monospace/code feel actually helps — station IDs,
+   coordinates, counts, and the search input.
+   ============================================ */
+/* Inter (UI text) now loaded via the <link> tag in index.html, alongside
+   Space Mono — a mid-file @import here is silently
+   ignored by browsers unless it's the very first rule in the stylesheet. */
+
+body, .panel, .dd-item, .inventory-label, .inventory-subitem-name,
+.browse-pill, .modal-body, .about-content, .data-link-name,
+.dropdown-group-header, .ds-accordion-label, .cov-summary, .var-panel,
+.ds-stats, .panel-empty-text {
+  font-family: 'Inter', sans-serif;
+}
+
+/* Two-font system: Inter for everything readable (body, titles, prose,
+   hints), Space Mono reserved only for the logo and short numeric/code
+   badges — never for anything that mixes prose and numbers, since
+   switching fonts mid-context is what reads as inconsistent. */
+.logo-title, .logo-sub, .search-input,
+.inventory-count, .browse-count, .dd-meta {
+  font-family: 'Space Mono', monospace;
+}
+
+/* ============================================
+   PARAMETER FAMILIES — umbrella rows for related-but-different
+   measurements (e.g. bottle Temperature vs Dry/Wet Bulb Temperature).
+   Ported from Betty's original station-portal build.
+   ============================================ */
+.inventory-family-header { font-style: normal; cursor: pointer; }
+.inventory-umbrella-caret { font-size: 11px; color: var(--muted); flex-shrink: 0; }
+/* Each nesting level gets its own shaded container (family -> group ->
+   sources), matching the screenshot reference, instead of relying only on
+   margin/indent to show depth. */
+.inventory-sublinks {
+  margin: 6px 0 4px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+}
+.inventory-family-members { display: flex; flex-direction: column; gap: 2px; }
+.inventory-family-method {
+  font-size: 11px;
+  font-style: normal;
+  color: #9aa7ae;
+  font-weight: 400;
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+/* ============================================
+   VARIABLE DETAIL PANEL — plain flowing layout, not a bordered
+   card, so it uses the full width of the side panel. Ported
+   verbatim from Betty's original station-portal build.
+   ============================================ */
+.panel-info-block { font-size: 14px; line-height: 1.85; color: var(--text); padding: 4px 0; }
+.panel-info-block b { color: var(--text); }
+.panel-info-block a { color: var(--accent); }
+.panel-info-block a:hover { text-decoration: underline; }
+.panel-highlight { color: var(--accent2); font-size: 15px; }
+.panel-subtext { font-size: 11px; color: var(--text); opacity: 0.75; }
+.panel-subtext-muted { color: var(--muted); }
+.panel-station-count { display: block; color: var(--accent); font-size: 15px; font-weight: 700; margin: 10px 0 18px; }
+.panel-hint { display: block; color: var(--text); font-size: 13px; line-height: 1.7; margin-bottom: 20px; }
+a.panel-open-dataset-btn {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 13px 16px;
+  background: var(--accent);
+  color: var(--deep) !important;
+  border: none;
+  border-radius: 4px;
+  font-family: 'Space Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-decoration: none;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+a.panel-open-dataset-btn:hover { background: #ffffff; }
+
+/* A-Z jump nav — shown above any long subgroup list (e.g. Ichthyoplankton
+   species) so you can jump straight to a letter instead of scrolling
+   through everything. Letters with zero entries stay visible but greyed
+   out and unclickable, rather than removed, so the row's layout is
+   stable rather than shifting around as the underlying data changes. */
+.inventory-jumpnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 8px 4px 10px;
+}
+.inventory-jumpnav-btn {
+  width: 20px;
+  height: 20px;
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.inventory-jumpnav-btn:hover { border-color: var(--accent); color: var(--accent); }
+.inventory-jumpnav-btn-active { background: var(--accent) !important; color: var(--deep) !important; border-color: var(--accent) !important; font-weight: 700; }
+.inventory-jumpnav-btn-off {
+  color: var(--muted);
+  opacity: 0.35;
+  cursor: default;
+  border-color: transparent;
+}
+.inventory-jumpnav-btn-off:hover { border-color: transparent; color: var(--muted); }
+
+/* Source cards — each data source inside a family's dropdown (e.g.
+   Temperature > Bottle / CTD Cast) as its own distinct clickable card,
+   not just another flat row. Bold official dataset name, description
+   below, and a trailing arrow so clicking one reads clearly as an action
+   (selects that variable, updates the map/slider) rather than more
+   expand/collapse like the dropdown toggle above it. */
+.inventory-source-card {
+  padding: 10px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+}
+.inventory-source-card:last-child { border-bottom: none; }
+.inventory-source-name { font-size: 15px; font-weight: 700; color: #ffffff; }
+.inventory-source-desc { font-size: 12px; color: #9aa7ae; margin-top: 3px; line-height: 1.4; }
+.inventory-source-arrow { font-size: 13px; color: var(--accent); flex-shrink: 0; opacity: 0.6; }
+.inventory-source-card:hover .inventory-source-arrow { opacity: 1; }

@@ -21,7 +21,7 @@ const map = L.map('map', { center: [32.8, -120.2], zoom: 6, worldCopyJump: true 
 const DATASET_OFFICIAL_NAME = {
   'calcofi_bottle': 'CalCOFI SIO Hydrographic Bottle Data',
   'calcofi_ctd-cast': 'CalCOFI NOAA Additional CTD',
-  'calcofi_dic': 'CalCOFI DIC',
+  'calcofi_dic': 'CalCOFI Carbonate Chemistry',
   'calcofi_phytoplankton': 'CalCOFI Phytoplankton (Venrick)',
   'swfsc_ichthyo': 'CalCOFI NOAA Ichthyoplankton Tows',
   'swfsc_cufes': 'CalCOFI NOAA Continuous Underway Fish-Egg Sampler (CUFES)',
@@ -33,18 +33,18 @@ const DATASET_OFFICIAL_NAME = {
   'calcofi_bird_mammal_census': 'CalCOFI Bird & Mammal Census',
 };
 const DATASET_META = {
-  'calcofi_bottle':             { label: 'Bottle (Hydro)',    realm: 'env', color: '#4dabf7' },
-  'calcofi_ctd-cast':           { label: 'CTD',               realm: 'env', color: '#3bc9db' },
-  'calcofi_dic':                { label: 'DIC / Carbonate',   realm: 'env', color: '#63e6be' },
-  'calcofi_phytoplankton':      { label: 'Phytoplankton',     realm: 'bio', color: '#12b886' },
-  'swfsc_ichthyo':              { label: 'Ichthyoplankton',   realm: 'bio', color: '#ffa94d' },
-  'swfsc_cufes':                { label: 'CUFES Fish Eggs',    realm: 'bio', color: '#ffd43b' },
-  'pic_zooplankton':            { label: 'Zooplankton',       realm: 'bio', color: '#69db7c' },
-  'cce-lter_euphausiids':       { label: 'Euphausiids',       realm: 'bio', color: '#b197fc' },
-  'calcofi_phyllosoma':         { label: 'Phyllosoma',        realm: 'bio', color: '#f783ac' },
-  'cce-lter_zoodb':             { label: 'ZooDB Holoplankton',realm: 'bio', color: '#38d9a9' },
-  'cce-lter_zooscan':           { label: 'ZooScan PRPOOS',    realm: 'bio', color: '#a9e34b' },
-  'calcofi_bird_mammal_census': { label: 'Birds & Mammals',   realm: 'bio', color: '#ff8787' }
+  'calcofi_bottle':             { label: 'Hydrographic Bottle',              realm: 'env', color: '#4dabf7' },
+  'calcofi_ctd-cast':           { label: 'CTD',                              realm: 'env', color: '#3bc9db' },
+  'calcofi_dic':                { label: 'Carbonate Chemistry / DIC',        realm: 'env', color: '#63e6be' },
+  'calcofi_phytoplankton':      { label: 'Phytoplankton',                    realm: 'bio', color: '#12b886' },
+  'swfsc_ichthyo':              { label: 'Ichthyoplankton (Fish Eggs & Larvae)', realm: 'bio', color: '#ffa94d' },
+  'swfsc_cufes':                { label: 'CUFES Fish Eggs',                  realm: 'bio', color: '#ffd43b' },
+  'pic_zooplankton':            { label: 'Zooplankton',                     realm: 'bio', color: '#69db7c' },
+  'cce-lter_euphausiids':       { label: 'Euphausiids (Krill)',              realm: 'bio', color: '#b197fc' },
+  'calcofi_phyllosoma':         { label: 'Phyllosoma (Lobster Larvae)',      realm: 'bio', color: '#f783ac' },
+  'cce-lter_zoodb':             { label: 'ZooDB (Holoplankton Community)',   realm: 'bio', color: '#38d9a9' },
+  'cce-lter_zooscan':           { label: 'ZooScan (Imaged Zooplankton)',     realm: 'bio', color: '#a9e34b' },
+  'calcofi_bird_mammal_census': { label: 'Seabirds & Marine Mammals',        realm: 'bio', color: '#ff8787' }
 };
 const dsMeta = id => DATASET_META[id] || { label: id, realm: 'bio', color: '#adb5bd' };
 const MONTHS = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
@@ -279,6 +279,11 @@ const REMOVE_VARS = new Set([
   'calcofi_ctd-cast::btl_phosphate', 'calcofi_ctd-cast::btl_silicate', 'calcofi_ctd-cast::btl_phaeopigment',
   'calcofi_ctd-cast::est_nitrate_sta_corr', 'calcofi_ctd-cast::est_nitrate_cruise_corr',
   'calcofi_ctd-cast::btl_depth',
+  // Bottle-sample-collected-during-the-CTD-cast variants for Temperature/Salinity/Oxygen —
+  // the family entries above now show just one CTD Cast card (the sensor reading), so these
+  // would otherwise resurface as separate loose rows ("Bottle Temperature", etc.) duplicating it.
+  'calcofi_ctd-cast::btl_temperature', 'calcofi_ctd-cast::salinity_btl',
+  'calcofi_ctd-cast::oxygen_btl_ml_l', 'calcofi_ctd-cast::oxygen_btl_umol_kg',
 ]);
 function buildCanonicalVars() {
   const merged = [], groups = {}, seenExact = new Set();
@@ -346,6 +351,7 @@ Promise.all([
   renderStations();
   wireSearch();
   initYearSlider();
+  initChartTooltip();
   buildCanonicalVars();
   buildCategories();
   renderInventoryPanel();
@@ -537,8 +543,7 @@ const PARAMETER_FAMILIES = [
         method: 'In-situ seawater temperature (thermometer/CTD sensor)',
         sources: [
           { dataset_key: 'calcofi_bottle', match: 'temperature', source: 'Bottle' },
-          { dataset_key: 'calcofi_ctd-cast', match: 'btl_temperature', source: 'CTD Cast (bottle sample)' },
-          { dataset_key: 'calcofi_ctd-cast', match: 'temperature_ave', source: 'CTD Cast (sensor)' },
+          { dataset_key: 'calcofi_ctd-cast', match: 'temperature_ave', source: 'CTD Cast' },
           { dataset_key: 'calcofi_dic', match: 'ctdtemp_its90', source: 'Carbonate Cast' },
         ] },
       { type: 'single', dataset_key: 'calcofi_bottle', match: 'dry_air_temp', label: 'Dry Bulb Temperature', short: 'Dry Bulb',
@@ -556,8 +561,7 @@ const PARAMETER_FAMILIES = [
         method: 'Dissolved oxygen concentration',
         sources: [
           { dataset_key: 'calcofi_bottle', match: 'oxygen_ml_l', source: 'Bottle', note: 'Winkler titration (bottle sample) — reported in mL/L, also available in µmol/kg' },
-          { dataset_key: 'calcofi_ctd-cast', match: 'oxygen_btl_ml_l', source: 'CTD Cast (bottle sample)', note: 'Winkler titration, bottle sample collected during the CTD cast' },
-          { dataset_key: 'calcofi_ctd-cast', match: 'oxygen_ml_l_ave_sta_corr', source: 'CTD Cast (sensor)', note: 'CTD-mounted electronic oxygen sensor — a different instrument than Winkler titration, station-corrected average of both sensors' },
+          { dataset_key: 'calcofi_ctd-cast', match: 'oxygen_ml_l_ave_sta_corr', source: 'CTD Cast', note: 'CTD-mounted electronic oxygen sensor, station-corrected average of both sensors' },
         ] },
       { type: 'group', label: 'Oxygen Saturation', short: 'Bottle Saturation',
         method: 'Oxygen percent saturation — a different quantity than concentration',
@@ -574,8 +578,7 @@ const PARAMETER_FAMILIES = [
         method: 'Seawater salinity',
         sources: [
           { dataset_key: 'calcofi_bottle', match: 'salinity', source: 'Bottle', note: 'Bench salinometer reading of the bottle sample' },
-          { dataset_key: 'calcofi_ctd-cast', match: 'salinity_btl', source: 'CTD Cast (bottle sample)', note: 'Bottle sample salinity, collected during the CTD cast' },
-          { dataset_key: 'calcofi_ctd-cast', match: 'salinity_ave_corr', source: 'CTD Cast (sensor)', note: 'CTD-mounted conductivity sensor — a different instrument than the bench salinometer, station-corrected average of both sensors' },
+          { dataset_key: 'calcofi_ctd-cast', match: 'salinity_ave_corr', source: 'CTD Cast', note: 'CTD-mounted conductivity sensor, station-corrected average of both sensors' },
           { dataset_key: 'calcofi_dic', match: 'salinity_pss78', source: 'Carbonate Cast', note: 'CTD-mounted conductivity sensor, carbonate chemistry cast (PSS-78 scale)' },
         ] },
     ],
@@ -615,10 +618,10 @@ const PARAMETER_FAMILIES = [
     name: 'Specific Volume Anomaly',
     members: [
       { type: 'group', label: 'Specific Volume Anomaly', short: 'CTD',
-        method: 'Specific volume anomaly, computed from temperature/salinity; the bottle-reported version is pre-QC — WARNING: this is a different parameter/scale than standard salinity PSS-78',
+        method: 'Computed from temperature/salinity — a different scale than standard PSS-78 salinity',
         sources: [
           { dataset_key: 'calcofi_ctd-cast', match: 'specific_volume_anomaly', source: 'CTD Cast' },
-          { dataset_key: 'calcofi_bottle', match: 'r_salinity_sva', source: 'Bottle (reported, pre-QC)' },
+          { dataset_key: 'calcofi_bottle', match: 'r_salinity_sva', source: 'Bottle (reported)', note: 'Pre-QC value' },
         ] },
     ],
   },
@@ -692,17 +695,30 @@ const PARAMETER_FAMILIES = [
 // and a trailing arrow so it reads as a clickable action distinct from
 // the dropdown toggle above it (that's an expand/collapse, this selects
 // the variable and updates the map/slider).
-function sourceCardRow(it) {
-  const title = DATASET_OFFICIAL_NAME[it.source.dataset_key] || it.source.source;
+// `showSource` is true when this card shares its dataset_key with another
+// card in the same list — in that case the dataset name alone (e.g. two
+// "CalCOFI NOAA Additional CTD" cards, one for the bottle sample collected
+// during the cast and one for the CTD's own sensor) reads as a duplicate,
+// so the source's own distinguishing label gets appended.
+function sourceCardRow(it, showSource) {
+  const official = DATASET_OFFICIAL_NAME[it.source.dataset_key] || it.source.source;
+  const title = showSource ? `${official} — ${it.source.source}` : official;
   return `<div class="inventory-source-card" data-vid="${encodeURIComponent(it.v.variable_id)}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
         <div>
-          <div class="inventory-source-name">${title}</div>
-          ${it.source.note ? `<div class="inventory-source-desc">${it.source.note}</div>` : ''}
+          <div class="inventory-subitem-name">${title}</div>
+          ${it.source.note ? `<div class="inventory-family-method">${it.source.note}</div>` : ''}
         </div>
         <span class="inventory-source-arrow">→</span>
       </div>
     </div>`;
+}
+// True if two or more items in `its` share the same dataset_key — decides
+// whether sourceCardRow needs to disambiguate with the source label.
+function hasDupDataset(its) {
+  const counts = {};
+  its.forEach(it => counts[it.source.dataset_key] = (counts[it.source.dataset_key] || 0) + 1);
+  return its.some(it => counts[it.source.dataset_key] > 1);
 }
 function familyMemberFor(v) {
   const raw = v.display_name || v.name;
@@ -728,18 +744,45 @@ function setInventoryMode(mode) {
   expandedGroupKey = null;
   renderInventoryPanel();
 }
+// Escapes a value for safe embedding inside a double-quoted CSS attribute
+// selector (only backslash and the quote itself can break it).
+function attrEsc(v) { return String(v).replace(/["\\]/g, '\\$&'); }
+// Re-rendering #panel-empty replaces its entire innerHTML, but the
+// container's own scrollTop is untouched — so when a toggle collapses
+// other open sections and the content shrinks, the old scrollTop can end
+// up past the new max scroll and the browser clamps it to the bottom
+// (looks like a jump). This keeps whatever row the user just clicked
+// pinned at the same screen position across the re-render: record its
+// viewport offset before, run the state change + render, then nudge
+// scrollTop by however much that same row moved.
+function withScrollAnchor(selector, fn) {
+  const container = document.getElementById('side-panel');
+  const before = container ? container.querySelector(selector) : null;
+  const beforeTop = before ? before.getBoundingClientRect().top : null;
+  fn();
+  if (container && beforeTop != null) {
+    const after = container.querySelector(selector);
+    if (after) container.scrollTop += after.getBoundingClientRect().top - beforeTop;
+  }
+}
 function toggleInventoryGroup(key) {
-  expandedInventoryGroup = (expandedInventoryGroup === key) ? null : key;
-  renderInventoryPanel();
+  withScrollAnchor(`.inventory-row[data-key="${attrEsc(key)}"]`, () => {
+    expandedInventoryGroup = (expandedInventoryGroup === key) ? null : key;
+    renderInventoryPanel();
+  });
 }
 function toggleFamily(key) {
-  expandedFamilyKey = (expandedFamilyKey === key) ? null : key;
-  expandedGroupKey = null;
-  renderInventoryPanel();
+  withScrollAnchor(`[data-family-key="${attrEsc(key)}"]`, () => {
+    expandedFamilyKey = (expandedFamilyKey === key) ? null : key;
+    expandedGroupKey = null;
+    renderInventoryPanel();
+  });
 }
 function toggleGroup(key) {
-  expandedGroupKey = (expandedGroupKey === key) ? null : key;
-  renderInventoryPanel();
+  withScrollAnchor(`[data-group-key="${attrEsc(key)}"]`, () => {
+    expandedGroupKey = (expandedGroupKey === key) ? null : key;
+    renderInventoryPanel();
+  });
 }
 function inventoryVarsFor(key) {
   return inventoryMode === 'dataset'
@@ -907,7 +950,8 @@ function renderVarList(groupKey, vars) {
     // accordion and render its source list directly under the family name.
     if (byMember.size === 1 && [...byMember.keys()][0].type === 'group') {
       const [member, its] = [...byMember.entries()][0];
-      const sourceRows = famOpen ? its.map(sourceCardRow).join('') : '';
+      const dupe1 = hasDupDataset(its);
+      const sourceRows = famOpen ? its.map(it => sourceCardRow(it, dupe1)).join('') : '';
       return `<div class="inventory-subitem inventory-family-header" data-family-key="${famKey}">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
             <span class="inventory-subitem-name">${family.name}</span>
@@ -915,7 +959,7 @@ function renderVarList(groupKey, vars) {
           </div>
           <span class="inventory-subitem-meta">${member.method}</span>
         </div>
-        ${famOpen ? `<div class="inventory-sublinks">${sourceRows}</div>` : ''}`;
+        ${famOpen ? `<div class="inventory-sublinks"><div class="inventory-source-hint">Choose a dataset to view its coverage</div>${sourceRows}</div>` : ''}`;
     }
     // Same idea when a family reduces to exactly one plain 'single' member —
     // happens when a category filter splits a family's members apart (e.g.
@@ -943,7 +987,8 @@ function renderVarList(groupKey, vars) {
       // parameter — matches Betty's "Temperature > Bottle; CTD Cast" model
       const grpKey = famKey + '::' + member.label;
       const grpOpen = expandedGroupKey === grpKey;
-      const sourceRows = grpOpen ? its.map(sourceCardRow).join('') : '';
+      const dupe2 = hasDupDataset(its);
+      const sourceRows = grpOpen ? its.map(it => sourceCardRow(it, dupe2)).join('') : '';
       return `<div class="inventory-subitem inventory-family-header" data-group-key="${grpKey}">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
             <span class="inventory-subitem-name">${member.label}</span>
@@ -951,7 +996,7 @@ function renderVarList(groupKey, vars) {
           </div>
           <span class="inventory-subitem-meta">${member.method}</span>
         </div>
-        ${grpOpen ? `<div class="inventory-sublinks">${sourceRows}</div>` : ''}`;
+        ${grpOpen ? `<div class="inventory-sublinks"><div class="inventory-source-hint">Choose a dataset to view its coverage</div>${sourceRows}</div>` : ''}`;
     }).join('') : '';
     return `<div class="inventory-subitem inventory-family-header" data-family-key="${famKey}">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
@@ -1036,7 +1081,9 @@ function renderInventoryPanel() {
     const count = inventoryMode === 'dataset' ? DATASET_VAR_COUNTS[k] : CAT_COUNTS[k];
     const label = inventoryMode === 'dataset' ? dsMeta(k).label : k;
     const isOpen = expandedInventoryGroup === k;
-    const sub = isOpen ? `<div class="inventory-sublist">${renderVarList(k, inventoryVarsFor(k))}</div>` : '';
+    const sub = isOpen
+      ? `<div class="inventory-sublist">${inventoryMode === 'dataset' ? renderFlatVarList(inventoryVarsFor(k)) : renderVarList(k, inventoryVarsFor(k))}</div>`
+      : '';
     return `<div class="inventory-row${isOpen ? ' inventory-row-open' : ''}" data-key="${k}">
         <span class="inventory-label">${label}</span>
         <span class="inventory-count">${count}</span>
@@ -1064,7 +1111,7 @@ function renderInventoryPanel() {
     el.addEventListener('click', e => { e.stopPropagation(); toggleFamily(el.dataset.familyKey); }));
   empty.querySelectorAll('.inventory-family-header[data-group-key]').forEach(el =>
     el.addEventListener('click', e => { e.stopPropagation(); toggleGroup(el.dataset.groupKey); }));
-  empty.querySelectorAll('.inventory-subitem[data-vid], .inventory-source-card[data-vid]').forEach(el =>
+  empty.querySelectorAll('.inventory-subitem[data-vid], .inventory-source-card[data-vid], .data-link[data-vid]').forEach(el =>
     el.addEventListener('click', e => { e.stopPropagation(); selectVariable(decodeURIComponent(el.dataset.vid)); }));
 }
 
@@ -1094,15 +1141,16 @@ const yr = d => (d ? String(d).slice(0, 4) : '—');
 const day = d => (d ? String(d).slice(0, 10) : '—');
 const num = n => (n == null ? '0' : n.toLocaleString());
 
-function yearBars(years, color) {
+function yearBars(years, color, large) {
   if (!years || !years.length) return '<div class="bars empty">no dates</div>';
   const y0 = years[0].y, y1 = years[years.length - 1].y, m = {};
   years.forEach(o => m[o.y] = o.n);
   const max = Math.max(...years.map(o => o.n));
+  const scale = large ? 100 : 30;
   let cells = '';
   for (let y = y0; y <= y1; y++) {
-    const n = m[y] || 0, h = n ? (6 + 30 * n / max) : 1;
-    cells += `<span class="ybar" style="height:${h}px;background:${color};opacity:${n ? 0.85 : 0.13}" title="${y}: ${num(n)}"></span>`;
+    const n = m[y] || 0, h = n ? (6 + scale * n / max) : 1;
+    cells += `<span class="ybar" style="height:${h}px;background:${color};opacity:${n ? 0.85 : 0.13}" data-tip="${y}: ${num(n)}"></span>`;
   }
   return `<div class="bars"><span class="yl">${y0}</span><div class="ybars">${cells}</div><span class="yl">${y1}</span></div>`;
 }
@@ -1113,39 +1161,79 @@ function monthBars(months, color) {
   let cells = '';
   for (let i = 1; i <= 12; i++) {
     const n = m[i] || 0, op = 0.13 + 0.87 * n / max;
-    cells += `<span class="mbar" style="background:${color};opacity:${op}" title="${MONTHS[i - 1]}: ${num(n)}">${MONTHS[i - 1]}</span>`;
+    cells += `<span class="mbar" style="background:${color};opacity:${op}" data-tip="${MONTHS[i - 1]}: ${num(n)}">${MONTHS[i - 1]}</span>`;
   }
   return `<div class="mbars">${cells}</div>`;
 }
-function datasetCard(d) {
+// Global delegated hover handling for the styled chart tooltip — one
+// listener covers every bar rendered anywhere (station panel, modal),
+// including bars added after the initial page load.
+function initChartTooltip() {
+  const tip = document.getElementById('chart-tooltip');
+  if (!tip) return;
+  document.addEventListener('mouseover', e => {
+    const el = e.target.closest('.ybar[data-tip], .mbar[data-tip]');
+    if (!el) return;
+    tip.textContent = el.dataset.tip;
+    tip.style.display = 'block';
+  });
+  document.addEventListener('mousemove', e => {
+    if (tip.style.display !== 'block') return;
+    tip.style.left = (e.clientX + 14) + 'px';
+    tip.style.top = (e.clientY - 28) + 'px';
+  });
+  document.addEventListener('mouseout', e => {
+    if (e.target.closest('.ybar[data-tip], .mbar[data-tip]')) tip.style.display = 'none';
+  });
+}
+function datasetCard(d, opts) {
+  opts = opts || {};
   const meta = dsMeta(d.dataset_key);
   const depth = (d.depth_min != null || d.depth_max != null)
     ? `${Math.round(d.depth_min ?? 0)}–${Math.round(d.depth_max ?? 0)} m` : 'depth n/a';
-  return `<div class="ds-card" style="--c:${meta.color}">
+  const clickAttrs = opts.clickable
+    ? ` onclick="openDatasetCardModal('${d.dataset_key}')"` : '';
+  return `<div class="ds-card${opts.clickable ? ' ds-card-clickable' : ''}${opts.large ? ' ds-card-large' : ''}" style="--c:${meta.color}"${clickAttrs}>
       <div class="ds-head"><span class="ds-dot"></span><span class="ds-label">${meta.label}</span>
         <span class="ds-realm ${d.realm}">${d.realm}</span></div>
       <div class="ds-stats">
-        <span title="temporal extent">${day(d.time_min)} → ${day(d.time_max)}</span>
-        <span title="depth range">↧ ${depth}</span>
-        <span title="surveys / observations">${num(d.n_surveys)} surveys · ${num(d.n_obs)} obs</span>
+        <div class="ds-stat"><span class="ds-stat-label">Date Range</span><span class="ds-stat-val">${day(d.time_min)} → ${day(d.time_max)}</span></div>
+        <div class="ds-stat"><span class="ds-stat-label">Depth Range</span><span class="ds-stat-val">${depth}</span></div>
+        <div class="ds-stat"><span class="ds-stat-label">Coverage</span><span class="ds-stat-val">${num(d.n_surveys)} surveys · ${num(d.n_obs)} obs</span></div>
       </div>
-      <div class="bars-label">observations by year</div>${yearBars(d.years, meta.color)}
+      <div class="bars-label">observations by year</div>${yearBars(d.years, meta.color, opts.large)}
       <div class="bars-label">seasonality (by month)</div>${monthBars(d.months, meta.color)}
+      ${opts.clickable ? '<div class="ds-card-expand-hint">⤢ click to expand</div>' : ''}
     </div>`;
+}
+// Opens the enlarged, big-screen view of a dataset's coverage card for the
+// currently open station — reuses the existing modal-backdrop/modal markup.
+function openDatasetCardModal(datasetKey) {
+  if (!currentStation) return;
+  const d = (currentStation.datasets || []).find(x => x.dataset_key === datasetKey);
+  if (!d) return;
+  const meta = dsMeta(d.dataset_key);
+  document.getElementById('modal-title').textContent = `${meta.label} — Station ${currentStation.station_id}`;
+  document.getElementById('modal-body').innerHTML = datasetCard(d, { large: true });
+  document.getElementById('modal-footer').style.display = 'none';
+  document.getElementById('modal').classList.add('modal-large');
+  document.getElementById('modal-backdrop').classList.add('open');
 }
 
 // ---- station panel: per-dataset accordion (one row per dataset, first open) --
 // Wraps the existing datasetCard() (reused as-is) in a native <details> row,
 // plus a nested variable list for that dataset grouped by categoryOf() —
 // ports Betty's original station-panel accordion onto the release-DB data.
-function datasetAccordion(d, isFirst) {
-  const meta = dsMeta(d.dataset_key);
-  const vars = CANON_VARS.filter(v => v.dataset_key === d.dataset_key);
+// Flat, category-grouped variable list — name + description + units, no
+// family/source accordion nesting. Used both for a station's per-dataset
+// "Show Parameters" list and for the "By Dataset" browse panel, so a
+// dataset's parameter list looks and reads the same in both places.
+function renderFlatVarList(vars) {
   const byCat = {};
   vars.forEach(v => (byCat[categoryOf(v)] ||= []).push(v));
   const catRank = c => { const i = CATEGORY_ORDER.indexOf(c); return i === -1 ? Infinity : i; };
   const catKeys = Object.keys(byCat).sort((a, b) => catRank(a) - catRank(b));
-  const varList = catKeys.map(c => `
+  return catKeys.map(c => `
       <div class="inventory-subcategory-header">${c}</div>
       ${byCat[c].map(v => {
           const label = displayLabel(v);
@@ -1158,8 +1246,13 @@ function datasetAccordion(d, isFirst) {
               ${v.units ? `<span class="data-link-unit">${v.units}</span>` : ''}
             </div>`;
         }).join('')}`).join('')
-    || '<div class="cov-empty">No cataloged variables for this dataset.</div>';
-  return `<details class="ds-accordion-row" ${isFirst ? 'open' : ''}>
+    || '<div class="cov-empty">No cataloged variables.</div>';
+}
+function datasetAccordion(d) {
+  const meta = dsMeta(d.dataset_key);
+  const vars = CANON_VARS.filter(v => v.dataset_key === d.dataset_key);
+  const varList = renderFlatVarList(vars);
+  return `<details class="ds-accordion-row" open>
       <summary class="ds-accordion-header">
         <span class="ds-accordion-label">${meta.label}</span>
         <span class="ds-accordion-right">
@@ -1167,7 +1260,12 @@ function datasetAccordion(d, isFirst) {
           <span class="ds-accordion-chevron">▸</span>
         </span>
       </summary>
-      <div class="ds-accordion-body">${datasetCard(d)}${varList}</div>
+      <div class="ds-accordion-body">${datasetCard(d, { clickable: true })}
+        <details class="params-toggle">
+          <summary class="params-toggle-summary">Show Parameters</summary>
+          <div class="params-list">${varList}</div>
+        </details>
+      </div>
     </details>`;
 }
 
@@ -1212,7 +1310,7 @@ function openStation(s) {
     c.innerHTML = `<div class="cov-empty">No integrated-database observations recorded at this grid station.</div>`;
     return;
   }
-  const cards = (s.datasets || []).map((d, i) => datasetAccordion(d, i === 0)).join('');
+  const cards = (s.datasets || []).map(d => datasetAccordion(d)).join('');
   c.innerHTML = `<div class="cov-summary">
       <div><span class="k">datasets</span><span class="v">${s.n_datasets}</span></div>
       <div><span class="k">surveys</span><span class="v">${num(s.n_surveys)}</span></div>
@@ -1253,18 +1351,48 @@ function wireSearch() {
     if (!e.target.closest('.search-wrapper')) dropdown.classList.remove('open');
   });
 }
+// Capped Levenshtein distance — good enough for 1-2 char typos on short words.
+function editDistance(a, b, max) {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  const dp = Array(b.length + 1).fill(0).map((_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = dp[0]; dp[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = dp[j];
+      dp[j] = a[i - 1] === b[j - 1] ? prev : 1 + Math.min(prev, dp[j], dp[j - 1]);
+      prev = tmp;
+    }
+  }
+  return dp[b.length];
+}
+// True if `token` is a plain substring anywhere in `text`, or — for tokens
+// long enough that fuzzy matching won't just add noise — if some word in
+// `text` is within edit-distance 1 of `token` (handles small typos).
+function tokenHits(text, token) {
+  if (text.includes(token)) return true;
+  if (token.length < 4) return false;
+  return text.split(/\W+/).some(w => w.length >= 3 && editDistance(token, w, 1) <= 1);
+}
+// Query is split into whitespace-separated tokens; every token must hit
+// somewhere in the combined searchable text (order-independent "contains"),
+// so "krill pacific" matches "Pacific Krill" and a variable isn't missed
+// just because the matched word happens to be second/third in its name.
 function varMatch(v, q) {
-  q = q.toLowerCase();
-  return (v.name || '').toLowerCase().includes(q)
-    || (v.display_name || '').toLowerCase().includes(q)
-    || (v.common_name || '').toLowerCase().includes(q)
-    || (v.keywords || []).some(k => String(k).toLowerCase().includes(q));
+  const text = [v.name, v.display_name, v.common_name, ...(v.keywords || [])]
+    .filter(Boolean).join(' ').toLowerCase();
+  return q.toLowerCase().split(/\s+/).filter(Boolean).every(tok => tokenHits(text, tok));
 }
 function ddItem(v) {
   const meta = dsMeta(v.dataset_key);
+  const fm = familyMemberFor(v);
+  // fm.source is only set for group-type family members (ones with more
+  // than one dataset source, e.g. Oxygen: Hydrographic Bottle / CTD) —
+  // for those, lead with the dataset name so two "Oxygen" rows don't read
+  // as duplicates. Single-source members just use their normal label.
+  const name = (fm && fm.source) ? `${fm.member.label} — ${meta.label}` : resolvedLabel(v);
   return `<div class="dd-item" data-id="${encodeURIComponent(v.variable_id)}">
       <span class="dd-dot" style="background:${meta.color}"></span>
-      <span class="dd-name">${resolvedLabel(v)}</span>
+      <span class="dd-name">${name}</span>
       <span class="dd-meta">${meta.label}${v.units ? ' · ' + v.units : ''} · ${v.realm}</span>
     </div>`;
 }
@@ -1361,4 +1489,6 @@ function hideAboutModal() { document.getElementById('about-backdrop').classList.
 function closeModal(e) {
   if (e && e.target && !e.target.classList.contains('modal-backdrop')) return;
   document.getElementById('modal-backdrop').classList.remove('open');
+  document.getElementById('modal').classList.remove('modal-large');
+  document.getElementById('modal-footer').style.display = '';
 }

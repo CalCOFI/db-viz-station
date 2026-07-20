@@ -599,7 +599,16 @@ ol {
   flex-shrink: 0;
   position: relative;
   transition: transform 0.3s ease;
+  scrollbar-width: none;       /* Firefox */
+  -ms-overflow-style: none;    /* old Edge/IE */
 }
+.panel::-webkit-scrollbar { display: none; }  /* Chrome/Safari */
+/* The inner div#panel shares class="panel" with the outer aside#side-panel,
+   which would otherwise make it a second, redundant scroll container
+   nested inside the first — collapsing scroll state onto two separate
+   elements at once, which is what caused the scroll-position jump on
+   toggle. Only the outer #side-panel should scroll. */
+#panel { overflow-y: visible; }
 
 .panel.collapsed {
   transform:
@@ -824,6 +833,7 @@ ol {
   animation: modalIn 0.15s ease;
   overflow-y: auto;
 }
+.modal.modal-large { width: min(880px, 92vw); }
 
 @keyframes modalIn {
   from {
@@ -1184,6 +1194,39 @@ select optgroup {
   border-radius: 6px; padding: 10px 11px; margin-bottom: 10px;
   background: color-mix(in srgb, var(--c) 6%, var(--panel, #24272b));
 }
+.ds-card-clickable { cursor: pointer; transition: box-shadow 0.15s, border-color 0.15s; }
+.ds-card-clickable:hover { box-shadow: 0 0 0 1px var(--accent), 0 8px 24px rgba(0,0,0,0.35); }
+.ds-card-expand-hint {
+  font-size: 10px;
+  color: var(--muted);
+  text-align: right;
+  margin-top: 8px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.ds-card-clickable:hover .ds-card-expand-hint { opacity: 1; }
+.ds-card.ds-card-large .ybars { height: 120px; }
+.ds-card.ds-card-large .mbar { height: 70px; font-size: 12px; }
+.ds-card.ds-card-large .ds-stats { font-size: 13px; }
+
+/* Custom floating tooltip for chart-bar hover — replaces the plain browser
+   title tooltip with a styled one showing the same year/count or
+   month/count detail. */
+#chart-tooltip {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  background: var(--panel, #1a2f4a);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  padding: 5px 9px;
+  border-radius: 5px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+  display: none;
+  white-space: nowrap;
+}
 .ds-head { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; }
 .ds-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c); flex: none; }
 .ds-label { font-weight: 700; font-size: 13px; color: var(--text, #e6e9ed); }
@@ -1191,8 +1234,12 @@ select optgroup {
   letter-spacing: .06em; padding: 2px 6px; border-radius: 999px; }
 .ds-realm.env { background: rgba(77,171,247,.18); color: #74c0fc; }
 .ds-realm.bio { background: rgba(105,219,124,.16); color: #8ce99a; }
-.ds-stats { display: flex; flex-direction: column; gap: 2px; font-size: 11px;
+.ds-stats { display: flex; flex-direction: column; gap: 6px; font-size: 11px;
   color: var(--muted, #c1c7cd); margin-bottom: 8px; }
+.ds-stat { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.ds-stat-label { font-size: 9px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted, #9aa0a6); flex-shrink: 0; }
+.ds-stat-val { color: var(--text, #e6e9ed); text-align: right; }
 .bars-label { font-size: 9px; text-transform: uppercase; letter-spacing: .06em;
   color: var(--muted, #9aa0a6); margin: 6px 0 3px; }
 
@@ -1271,7 +1318,7 @@ select optgroup {
   align-items: stretch;
   justify-content: flex-start;
   padding: 0;
-  overflow-y: auto;
+  overflow-y: visible;
   text-align: left;
 }
 .inventory-panel { padding: 28px 22px 16px; width: 100%; }
@@ -1451,6 +1498,27 @@ select optgroup {
 .ds-accordion-row[open] .ds-accordion-chevron { transform: rotate(90deg); }
 .ds-accordion-body { padding: 12px 14px; background: var(--ocean); }
 
+/* "Show Parameters" toggle — the per-station parameter list is secondary
+   info here (the dataset card above is the main thing), so it's hidden
+   behind a native <details> toggle instead of shown by default. */
+.params-toggle { margin-top: 10px; }
+.params-toggle-summary {
+  cursor: pointer;
+  list-style: none;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: var(--accent);
+  padding: 8px 0;
+  user-select: none;
+}
+.params-toggle-summary::-webkit-details-marker { display: none; }
+.params-toggle-summary::before { content: '▸ '; }
+.params-toggle[open] > .params-toggle-summary::before { content: '▾ '; }
+.params-toggle-summary:hover { text-decoration: underline; }
+.params-list { padding-top: 4px; }
+
+
 /* ============================================
    FONT UPDATE — Inter for UI, Space Mono for codes
    Ported from Betty's original station-portal build: Space Mono
@@ -1586,7 +1654,12 @@ a.panel-open-dataset-btn:hover { background: #ffffff; }
   cursor: pointer;
 }
 .inventory-source-card:last-child { border-bottom: none; }
-.inventory-source-name { font-size: 15px; font-weight: 700; color: #ffffff; }
-.inventory-source-desc { font-size: 12px; color: #9aa7ae; margin-top: 3px; line-height: 1.4; }
 .inventory-source-arrow { font-size: 13px; color: var(--accent); flex-shrink: 0; opacity: 0.6; }
+.inventory-source-card .inventory-subitem-name { font-size: 12px; }
 .inventory-source-card:hover .inventory-source-arrow { opacity: 1; }
+.inventory-source-hint {
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+  padding: 0 4px 8px;
+}

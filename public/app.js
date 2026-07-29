@@ -381,6 +381,60 @@ const REMOVE_VARS = new Set([
   // restored above, for the same fix pattern).
   'calcofi_ctd-cast::specific_volume_anomaly', 'calcofi_bottle::r_salinity_sva',
 ]);
+// ---- Euphausiid species stand-in ------------------------------------------
+// The release DB still carries Euphausiids as a single aggregate "Euphausiidae"
+// row; the real per-species breakdown isn't published yet (CalCOFI/workflows
+// PR #72). euphausiid_species_coverage.json is a stand-in built from the raw
+// BTEDB export — rough (only ~44% of historical tows land on a currently known
+// grid station, life stages summed per species), but it names 37 real species
+// where the catalogue names one family.
+//
+// These 37 variable records are SYNTHESIZED here at load time rather than added
+// to variables.json. That file is owned by .github/workflows/refresh.yml, which
+// regenerates it from build_vars.sql every Monday and on every release dispatch
+// — records hand-added there are silently reverted within a week, taking the
+// feature with them. Deriving them from the coverage file instead means the
+// refresh can't clobber them, and when #72 finally lands and build_vars.sql
+// emits the species for real, deleting this block plus the coverage file is the
+// whole rollback.
+//
+// Everything except the two common names is derivable from the coverage rows:
+// scientific_name -> name/display_name/variable_id, aphia_id -> aphia_id, and
+// rank is Species throughout.
+const EUPHAUSIID_COMMON_NAMES = {
+  'Euphausia pacifica': 'Pacific Krill',
+  'Thysanoessa spinifera': 'Spiny Krill',
+};
+// Set once the stand-in is actually in play — gates hiding the aggregate below,
+// so a missing/empty coverage file degrades to today's single-row behavior
+// rather than to an empty Euphausiids category.
+let euphausiidSpeciesActive = false;
+function synthesizeEuphausiidSpeciesVars(coverageRows) {
+  const bySpecies = new Map();
+  (coverageRows || []).forEach(r => {
+    if (!r.scientific_name || bySpecies.has(r.scientific_name)) return;
+    bySpecies.set(r.scientific_name, r.aphia_id != null ? String(r.aphia_id) : null);
+  });
+  if (!bySpecies.size) return [];
+  euphausiidSpeciesActive = true;
+  return [...bySpecies].map(([sci, aphia]) => ({
+    variable_id: 'cce-lter_euphausiids::' + sci,
+    dataset_key: 'cce-lter_euphausiids',
+    realm: 'bio',
+    variable_type: 'taxon',
+    name: sci,
+    display_name: sci,
+    units: null,
+    description: null,
+    is_canonical: null,
+    aphia_id: aphia,
+    rank: 'Species',
+    common_name: EUPHAUSIID_COMMON_NAMES[sci] || null,
+    keywords: null,
+    science_concepts: null,
+    source: null,
+  }));
+}
 function buildCanonicalVars() {
   const merged = [], groups = {}, seenExact = new Set();
   // "measurement_type" columns (behavior, count, ...) mixed into an
@@ -407,6 +461,10 @@ function buildCanonicalVars() {
   const taxonDatasets = new Set(VARS.filter(v => v.variable_type === 'taxon').map(v => v.dataset_key));
   VARS.forEach(v => {
     if (REMOVE_VARS.has(v.variable_id)) return;
+    // The aggregate family row is superseded by the 37 synthesized species —
+    // hide it only when those actually loaded, so a missing coverage file
+    // degrades to the aggregate rather than to an empty Euphausiids category.
+    if (euphausiidSpeciesActive && v.variable_id === 'cce-lter_euphausiids::Euphausiidae') return;
     if (v.variable_type === 'measurement_type' && taxonDatasets.has(v.dataset_key) && !KEEP_MEASUREMENT_TYPE.has(v.dataset_key + '::' + v.display_name)) return;
     if (MERGE_DATASETS.has(v.dataset_key)) { (groups[canonicalKey(v)] ||= []).push(v); return; }
     // Collapse exact full-record duplicates — verified against the real
@@ -447,6 +505,11 @@ const BOTTLE_CAST_COV = {};
 // Without this, an absent/404 file would look identical to a real zero.
 let bottleCastCovLoaded = false;
 const DEPTH_PROFILES = {};   // dataset_key -> station_id -> variable_name -> [{depth_m, value}]
+// True once depth_profiles.json.gz has finished loading and reshaping (even if
+// it was absent/empty). Distinguishes "still in flight, a Depth Profiles tab may
+// yet appear" from "loaded, this station genuinely has no depth-resolved data" —
+// same not-loaded-vs-real-zero distinction as bottleCastCovLoaded above.
+let depthProfilesReady = false;
 let selectedVar = null;
 let currentStation = null; // persists across variable selections — the back button points here until "All Categories" is clicked
 // Which panel tab ('overview' or 'depth') was last viewed — carried across
@@ -476,12 +539,6 @@ Promise.all([
   fetch('./data/stations.json').then(r => r.json()),
   fetch('./data/variables.json').then(r => r.json()),
   fetch('./data/decades.json').then(r => r.ok ? r.json() : []).catch(() => []),
-  // depth_profiles.json: one row per (dataset_key, station_id, variable_name, depth_m)
-  // — built server-side the same way decades.json is (see build_decades.sql pattern).
-  // Shipped gzip-compressed (depth_profiles.json.gz) since the raw file was too
-  // big for GitHub — fetchGzJson decompresses it client-side.
-  // Optional/tolerant of absence for the same reason: map should still load pre-refresh.
-  fetchGzJson('./data/depth_profiles.json.gz').catch(() => []),
   // taxon_coverage.json: one row per (grid_key, aphia_id) — per-taxon station
   // coverage, separate from the per-dataset coverage baked into stations.json.
   // Optional and additive: when absent, station counts/highlighting fall back
@@ -510,14 +567,9 @@ Promise.all([
   // per-species coverage doesn't exist in any release yet, this is a
   // stand-in until CalCOFI/workflows PR #72 actually gets released.
   fetch('./data/euphausiid_species_coverage.json').then(r => r.ok ? r.json() : []).catch(() => [])
-]).then(([st, va, dm, dp, tc, bc, bathy, ec]) => {
+]).then(([st, va, dm, tc, bc, bathy, ec]) => {
   STATIONS = st; VARS = va;
   (dm || []).forEach(r => { ((DECADES[r.dataset_key] ||= {})[r.station_id] ||= []).push(r); });
-  (dp || []).forEach(r => {
-    const byStation = (DEPTH_PROFILES[r.dataset_key] ||= {});
-    const byVar = (byStation[r.station_id] ||= {});
-    (byVar[r.variable_name] ||= []).push({ depth_m: r.depth_m, value: r.value });
-  });
   (tc || []).forEach(r => (TAXON_STATIONS[r.dataset_key + '::' + r.aphia_id] ||= new Set()).add(r.grid_key));
   // Keyed by scientific_name as a fallback for the 5 species with no
   // resolved aphia_id yet (see the Nematoscelis/"Hansarsia" synonym
@@ -526,6 +578,10 @@ Promise.all([
     if (r.aphia_id) (TAXON_STATIONS['cce-lter_euphausiids::' + r.aphia_id] ||= new Set()).add(r.grid_key);
     (TAXON_STATIONS['cce-lter_euphausiids::name::' + r.scientific_name] ||= new Set()).add(r.grid_key);
   });
+  // Append the 37 per-species records the release catalogue doesn't have yet —
+  // see synthesizeEuphausiidSpeciesVars(). Must happen before buildCanonicalVars()
+  // below, which is what actually filters and groups VARS.
+  VARS = VARS.concat(synthesizeEuphausiidSpeciesVars(ec));
   (bc || []).forEach(r => { BOTTLE_CAST_COV[r.grid_key + '::' + r.subset] = r; });
   const bathyByKey = {};
   (bathy || []).forEach(r => { bathyByKey[r.grid_key] = r.bathymetry_depth_m; });
@@ -541,8 +597,51 @@ Promise.all([
   buildCanonicalVars();
   buildCategories();
   renderInventoryPanel();
-  maybeAutoShowWalkthrough();
+  // Deferred, non-blocking (see below). The first-visit auto-tour waits on it
+  // rather than firing immediately: its Depth Profiles step needs a station
+  // that actually has depth data, and depthProfileCount() reads 0 for every
+  // station until this lands — so an eager tour would silently skip that step.
+  // Resolves to [] on absence/error, so the tour still runs if the file is gone.
+  loadDepthProfiles().then(maybeAutoShowWalkthrough);
 }).catch(e => console.error('load failed', e));
+
+// depth_profiles.json.gz: one row per (dataset_key, station_id, variable_name,
+// depth_m) — built server-side the same way decades.json is (see the
+// build_depth_profiles.sql / build_decades.sql pattern). Shipped gzip-compressed
+// since the raw file is far too big for GitHub — fetchGzJson decompresses it.
+//
+// Deliberately NOT part of the Promise.all above. It is 4.5 MB on the wire but
+// decompresses to ~76 MB / ~614k rows, and both the JSON.parse and the reshape
+// loop below run on the main thread — putting it in the gating load meant the
+// map rendered nothing at all until it finished (multi-second freeze on desktop,
+// a plausible OOM on mobile). Nothing on first paint needs it: only the station
+// panel's Depth Profiles tab does, and that can't be opened until a station is
+// clicked. So it's kicked off right after first paint and lands in the
+// background — in practice well before anyone clicks a station.
+//
+// Idempotent + promise-cached so openStation() can await it directly without
+// worrying about ordering or double-fetching.
+let depthProfilesPromise = null;
+function loadDepthProfiles() {
+  if (depthProfilesPromise) return depthProfilesPromise;
+  depthProfilesPromise = fetchGzJson('./data/depth_profiles.json.gz')
+    .catch(() => [])
+    .then(dp => {
+      (dp || []).forEach(r => {
+        const byStation = (DEPTH_PROFILES[r.dataset_key] ||= {});
+        const byVar = (byStation[r.station_id] ||= {});
+        (byVar[r.variable_name] ||= []).push({ depth_m: r.depth_m, value: r.value });
+      });
+      depthProfilesReady = true;
+      // A station opened while this was still in flight rendered without its
+      // Depth Profiles tab (depthProfileCount() saw an empty DEPTH_PROFILES).
+      // Re-render that one station so the tab appears rather than staying
+      // silently missing until the next click.
+      if (currentStation) openStation(currentStation);
+      return DEPTH_PROFILES;
+    });
+  return depthProfilesPromise;
+}
 
 // ---- year-range filter -------------------------------------------------------
 // Filter the map to stations with coverage in a [minYear, maxYear] window, using
@@ -584,6 +683,17 @@ function stationsForVar(v) {
   const nameKey = v.dataset_key + '::name::' + v.name;
   if (!v.aphia_id && TAXON_STATIONS[nameKey]) return TAXON_STATIONS[nameKey];
   return new Set(STATIONS.filter(s => activeDatasets(s).some(d => d.dataset_key === v.dataset_key)).map(s => s.grid_key));
+}
+// Whether the count stationsForVar() returns for `v` actually honors the year
+// slider. False on the per-taxon path (taxon_coverage.json has no year bins —
+// see the NOTE above), which is 895 of the 1909 catalogued variables. Callers
+// must not assert a year range next to a number this returns false for: the
+// banner used to read "N stations … in 1950–1980" with an all-time N, which
+// reads as a filtered count and isn't one.
+function stationsForVarIsYearAware(v) {
+  if (v.aphia_id && TAXON_STATIONS[v.dataset_key + '::' + v.aphia_id]) return false;
+  if (!v.aphia_id && TAXON_STATIONS[v.dataset_key + '::name::' + v.name]) return false;
+  return true;
 }
 
 function applyStyles() {
@@ -1839,7 +1949,7 @@ function renderDepthTab(c, s) {
       row.dataset.rendered = '1';
       const [datasetKey, , varName] = decodeURIComponent(row.dataset.dpkey).split('::');
       const rows = DEPTH_PROFILES[datasetKey][s.station_id][varName];
-      const v = CANON_VARS.find(cv => cv.dataset_key === datasetKey && cv.variable_name === varName);
+      const v = CANON_VARS.find(cv => cv.dataset_key === datasetKey && cv.name === varName);
       const unit = (v && v.units) || '';
       const meta = dsMeta(datasetKey);
       const chart = row.querySelector('.depth-profile-chart');
@@ -1931,7 +2041,15 @@ function openDecadeModal(datasetKey) {
 function depthProfileSVG(rows, unit, color, w, h, bathyDepth, large) {
   const sorted = rows.slice().sort((a, b) => a.depth_m - b.depth_m);
   const depths = sorted.map(r => r.depth_m), values = sorted.map(r => r.value);
-  const dMin = 0, dMax = Math.max(...depths, bathyDepth || 0);
+  // Scale the axis to the SAMPLED depths only — never to the seafloor. Folding
+  // bathyDepth in here squashed every shallow profile into a sliver at the top
+  // of the plot (a 0–200 m bottle cast at a station with a 4,000 m seafloor got
+  // 5% of the plot height); measured on the shipped data, 1,630 of the 4,095
+  // profiles with a GEBCO depth — 40% — landed inside the top quarter. It also
+  // made the `bathyDepth <= dMax` guard below tautological, so the seafloor line
+  // drew even for casts that never went anywhere near it. Clipping instead of
+  // rescaling is what lets that guard do its job.
+  const dMin = 0, dMax = Math.max(...depths);
   const vMin = Math.min(...values), vMax = Math.max(...values);
   const peak = sorted.reduce((a, b) => (b.value > a.value ? b : a), sorted[0]);
 
@@ -2008,7 +2126,7 @@ function depthProfileBlocks(s) {
     return dedupeDepthVars(byVar).map(varName => {
       const rows = byVar[varName];
       if (!rows || rows.length < 2) return '';
-      const v = CANON_VARS.find(cv => cv.dataset_key === d.dataset_key && cv.variable_name === varName);
+      const v = CANON_VARS.find(cv => cv.dataset_key === d.dataset_key && cv.name === varName);
       const label = v ? resolvedLabel(v) : depthVarLabel(varName);
       const unit = (v && v.units) || '';
       const depths = rows.map(r => r.depth_m);
@@ -2051,7 +2169,7 @@ function openDepthProfileModal(dpkey) {
   const rows = DEPTH_PROFILES[datasetKey] && DEPTH_PROFILES[datasetKey][stationId] && DEPTH_PROFILES[datasetKey][stationId][varName];
   if (!rows) return;
   const meta = dsMeta(datasetKey);
-  const v = CANON_VARS.find(cv => cv.dataset_key === datasetKey && cv.variable_name === varName);
+  const v = CANON_VARS.find(cv => cv.dataset_key === datasetKey && cv.name === varName);
   const label = v ? resolvedLabel(v) : depthVarLabel(varName);
   const unit = (v && v.units) || '';
   const station = STATIONS.find(st => st.station_id === stationId);
@@ -2067,7 +2185,18 @@ const searchInput = document.getElementById('search');
 const dropdown = document.getElementById('dropdown');
 
 function wireSearch() {
-  searchInput.addEventListener('input', () => { ddExpandedGroup = null; renderDropdown(searchInput.value.trim()); });
+  // Debounced rather than capped. renderDropdown() no longer slices to 60 hits
+  // (deliberately — a broad query should show every real match, not hide them
+  // behind a "+N more"), but that means a one-letter query builds ~1,900 rows
+  // and attaches ~1,900 listeners. Firing that on literally every keystroke was
+  // the actual cost; doing it once the typing pauses keeps the full result set
+  // without the per-keystroke rebuild.
+  let ddTimer = null;
+  searchInput.addEventListener('input', () => {
+    ddExpandedGroup = null;
+    clearTimeout(ddTimer);
+    ddTimer = setTimeout(() => renderDropdown(searchInput.value.trim()), 120);
+  });
   searchInput.addEventListener('focus', () => renderDropdown(searchInput.value.trim()));
   document.addEventListener('click', e => {
     if (!e.target.closest('.search-wrapper')) dropdown.classList.remove('open');
@@ -2246,9 +2375,16 @@ function highlight(v) {
   const n = stationsForVar(v).size;
   document.getElementById('year-slider').classList.toggle('var-active', n > 0);
   const banner = document.getElementById('search-banner');
+  // Only claim the year range when the number actually reflects it. On the
+  // per-taxon path it doesn't (no year bins in taxon_coverage.json), so say
+  // "all years" rather than printing an unfiltered count under a filtered label.
+  const yearAware = stationsForVarIsYearAware(v);
+  const yearNote = !yearRange ? ''
+    : yearAware ? ` in <b>${yearRange[0]}–${yearRange[1]}</b>`
+    : ` <span class="banner-note" title="Per-taxon coverage has no year breakdown yet, so this count spans the full record regardless of the slider.">(all years)</span>`;
   banner.innerHTML = `<b style="color:${datasetColorFor(v)}">${resolvedLabel(v)}</b> — `
     + `${n} stations with <b>${datasetLabelFor(v)}</b> coverage`
-    + (yearRange ? ` in <b>${yearRange[0]}–${yearRange[1]}</b>` : '');
+    + yearNote;
   banner.style.display = 'block';
 }
 function showVariablePanel(v) {
@@ -2325,21 +2461,32 @@ const WALKTHROUGH_STEPS = [
     before: () => { const btn = document.querySelector('.panel-tab[data-tab="overview"]'); if (btn && !btn.classList.contains('active')) btn.click(); },
     placement: 'corner-top-right', offsetY: -50, calloutAnchorSelector: '#map' },
 ];
+// Whether THIS tour run opened the example station itself. Only then is the
+// station the tour's to clean up — see endTour().
+let tourOpenedStation = false;
 function openTourExampleStation() {
   if (currentStation) return;
   const s = STATIONS.find(st => st.n_datasets > 0 && depthProfileCount(st) > 0) || STATIONS.find(st => st.n_datasets > 0);
-  if (s) openStation(s);
+  if (s) { openStation(s); tourOpenedStation = true; }
 }
 function startWalkthroughTour() {
   tourStepIndex = 0;
+  tourOpenedStation = false;
   renderTourStep();
 }
 function endTour() {
   document.getElementById('tour-callout').style.display = 'none';
   const hl = document.getElementById('tour-highlight-box');
   if (hl) hl.style.display = 'none';
+  window.removeEventListener('resize', repositionTour);
+  window.removeEventListener('scroll', repositionTour, true);
   localStorage.setItem(WALKTHROUGH_DISMISS_KEY, '1');
-  clearAll(); // don't leave the example station open once the tour's done
+  // Only clear what the tour itself put on screen. The `?` button can start a
+  // tour mid-session, and an unconditional clearAll() there threw away the
+  // variable and station the person had already chosen just because they
+  // glanced at the help.
+  if (tourOpenedStation) clearAll();
+  tourOpenedStation = false;
 }
 function tourNext() {
   if (tourStepIndex < WALKTHROUGH_STEPS.length - 1) { tourStepIndex++; renderTourStep(); }
@@ -2399,7 +2546,33 @@ function renderTourStep() {
     // map step used, rather than crowding the side panel.
     const calloutTarget = step.calloutAnchorSelector ? (document.querySelector(step.calloutAnchorSelector) || target) : target;
     positionTourCallout(calloutTarget, callout, step);
+    window.addEventListener('resize', repositionTour);
+    // Capture phase: the side panel scrolls in its own element, and scroll
+    // events don't bubble — steps 4 and 6 point at .ds-card/.ds-pin-btn INSIDE
+    // that panel, so without capture the ring stays put while the card it's
+    // ringing scrolls away.
+    window.addEventListener('scroll', repositionTour, true);
   }, 30);
+}
+// Re-measures the current step's target and moves the ring + callout to match.
+// Both are position:fixed, placed from a one-shot getBoundingClientRect(), so
+// without this they detach from their target on any resize or panel scroll.
+// Cheap enough to run raw, but rAF-throttled since scroll fires in bursts.
+let tourRepositionPending = false;
+function repositionTour() {
+  const callout = document.getElementById('tour-callout');
+  if (!callout || callout.style.display === 'none') return;
+  if (tourRepositionPending) return;
+  tourRepositionPending = true;
+  requestAnimationFrame(() => {
+    tourRepositionPending = false;
+    const step = WALKTHROUGH_STEPS[tourStepIndex];
+    const target = document.querySelector(step.selector);
+    if (!target) return;   // target vanished mid-step — leave the callout where it is
+    positionTourHighlight(target, step);
+    const calloutTarget = step.calloutAnchorSelector ? (document.querySelector(step.calloutAnchorSelector) || target) : target;
+    positionTourCallout(calloutTarget, callout, step);
+  });
 }
 // Three placement modes:
 // - default: below the target, flipping above if there's no room (used for

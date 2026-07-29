@@ -482,6 +482,16 @@ ol {
   display: block;
 }
 
+/* "(all years)" qualifier — shown instead of the year range when the station
+   count can't honor the slider (per-taxon path; see stationsForVarIsYearAware).
+   Muted + dotted underline so it reads as a caveat on the number, not as part
+   of the claim, and hints that hovering explains why. */
+.search-banner .banner-note {
+  color: var(--muted, #6c757d);
+  border-bottom: 1px dotted currentColor;
+  cursor: help;
+}
+
 /* year-range slider (dual-handle; filters the map to a year window) */
 .year-slider {
   display: flex;

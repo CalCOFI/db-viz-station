@@ -97,6 +97,7 @@
         <button id="panel-back-btn" class="panel-back-btn" style="display:none"></button>
         <div class="panel-station-id" id="panel-station-id"></div>
         <div class="panel-coords" id="panel-coords"></div>
+        <div class="panel-depth-summary" id="panel-depth-summary"></div>
       </div>
       <div class="panel-content" id="panel-content"></div>
     </div>
@@ -117,6 +118,22 @@
 
         </div>
 
+      </div>
+    </div>
+  </div>
+
+  <!-- Walkthrough tour — a single callout that repositions itself next to
+       whatever UI element the current step is about (see startWalkthroughTour
+       in app.js), rather than a static wall of text in one fixed modal. -->
+  <div id="tour-callout" class="tour-callout" style="display:none">
+    <div class="tour-callout-title" id="tour-title"></div>
+    <div class="tour-callout-body" id="tour-body"></div>
+    <div class="tour-callout-footer">
+      <button class="tour-skip" onclick="endTour()">Skip</button>
+      <span class="tour-progress" id="tour-progress"></span>
+      <div class="tour-nav">
+        <button class="tour-prev" id="tour-prev-btn" onclick="tourPrev()">Previous</button>
+        <button class="tour-next" id="tour-next-btn" onclick="tourNext()">Next</button>
       </div>
     </div>
   </div>
@@ -169,7 +186,7 @@
             <b>Browse by category or by dataset</b> from the panel on the
             right &mdash; each entry expands to show its variables, grouped
             by measurement so related readings from different instruments
-            or datasets (e.g. bottle vs. CTD temperature) sit together.
+            or datasets (e.g. bottle vs. CTD (Conductivity, Temperature, Depth) temperature) sit together.
           </li>
           <li>
             <b>Click any station</b> on the map for its full coverage:
@@ -197,7 +214,11 @@
 
   </div>
 
-  <!-- Floating info button -->
+  <!-- Floating help/info buttons -->
+
+  <button id="walkthrough-button" onclick="startWalkthroughTour()">
+    ?
+  </button>
 
   <button id="about-button" onclick="showAboutModal()">
     ⓘ

@@ -36,15 +36,30 @@ jobs:
           REL=$(curl -s https://storage.googleapis.com/calcofi-db/ducklake/releases/latest.txt | tr -d '[:space:]')
           echo "resolved release: $REL"
           duckdb -c ".read scripts/build_crosswalk.sql"
+          # build_stations.sql writes BOTH stations.json and taxon_coverage.json
           sed "s/__RELEASE__/$REL/g" scripts/build_stations.sql | duckdb
           sed "s/__RELEASE__/$REL/g" scripts/build_vars.sql | duckdb
           sed "s/__RELEASE__/$REL/g" scripts/build_decades.sql | duckdb
+          # build_depth_profiles.sql resolves the release itself (from latest.txt)
+          # rather than via __RELEASE__ — see the note in its header — so it needs
+          # no sed. It emits an uncompressed ~76 MB depth_profiles.json; the app
+          # loads only the gzipped copy (fetchGzJson), so compress and drop the
+          # raw file rather than committing it.
+          duckdb -c ".read scripts/build_depth_profiles.sql"
+          gzip -9 -f public/data/depth_profiles.json
+          ls -la public/data/
 
       - name: Commit if changed
         run: |
           git config user.name  "calcofi-bot"
           git config user.email "bot@calcofi.io"
-          git add public/data/stations.json public/data/variables.json public/data/decades.json metadata/crosswalk_variables.csv
+          # Every generated artifact must be listed here. Anything the build
+          # scripts write but this line omits is regenerated into the runner and
+          # silently discarded, leaving the committed copy to drift from the rest
+          # (taxon_coverage.json did exactly that when it was first added).
+          git add public/data/stations.json public/data/variables.json public/data/decades.json \
+                  public/data/taxon_coverage.json public/data/depth_profiles.json.gz \
+                  metadata/crosswalk_variables.csv
           if git diff --cached --quiet; then
             echo "no coverage changes"
           else

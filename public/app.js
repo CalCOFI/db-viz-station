@@ -20,8 +20,8 @@ const map = L.map('map', { center: [32.8, -120.2], zoom: 6, worldCopyJump: true 
 // the card title when a parameter's family dropdown lists its sources.
 const DATASET_OFFICIAL_NAME = {
   'calcofi_bottle': 'CalCOFI SIO Hydrographic Bottle Data',
-  'calcofi_ctd-cast': 'CalCOFI NOAA Additional CTD',
-  'calcofi_dic': 'CalCOFI Carbonate Chemistry',
+  'calcofi_ctd-cast': 'CTD Cast Files',
+  'calcofi_dic': 'Carbonate Chemistry / DIC',
   'calcofi_phytoplankton': 'CalCOFI Phytoplankton (Venrick)',
   'swfsc_ichthyo': 'CalCOFI NOAA Ichthyoplankton Tows',
   'swfsc_cufes': 'CalCOFI NOAA Continuous Underway Fish-Egg Sampler (CUFES)',
@@ -34,7 +34,13 @@ const DATASET_OFFICIAL_NAME = {
 };
 const DATASET_META = {
   'calcofi_bottle':             { label: 'Hydrographic Bottle',              realm: 'env', color: '#4dabf7' },
-  'calcofi_ctd-cast':           { label: 'CTD',                              realm: 'env', color: '#3bc9db' },
+  // Synthetic keys, not a real dataset_key on any variable — exist only so
+  // the top-level "By Dataset" list can show Bottle vs Cast as two separate
+  // rows (see inventoryVarsFor/buildCategories). Same color/realm as the
+  // real calcofi_bottle entry above since they're the same underlying table.
+  'calcofi_bottle_hydro':        { label: 'Hydrographic Bottle',              realm: 'env', color: '#4dabf7' },
+  'calcofi_bottle_cast':         { label: 'Hydrographic Cast',                realm: 'env', color: '#be8c63' },
+  'calcofi_ctd-cast':           { label: 'CTD Cast Files',                  realm: 'env', color: '#3bc9db' },
   'calcofi_dic':                { label: 'Carbonate Chemistry / DIC',        realm: 'env', color: '#63e6be' },
   'calcofi_phytoplankton':      { label: 'Phytoplankton',                    realm: 'bio', color: '#12b886' },
   'swfsc_ichthyo':              { label: 'Ichthyoplankton (Fish Eggs & Larvae)', realm: 'bio', color: '#ffa94d' },
@@ -47,6 +53,37 @@ const DATASET_META = {
   'calcofi_bird_mammal_census': { label: 'Seabirds & Marine Mammals',        realm: 'bio', color: '#ff8787' }
 };
 const dsMeta = id => DATASET_META[id] || { label: id, realm: 'bio', color: '#adb5bd' };
+// A few calcofi_bottle variables (dry_air_temp, wet_air_temp) were actually
+// collected as part of the Hydrographic CAST program, not the Bottle
+// program — they share calcofi_bottle's dataset_key because both portal
+// datasets map to the same integrated-DB table, but their own harvested
+// `source.access_url` correctly points to siocalcofiHydroCast. Use that to
+// relabel just these per-variable displays rather than the whole dataset_key.
+// A batch of calcofi_bottle variables are actually collected as part of the
+// Hydrographic CAST program (surface meteorology + cast metadata), not the
+// Bottle chemistry program — they share calcofi_bottle's dataset_key because
+// both portal datasets map to the same integrated-DB table. Matched by name
+// (not just source.access_url) since Water Color, a discontinued field
+// (1988-10 through 1998-04), has no live source URL to check.
+const CAST_SIDE_BOTTLE_FIELDS = new Set([
+  'dry_air_temp', 'wet_air_temp', 'wave_direction', 'wave_height', 'wave_period',
+  'wind_direction', 'wind_speed', 'barometric_pressure', 'weather_code',
+  'cloud_type', 'cloud_amount', 'visibility', 'secchi_depth', 'water_color',
+]);
+function datasetLabelFor(v) {
+  const meta = dsMeta(v.dataset_key);
+  if (v.dataset_key === 'calcofi_bottle' && CAST_SIDE_BOTTLE_FIELDS.has(v.name)) return 'Hydrographic Cast';
+  return meta.label;
+}
+// Same idea as datasetLabelFor — Hydrographic Cast variables share
+// calcofi_bottle's dataset_key, so dsMeta(v.dataset_key) alone would give
+// them Bottle's blue everywhere (dropdown dots, search banner, station
+// cards). Indigo (#be8c63) is used for every Cast-side rendering instead,
+// distinct from Bottle's #4dabf7 and every other dataset's color.
+function datasetColorFor(v) {
+  if (v.dataset_key === 'calcofi_bottle' && CAST_SIDE_BOTTLE_FIELDS.has(v.name)) return '#be8c63';
+  return dsMeta(v.dataset_key).color;
+}
 const MONTHS = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
 
 // ---- display-name cleanup — ported from Betty's original station-portal
@@ -142,9 +179,8 @@ const DISPLAY_NAME_FIXES = {
   'Mesh Size ()': 'Mesh Size', 'mesh size ()': 'Mesh Size',
   // release-DB-specific (not in the old ERDDAP pipeline)
   'dic': 'DIC', 'oxygen ml l': 'Oxygen', 'oxygen umol kg': 'Oxygen',
-  'reported salinity sva': 'Reported Specific Volume Anomaly', 'salinity sva': 'Specific Volume Anomaly',
   'par': 'PAR', 'spar': 'Surface PAR', 'isus v': 'ISUS Voltage',
-  'ctdtemp its90': 'CTD Temperature (ITS-90)', 'salinity pss78': 'Salinity (PSS-78)',
+  'ctdtemp its90': 'CTD (Conductivity, Temperature, Depth) Temperature (ITS-90)', 'salinity pss78': 'Salinity (PSS-78)',
   'est chlorophyll a': 'Est. Chlorophyll-a',
   'light pct': 'Light Percentage', 'fluorescence v': 'Fluorescence Voltage',
   'small plankton biomass': 'Small Plankton Volume', 'total plankton biomass': 'Total Plankton Volume',
@@ -186,6 +222,51 @@ function fixDisplayName(name) {
   return resolved;
 }
 const displayLabel = v => fixDisplayName(v.display_name || v.name);
+// Groups a station's depth-resolved variables by base name (rep1/rep2/mean/
+// dark/ave all collapse to the same group, same base-stripping fixDisplayName()
+// uses) and keeps exactly one representative per group — preferring the mean,
+// then the plain reading, then the first replicate — dropping the rest.
+// Used by both depthProfileCount() and depthProfileBlocks() so the toggle's
+// count always matches what's actually rendered underneath it.
+// Only literal numbered replicates (rep1, rep2, ...) are true duplicate
+// samples of each other and collapse into one row (lowest-numbered wins).
+// "mean" (a derived average) and "dark" (a different experimental
+// condition — the control bottle, not a duplicate reading) are NOT
+// replicates of anything and each keep their own row.
+// Label for a depth-profile row. Can't reuse fixDisplayName() here — it
+// deliberately collapses "c14_mean" and "c14_rep1" to the identical text
+// "C14" (correct for merging duplicate sources in the variable browser),
+// but dedupeDepthVars() above keeps mean/dark as separate rows from the
+// collapsed rep group, so two rows would show the same label with no way
+// to tell them apart. This keeps mean/dark/ave visible in the text, but
+// drops the "(Replicate N)" tag for the rep-group row since that
+// distinction no longer needs disambiguating once reps are collapsed.
+function depthVarLabel(varName) {
+  const raw = varName.toLowerCase();
+  const isReported = /^r_/.test(raw);
+  const hasBottleMarker = /(^|_)btl(_|$)/.test(raw);
+  const stripped = raw.replace(/^r_/, '').replace(/(^|_)btl(_|$)/, '$1').replace(/_$/, '');
+  const suffixMatch = stripped.match(/_(mean|dark|ave)$/);
+  const SUFFIX_LABELS = { mean: 'Mean', dark: 'Dark', ave: 'Average' };
+  const base = suffixMatch ? stripped.slice(0, -suffixMatch[0].length) : stripped.replace(/_rep\d+$/, '');
+  const cleanedBase = cleanFieldName(base);
+  let resolved = DISPLAY_NAME_FIXES[cleanedBase] || DISPLAY_NAME_FIXES[base] || toTitleCase(cleanedBase);
+  if (suffixMatch) resolved += ` (${SUFFIX_LABELS[suffixMatch[1]]})`;
+  if (hasBottleMarker) resolved = 'Bottle ' + resolved;
+  if (isReported) resolved = 'Reported ' + resolved;
+  return resolved;
+}
+function dedupeDepthVars(byVar) {
+  const groups = {};
+  Object.keys(byVar).forEach(varName => {
+    const raw = varName.toLowerCase();
+    const stripped = raw.replace(/^r_/, '').replace(/(^|_)btl(_|$)/, '$1').replace(/_$/, '');
+    const repMatch = stripped.match(/_rep\d+$/);
+    const groupKey = repMatch ? stripped.slice(0, -repMatch[0].length) + '_rep' : stripped;
+    (groups[groupKey] ||= []).push(varName);
+  });
+  return Object.values(groups).map(variants => variants.slice().sort()[0]);
+}
 // For species/taxon variables, appends the scientific name (stored in the
 // release DB's `name` field) as an italic parenthetical after the common
 // name — matches Betty's original taxonDisplayLabel pattern. Skipped when
@@ -194,17 +275,16 @@ const displayLabel = v => fixDisplayName(v.display_name || v.name);
 function taxonLabel(v) {
   if (v.variable_type !== 'taxon') return displayLabel(v);
   const sci = (v.name || '').trim();
-  if (v.common_name) {
-    const label = displayLabel(v);
-    if (!sci || sci.toLowerCase() === label.toLowerCase() || sci.includes('(')) return label;
-    return `${label} <i style="color:var(--muted);font-weight:400;">(${sci})</i>`;
+  const commonName = v.common_name;
+  if (commonName && sci && commonName.toLowerCase() !== sci.toLowerCase() && !sci.includes('(')) {
+    return `${commonName} <i style="color:var(--muted);font-weight:400;">(${sci})</i>`;
   }
-  // No common name — the raw scientific name IS the label. Use it as-is
-  // (already correctly cased in the source, e.g. "Panulirus interruptus")
-  // rather than title-casing it, which wrongly capitalizes the species
-  // epithet into "Panulirus Interruptus". Single-word entries (class-level
-  // names like "Bacillariophyceae") don't have this problem, so they still
-  // go through the normal display pipeline.
+  // No usable common name — the raw scientific name IS the label. Use it
+  // as-is (already correctly cased in the source, e.g. "Panulirus
+  // interruptus") rather than title-casing it, which wrongly capitalizes
+  // the species epithet into "Panulirus Interruptus". Single-word entries
+  // (class-level names like "Bacillariophyceae") don't have this problem,
+  // so they still go through the normal display pipeline.
   if (sci.includes(' ') && !sci.includes('(')) return `<i>${sci}</i>`;
   return displayLabel(v);
 }
@@ -219,6 +299,17 @@ function resolvedLabel(v) {
   const fm = familyMemberFor(v);
   return fm ? fm.member.label : taxonLabel(v);
 }
+// Sort/letter key: common_name if set, else the scientific name — read
+// directly off the variable, NOT via displayLabel()/display_name. Those
+// are baked in server-side at build time; common_name values patched in
+// client-side afterward (as most of Ichthyoplankton/ZooDB/Phytoplankton's
+// are) never get reflected back into display_name, so using it here
+// silently sorts by scientific name for every taxon whose common name
+// was added after the build — e.g. "Jewel Squids (Abralia)" landing next
+// to "Abralia trigonura" under A instead of under J. Shared between the
+// By Category browse panel and the search dropdown so both order the
+// same way.
+const sortNameFor = v => (v.variable_type === 'taxon' ? (v.common_name || v.name) : displayLabel(v)) || '';
 // Plain-text variant for contexts that can't render HTML (input.value,
 // textContent) — family labels are already plain text, so this only
 // differs from resolvedLabel by skipping taxonLabel's italic sci-name span.
@@ -284,7 +375,66 @@ const REMOVE_VARS = new Set([
   // would otherwise resurface as separate loose rows ("Bottle Temperature", etc.) duplicating it.
   'calcofi_ctd-cast::btl_temperature', 'calcofi_ctd-cast::salinity_btl',
   'calcofi_ctd-cast::oxygen_btl_ml_l', 'calcofi_ctd-cast::oxygen_btl_umol_kg',
+  // Removed everywhere — Specific Volume Anomaly has a real source (SVA
+  // column in the CTD cast files) but is still pending a decision on
+  // whether to restore it as its own family member (see Potential Temp,
+  // restored above, for the same fix pattern).
+  'calcofi_ctd-cast::specific_volume_anomaly', 'calcofi_bottle::r_salinity_sva',
 ]);
+// ---- Euphausiid species stand-in ------------------------------------------
+// The release DB still carries Euphausiids as a single aggregate "Euphausiidae"
+// row; the real per-species breakdown isn't published yet (CalCOFI/workflows
+// PR #72). euphausiid_species_coverage.json is a stand-in built from the raw
+// BTEDB export — rough (only ~44% of historical tows land on a currently known
+// grid station, life stages summed per species), but it names 37 real species
+// where the catalogue names one family.
+//
+// These 37 variable records are SYNTHESIZED here at load time rather than added
+// to variables.json. That file is owned by .github/workflows/refresh.yml, which
+// regenerates it from build_vars.sql every Monday and on every release dispatch
+// — records hand-added there are silently reverted within a week, taking the
+// feature with them. Deriving them from the coverage file instead means the
+// refresh can't clobber them, and when #72 finally lands and build_vars.sql
+// emits the species for real, deleting this block plus the coverage file is the
+// whole rollback.
+//
+// Everything except the two common names is derivable from the coverage rows:
+// scientific_name -> name/display_name/variable_id, aphia_id -> aphia_id, and
+// rank is Species throughout.
+const EUPHAUSIID_COMMON_NAMES = {
+  'Euphausia pacifica': 'Pacific Krill',
+  'Thysanoessa spinifera': 'Spiny Krill',
+};
+// Set once the stand-in is actually in play — gates hiding the aggregate below,
+// so a missing/empty coverage file degrades to today's single-row behavior
+// rather than to an empty Euphausiids category.
+let euphausiidSpeciesActive = false;
+function synthesizeEuphausiidSpeciesVars(coverageRows) {
+  const bySpecies = new Map();
+  (coverageRows || []).forEach(r => {
+    if (!r.scientific_name || bySpecies.has(r.scientific_name)) return;
+    bySpecies.set(r.scientific_name, r.aphia_id != null ? String(r.aphia_id) : null);
+  });
+  if (!bySpecies.size) return [];
+  euphausiidSpeciesActive = true;
+  return [...bySpecies].map(([sci, aphia]) => ({
+    variable_id: 'cce-lter_euphausiids::' + sci,
+    dataset_key: 'cce-lter_euphausiids',
+    realm: 'bio',
+    variable_type: 'taxon',
+    name: sci,
+    display_name: sci,
+    units: null,
+    description: null,
+    is_canonical: null,
+    aphia_id: aphia,
+    rank: 'Species',
+    common_name: EUPHAUSIID_COMMON_NAMES[sci] || null,
+    keywords: null,
+    science_concepts: null,
+    source: null,
+  }));
+}
 function buildCanonicalVars() {
   const merged = [], groups = {}, seenExact = new Set();
   // "measurement_type" columns (behavior, count, ...) mixed into an
@@ -311,6 +461,10 @@ function buildCanonicalVars() {
   const taxonDatasets = new Set(VARS.filter(v => v.variable_type === 'taxon').map(v => v.dataset_key));
   VARS.forEach(v => {
     if (REMOVE_VARS.has(v.variable_id)) return;
+    // The aggregate family row is superseded by the 37 synthesized species —
+    // hide it only when those actually loaded, so a missing coverage file
+    // degrades to the aggregate rather than to an empty Euphausiids category.
+    if (euphausiidSpeciesActive && v.variable_id === 'cce-lter_euphausiids::Euphausiidae') return;
     if (v.variable_type === 'measurement_type' && taxonDatasets.has(v.dataset_key) && !KEEP_MEASUREMENT_TYPE.has(v.dataset_key + '::' + v.display_name)) return;
     if (MERGE_DATASETS.has(v.dataset_key)) { (groups[canonicalKey(v)] ||= []).push(v); return; }
     // Collapse exact full-record duplicates — verified against the real
@@ -331,21 +485,115 @@ function buildCanonicalVars() {
 let STATIONS = [], VARS = [];
 const BY_KEY = {}, MARKERS = {}, DS_STATIONS = {};   // dataset_key -> Set(grid_key)
 const DECADES = {};   // dataset_key -> station_id -> [{decade, mean_density, n_tows}]
+// "dataset_key::aphia_id" -> Set(grid_key) — per-taxon, per-dataset station
+// coverage from the optional
+// taxon_coverage.json (see load block below). Empty until/unless that file
+// exists; every consumer below falls back to dataset-wide coverage when a
+// given aphia_id has no entry here.
+const TAXON_STATIONS = {};
+// "grid_key::subset" -> coverage row (subset is 'calcofi_bottle_hydro' or
+// 'calcofi_bottle_cast') from the optional bottle_cast_coverage.json — real
+// per-subset date range/depth/year-month bars for the split Bottle/Cast
+// accordion cards (see datasetAccordion), instead of both cards showing the
+// same whole-dataset numbers. Empty until/unless that file exists; falls
+// back to the shared coverage record when a station has no entry here.
+const BOTTLE_CAST_COV = {};
+// True once bottle_cast_coverage.json has actually loaded (even if it's
+// empty) — distinguishes "the file hasn't loaded, fall back to the shared
+// whole-dataset record" from "the file loaded and this station genuinely
+// has zero observations for this subset, show an honest empty state".
+// Without this, an absent/404 file would look identical to a real zero.
+let bottleCastCovLoaded = false;
+const DEPTH_PROFILES = {};   // dataset_key -> station_id -> variable_name -> [{depth_m, value}]
+// True once depth_profiles.json.gz has finished loading and reshaping (even if
+// it was absent/empty). Distinguishes "still in flight, a Depth Profiles tab may
+// yet appear" from "loaded, this station genuinely has no depth-resolved data" —
+// same not-loaded-vs-real-zero distinction as bottleCastCovLoaded above.
+let depthProfilesReady = false;
 let selectedVar = null;
 let currentStation = null; // persists across variable selections — the back button points here until "All Categories" is clicked
+// Which panel tab ('overview' or 'depth') was last viewed — carried across
+// clicking different stations, so comparing depth profiles station to
+// station doesn't mean re-clicking the tab every time. Reset to 'overview'
+// on clearAll() so returning to All Categories doesn't leave a stale
+// "depth" preference active for whatever station gets opened next session.
+let lastStationTab = 'overview';
 
 // ---- load prebuilt data ----
+// Fetches a gzip-compressed JSON file and decompresses it in the browser
+// (DecompressionStream is built into every modern browser — no library
+// needed). Used for depth_profiles.json, which got too big for GitHub
+// uncompressed. Same tolerant not-ok/error -> [] fallback as every other
+// optional data file here.
+async function fetchGzJson(url) {
+  const r = await fetch(url);
+  if (!r.ok) return [];
+  const ds = new DecompressionStream('gzip');
+  const decompressed = r.body.pipeThrough(ds);
+  const text = await new Response(decompressed).text();
+  return JSON.parse(text);
+}
 // decades.json (per-station decade-means for the plankton datasets) is optional —
 // tolerate its absence so the map still loads before the first refresh builds it.
 Promise.all([
   fetch('./data/stations.json').then(r => r.json()),
   fetch('./data/variables.json').then(r => r.json()),
-  fetch('./data/decades.json').then(r => r.ok ? r.json() : []).catch(() => [])
-]).then(([st, va, dm]) => {
+  fetch('./data/decades.json').then(r => r.ok ? r.json() : []).catch(() => []),
+  // taxon_coverage.json: one row per (grid_key, aphia_id) — per-taxon station
+  // coverage, separate from the per-dataset coverage baked into stations.json.
+  // Optional and additive: when absent, station counts/highlighting fall back
+  // to dataset-wide (today's behavior, e.g. every ZooDB taxon showing the
+  // same "54 stations" regardless of how often that specific taxon was
+  // actually recorded — see 2026-07 investigation). When present, per-taxon
+  // numbers are used automatically — no other code change needed either way.
+  fetch('./data/taxon_coverage.json').then(r => r.ok ? r.json() : []).catch(() => []),
+  // bottle_cast_coverage.json: one row per (grid_key, subset) — real
+  // per-subset coverage for the split Hydrographic Bottle/Cast cards.
+  // Optional/additive, same tolerant pattern as the rest.
+  fetch('./data/bottle_cast_coverage.json').then(r => { bottleCastCovLoaded = r.ok; return r.ok ? r.json() : []; }).catch(() => []),
+  // bathymetry.json: one row per (grid_key, bathymetry_depth_m) — seafloor
+  // depth sampled from GEBCO 2025, the same source + method the CalCOFI/apps
+  // ctd-viz app uses (bathymetry isn't in the release DB yet — tracked as
+  // CalCOFI/workflows#54 — so this is the same app-side stopgap that app
+  // already relies on, just precomputed once instead of sampled live).
+  // Optional/additive: absent means depth-profile charts just don't draw a
+  // seafloor line, same as before this existed.
+  fetch('./data/bathymetry.json').then(r => r.ok ? r.json() : []).catch(() => []),
+  // euphausiid_species_coverage.json: one row per (grid_key, scientific_name)
+  // — built from the real BTEDB raw export (225 wide Genus_species_stage
+  // columns), matched to the existing 218-station grid by Line/Station.
+  // Rough/demo-quality (only ~44% of historical tows land on a currently
+  // known grid station; life stages summed together per species) — real
+  // per-species coverage doesn't exist in any release yet, this is a
+  // stand-in until CalCOFI/workflows PR #72 actually gets released.
+  fetch('./data/euphausiid_species_coverage.json').then(r => r.ok ? r.json() : []).catch(() => [])
+]).then(([st, va, dm, tc, bc, bathy, ec]) => {
   STATIONS = st; VARS = va;
   (dm || []).forEach(r => { ((DECADES[r.dataset_key] ||= {})[r.station_id] ||= []).push(r); });
+  (tc || []).forEach(r => (TAXON_STATIONS[r.dataset_key + '::' + r.aphia_id] ||= new Set()).add(r.grid_key));
+  // Keyed by scientific_name as a fallback for the 5 species with no
+  // resolved aphia_id yet (see the Nematoscelis/"Hansarsia" synonym
+  // question) — stationsForVar() checks aphia_id first, name second.
+  (ec || []).forEach(r => {
+    if (r.aphia_id) (TAXON_STATIONS['cce-lter_euphausiids::' + r.aphia_id] ||= new Set()).add(r.grid_key);
+    (TAXON_STATIONS['cce-lter_euphausiids::name::' + r.scientific_name] ||= new Set()).add(r.grid_key);
+  });
+  // Append the 37 per-species records the release catalogue doesn't have yet —
+  // see synthesizeEuphausiidSpeciesVars(). Must happen before buildCanonicalVars()
+  // below, which is what actually filters and groups VARS.
+  VARS = VARS.concat(synthesizeEuphausiidSpeciesVars(ec));
+  (bc || []).forEach(r => { BOTTLE_CAST_COV[r.grid_key + '::' + r.subset] = r; });
+  const bathyByKey = {};
+  (bathy || []).forEach(r => { bathyByKey[r.grid_key] = r.bathymetry_depth_m; });
   STATIONS.forEach(s => {
     BY_KEY[s.grid_key] = s;
+    // > 0, not just != null: st45-ln60 carries a bathymetry_depth_m of 0, which
+    // is a nodata sentinel from the GEBCO sampling rather than a real sounding
+    // (a station in 0 m of water isn't a station). Treated as a depth it renders
+    // "Seafloor (GEBCO) ≈ 0 m" and draws a seafloor line across the top of every
+    // profile at that station. Falling through to "no bathymetry" is honest —
+    // 104 of the 218 stations are already in that state (see issue #5).
+    if (bathyByKey[s.grid_key] > 0) s.bathymetry_depth_m = bathyByKey[s.grid_key];
     (s.datasets || []).forEach(d => { (DS_STATIONS[d.dataset_key] ||= new Set()).add(s.grid_key); });
   });
   renderStations();
@@ -355,7 +603,51 @@ Promise.all([
   buildCanonicalVars();
   buildCategories();
   renderInventoryPanel();
+  // Deferred, non-blocking (see below). The first-visit auto-tour waits on it
+  // rather than firing immediately: its Depth Profiles step needs a station
+  // that actually has depth data, and depthProfileCount() reads 0 for every
+  // station until this lands — so an eager tour would silently skip that step.
+  // Resolves to [] on absence/error, so the tour still runs if the file is gone.
+  loadDepthProfiles().then(maybeAutoShowWalkthrough);
 }).catch(e => console.error('load failed', e));
+
+// depth_profiles.json.gz: one row per (dataset_key, station_id, variable_name,
+// depth_m) — built server-side the same way decades.json is (see the
+// build_depth_profiles.sql / build_decades.sql pattern). Shipped gzip-compressed
+// since the raw file is far too big for GitHub — fetchGzJson decompresses it.
+//
+// Deliberately NOT part of the Promise.all above. It is 4.5 MB on the wire but
+// decompresses to ~76 MB / ~614k rows, and both the JSON.parse and the reshape
+// loop below run on the main thread — putting it in the gating load meant the
+// map rendered nothing at all until it finished (multi-second freeze on desktop,
+// a plausible OOM on mobile). Nothing on first paint needs it: only the station
+// panel's Depth Profiles tab does, and that can't be opened until a station is
+// clicked. So it's kicked off right after first paint and lands in the
+// background — in practice well before anyone clicks a station.
+//
+// Idempotent + promise-cached so openStation() can await it directly without
+// worrying about ordering or double-fetching.
+let depthProfilesPromise = null;
+function loadDepthProfiles() {
+  if (depthProfilesPromise) return depthProfilesPromise;
+  depthProfilesPromise = fetchGzJson('./data/depth_profiles.json.gz')
+    .catch(() => [])
+    .then(dp => {
+      (dp || []).forEach(r => {
+        const byStation = (DEPTH_PROFILES[r.dataset_key] ||= {});
+        const byVar = (byStation[r.station_id] ||= {});
+        (byVar[r.variable_name] ||= []).push({ depth_m: r.depth_m, value: r.value });
+      });
+      depthProfilesReady = true;
+      // A station opened while this was still in flight rendered without its
+      // Depth Profiles tab (depthProfileCount() saw an empty DEPTH_PROFILES).
+      // Re-render that one station so the tab appears rather than staying
+      // silently missing until the next click.
+      if (currentStation) openStation(currentStation);
+      return DEPTH_PROFILES;
+    });
+  return depthProfilesPromise;
+}
 
 // ---- year-range filter -------------------------------------------------------
 // Filter the map to stations with coverage in a [minYear, maxYear] window, using
@@ -374,12 +666,49 @@ function datasetInRange(d) {
 }
 const activeDatasets = s => (s.datasets || []).filter(datasetInRange);
 
+// Returns the Set of grid_keys where variable `v` actually has data —
+// prefers the optional per-taxon taxon_coverage.json (indexed by
+// dataset_key + aphia_id — a taxon can be independently recorded by more
+// than one collection program, e.g. Salpida in both ZooDB and ZooScan, so
+// scoping per-dataset keeps each dataset's own count accurate instead of
+// silently combining them under whichever one's label happens to be showing)
+// when an entry exists for this variable, falling back to whole-dataset
+// coverage otherwise (today's only behavior, before that file exists —
+// e.g. every ZooDB taxon showing the same station count regardless of how
+// often that specific taxon was actually recorded; see 2026-07
+// investigation). Single source of truth so the map highlight, the search
+// banner count, and the variable panel's "Collected at N stations" line
+// can't drift out of sync with each other.
+// NOTE: the taxon-level path does not currently respect the year-range
+// slider — taxon_coverage.json has no per-year breakdown yet, unlike the
+// dataset-wide path via activeDatasets(). Add year bins to that file's
+// build if year-filtered taxon counts are needed later.
+function stationsForVar(v) {
+  const key = v.dataset_key + '::' + v.aphia_id;
+  if (v.aphia_id && TAXON_STATIONS[key]) return TAXON_STATIONS[key];
+  const nameKey = v.dataset_key + '::name::' + v.name;
+  if (!v.aphia_id && TAXON_STATIONS[nameKey]) return TAXON_STATIONS[nameKey];
+  return new Set(STATIONS.filter(s => activeDatasets(s).some(d => d.dataset_key === v.dataset_key)).map(s => s.grid_key));
+}
+// Whether the count stationsForVar() returns for `v` actually honors the year
+// slider. False on the per-taxon path (taxon_coverage.json has no year bins —
+// see the NOTE above), which is 895 of the 1909 catalogued variables. Callers
+// must not assert a year range next to a number this returns false for: the
+// banner used to read "N stations … in 1950–1980" with an all-time N, which
+// reads as a filtered count and isn't one.
+function stationsForVarIsYearAware(v) {
+  if (v.aphia_id && TAXON_STATIONS[v.dataset_key + '::' + v.aphia_id]) return false;
+  if (!v.aphia_id && TAXON_STATIONS[v.dataset_key + '::name::' + v.name]) return false;
+  return true;
+}
+
 function applyStyles() {
+  const selSet = selectedVar ? stationsForVar(selectedVar) : null;
   STATIONS.forEach(s => {
     const mk = MARKERS[s.grid_key]; if (!mk) return;
     const active = activeDatasets(s), nd = active.length;
     if (selectedVar) {
-      const on = active.some(d => d.dataset_key === selectedVar.dataset_key);
+      const on = selSet.has(s.grid_key);
       mk.setStyle(on
         ? { ...baseStyle(s), color: '#fff3bf', weight: 2, fillColor: '#ffd84d', fillOpacity: 0.95, opacity: 1 }
         : baseStyle(s, true));
@@ -391,6 +720,22 @@ function applyStyles() {
       // two-state dim/normal switch (same treatment as "no data at all"),
       // not a continuous shade gradient that has to be interpreted.
       mk.setStyle(baseStyle(s, nd === 0));
+    }
+    // Every pinned station gets a gold ring, persistently (not just on
+    // click) — that's what actually lets you spot your comparison set
+    // while browsing other stations, not just the one you clicked.
+    if (PINNED_CARDS.some(p => p.grid_key === s.grid_key)) {
+      mk.setStyle({ color: '#ffd43b', weight: 3 });
+      mk.bringToFront();
+    }
+    // The station currently open in the side panel gets a thick white ring
+    // on top of whatever style was just applied above (including the gold
+    // pinned ring, if this station happens to be both) — so it's visually
+    // obvious which marker you clicked — previously nothing distinguished
+    // it at all once the panel opened.
+    if (currentStation && s.grid_key === currentStation.grid_key) {
+      mk.setStyle({ color: '#ffffff', weight: 3 });
+      mk.bringToFront();
     }
   });
 }
@@ -481,14 +826,17 @@ function contentKeywordGroup(v) {
   // this reason. Match the real variable names (dic, dic_rep1, dic_rep2) instead.
   if (['alkalinity', 'dissolved inorganic carbon', 'carbonate', 'pco2'].some(k => n.includes(k))
       || n === 'dic' || n.startsWith('dic_') || n.startsWith('dic ')) return 'Carbonate System';
+  if (n === 'isus_v') return 'Physical Oceanography';
   if (['phosphate', 'silicate', 'nitrate', 'nitrite', 'ammoni'].some(k => n.includes(k))) return 'Nutrients & Chemistry';
-  if (['chlorophyll', 'phaeopigment', 'c14', 'productivity', 'pigment', 'fluorescence'].some(k => n.includes(k))) return 'Productivity & Pigments';
+  // "par"/"spar" (light for photosynthesis) and "light_pct" (light intensity
+  // for the C14 productivity incubation) pair with chlorophyll/C14 on the
+  // same cast — grouped with productivity, not general physical readings.
+  // Matched on exact name, not substring, since "par" as a bare substring
+  // false-positives on species names (Bonaparte's Gull, Parakeet Auklet...).
+  if (['chlorophyll', 'phaeopigment', 'c14', 'productivity', 'pigment', 'fluorescence', 'light_pct'].some(k => n.includes(k))
+      || n === 'par' || n === 'spar' || n.startsWith('par ') || n.startsWith('spar ')) return 'Productivity & Pigments';
   if (['wind', 'wave', 'weather', 'cloud', 'visibility', 'bulb', 'atmospheric', 'barometric', 'secchi', 'forel'].some(k => n.includes(k))) return 'Meteorology & Sea State';
-  // Same issue with "par" (meant for the PAR light sensor, variables named
-  // "par"/"spar") matching any species name containing those 3 letters --
-  // Bonaparte's Gull, Parakeet Auklet, Paralichthys, etc.
-  if (['temperature', 'salinity', 'density', 'sigma', 'oxygen', 'o2', 'pressure', 'depth', 'dynamic height'].some(k => n.includes(k))
-      || n === 'par' || n === 'spar' || n.startsWith('par ') || n.startsWith('spar ')) return 'Physical Oceanography';
+  if (['temperature', 'salinity', 'density', 'sigma', 'oxygen', 'o2', 'pressure', 'depth', 'dynamic height'].some(k => n.includes(k))) return 'Physical Oceanography';
   return null;
 }
 const DATASET_CATEGORY = {
@@ -505,11 +853,32 @@ function categoryOf(v) {
 }
 const CATEGORY_ORDER = ['Physical Oceanography', 'Nutrients & Chemistry', 'Productivity & Pigments',
   'Carbonate System', 'Meteorology & Sea State', 'Phytoplankton', 'Zooplankton', 'Euphausiids (Krill)',
-  'Fish Eggs & Larvae', 'Seabirds & Marine Mammals'];
+  'Seabirds & Marine Mammals', 'Fish Eggs & Larvae'];
+const CATEGORY_ICON = {
+  'Physical Oceanography': '🌊',
+  'Nutrients & Chemistry': '🧪',
+  'Productivity & Pigments': '🌱',
+  'Carbonate System': '🪸',
+  'Meteorology & Sea State': '☁️',
+  'Phytoplankton': '🔬',
+  'Zooplankton': '🦠',
+  'Euphausiids (Krill)': '🦐',
+  'Fish Eggs & Larvae': '🐟',
+  'Seabirds & Marine Mammals': '🐋',
+};
+function catLabel(c) { return CATEGORY_ICON[c] ? `${CATEGORY_ICON[c]} ${c}` : c; }
 
 function buildCategories() {
   CANON_VARS.forEach(v => {
-    DATASET_VAR_COUNTS[v.dataset_key] = (DATASET_VAR_COUNTS[v.dataset_key] || 0) + 1;
+    // See inventoryVarsFor() — the By Dataset list shows Bottle/Cast as two
+    // separate rows, so count into those synthetic keys instead of the flat
+    // dataset_key here. Every other consumer of v.dataset_key (search,
+    // panels, map highlighting) is untouched — this only feeds the count
+    // shown in the top-level dataset list.
+    const countKey = (v.dataset_key === 'calcofi_bottle')
+      ? (CAST_SIDE_BOTTLE_FIELDS.has(v.name) ? 'calcofi_bottle_cast' : 'calcofi_bottle_hydro')
+      : v.dataset_key;
+    DATASET_VAR_COUNTS[countKey] = (DATASET_VAR_COUNTS[countKey] || 0) + 1;
     const c = categoryOf(v); if (c === 'Other') return;
     CAT_COUNTS[c] = (CAT_COUNTS[c] || 0) + 1;
   });
@@ -524,6 +893,10 @@ function buildCategories() {
 let inventoryMode = 'category';   // 'category' | 'dataset'
 let expandedInventoryGroup = null; // category name or dataset_key currently expanded
 let expandedFamilyKey = null;      // `${group}::${familyName}` currently expanded within a listing
+// `${familyName}::${memberLabel}` currently expanded in the search dropdown
+// (its dataset-picker cards showing) — separate from expandedFamilyKey since
+// the dropdown is a different listing with its own open/closed state.
+let ddExpandedGroup = null;
 let expandedGroupKey = null;       // `${familyKey}::${groupMemberLabel}` currently expanded within a family — the source-list level (e.g. Temperature -> Bottle/CTD Cast/Carbonate Cast)
 
 // Parameter "families" — near-duplicate parameters that measure related but
@@ -546,12 +919,12 @@ const PARAMETER_FAMILIES = [
           { dataset_key: 'calcofi_ctd-cast', match: 'temperature_ave', source: 'CTD Cast' },
           { dataset_key: 'calcofi_dic', match: 'ctdtemp_its90', source: 'Carbonate Cast' },
         ] },
+      { type: 'single', dataset_key: 'calcofi_ctd-cast', match: 'potential_temperature_1', label: 'Potential Temperature', short: 'Potential (CTD)',
+        method: 'CTD-mounted thermometer sensor, pressure-corrected potential temperature — a different computed quantity than raw in-situ temperature' },
       { type: 'single', dataset_key: 'calcofi_bottle', match: 'dry_air_temp', label: 'Dry Bulb Temperature', short: 'Dry Bulb',
         method: 'Shipboard air temp, sling psychrometer — not seawater' },
       { type: 'single', dataset_key: 'calcofi_bottle', match: 'wet_air_temp', label: 'Wet Bulb Temperature', short: 'Wet Bulb',
         method: 'Shipboard air temp, sling psychrometer (humidity-adjusted) — not seawater' },
-      { type: 'single', dataset_key: 'calcofi_ctd-cast', match: 'potential_temperature_1', label: 'Potential Temperature (CTD)', short: 'Potential (CTD)',
-        method: 'CTD-mounted thermometer sensor, pressure-corrected potential temperature — a different computed quantity than raw in-situ temperature' },
     ],
   },
   {
@@ -584,9 +957,9 @@ const PARAMETER_FAMILIES = [
     ],
   },
   {
-    name: 'Sigma Theta',
+    name: 'Density (Sigma Theta)',
     members: [
-      { type: 'group', label: 'Sigma Theta', short: 'Standard',
+      { type: 'group', label: 'Density (Sigma Theta)', short: 'Standard',
         method: 'Potential density, computed from temperature/salinity',
         sources: [
           { dataset_key: 'calcofi_bottle', match: 'sigma_theta', source: 'Bottle' },
@@ -612,17 +985,6 @@ const PARAMETER_FAMILIES = [
         method: 'Photosynthetically active radiation, standard depth sensor' },
       { type: 'single', dataset_key: 'calcofi_ctd-cast', match: 'spar', label: 'Surface Photosynthetically Active Radiation', short: 'Surface',
         method: 'Photosynthetically active radiation, surface sensor — a different sensor placement, not just a different dataset' },
-    ],
-  },
-  {
-    name: 'Specific Volume Anomaly',
-    members: [
-      { type: 'group', label: 'Specific Volume Anomaly', short: 'CTD',
-        method: 'Computed from temperature/salinity — a different scale than standard PSS-78 salinity',
-        sources: [
-          { dataset_key: 'calcofi_ctd-cast', match: 'specific_volume_anomaly', source: 'CTD Cast' },
-          { dataset_key: 'calcofi_bottle', match: 'r_salinity_sva', source: 'Bottle (reported)', note: 'Pre-QC value' },
-        ] },
     ],
   },
   {
@@ -659,6 +1021,13 @@ const PARAMETER_FAMILIES = [
     ],
   },
   {
+    name: 'Pressure',
+    members: [
+      { type: 'single', dataset_key: 'calcofi_ctd-cast', match: 'pressure', label: 'Pressure', short: 'Standard',
+        method: 'Pressure in decibars (dbar) from the CTD sensor — approximately equivalent to depth in meters' },
+    ],
+  },
+  {
     name: 'Depth',
     members: [
       { type: 'single', dataset_key: 'calcofi_bottle', match: 'r_depth', label: 'Depth', short: 'From Pressure',
@@ -668,16 +1037,16 @@ const PARAMETER_FAMILIES = [
     ],
   },
   {
-    name: 'C14 Assimilation',
+    name: 'Primary Productivity (C14 Assimilation)',
     members: [
       { type: 'single', dataset_key: 'calcofi_bottle', match: 'c14_mean', label: 'C14 Assimilation', short: 'Standard',
         method: 'Light-bottle 14C uptake, per depth, bottle sample (mean of replicate measurements)' },
-      { type: 'single', dataset_key: 'calcofi_bottle', match: 'c14_dark', label: 'C14 Assimilation of the Experimental Control (Dark Bottle)', short: 'Dark control',
+      { type: 'single', dataset_key: 'calcofi_bottle', match: 'c14_dark', label: 'C14 Assimilation (Dark Control)', short: 'Dark control',
         method: 'Dark/control bottle, per depth — a different experimental condition, not just a different dataset' },
     ],
   },
   {
-    name: 'Chlorophyll',
+    name: 'Chlorophyll-a',
     members: [
       { type: 'group', label: 'Chlorophyll-a', short: 'Standard',
         method: 'Fluorometric analysis of the bottle sample',
@@ -687,6 +1056,13 @@ const PARAMETER_FAMILIES = [
         ] },
       { type: 'single', dataset_key: 'calcofi_ctd-cast', match: 'est_chlorophyll_a_sta_corr', label: 'Est. Chlorophyll-a', short: 'CTD Estimate',
         method: 'CTD-mounted inline fluorometer estimate, station-corrected — a different instrument than lab analysis of the bottle sample' },
+    ],
+  },
+  {
+    name: 'Phaeopigment',
+    members: [
+      { type: 'single', dataset_key: 'calcofi_bottle', match: 'phaeopigment', label: 'Phaeopigment', short: 'Standard',
+        method: 'Fluorometric analysis of the bottle sample — a chlorophyll breakdown product, not chlorophyll itself' },
     ],
   },
 ];
@@ -785,9 +1161,17 @@ function toggleGroup(key) {
   });
 }
 function inventoryVarsFor(key) {
-  return inventoryMode === 'dataset'
-    ? CANON_VARS.filter(v => v.dataset_key === key)
-    : CANON_VARS.filter(v => categoryOf(v) === key);
+  if (inventoryMode === 'dataset') {
+    // calcofi_bottle is one DB table shared by two real collection programs
+    // (Bottle chemistry + Cast meteorology/metadata — see CAST_SIDE_BOTTLE_FIELDS
+    // and the station-accordion split in datasetAccordion()). Split it the same
+    // way here in the top-level "By Dataset" list, so it doesn't show a single
+    // "Hydrographic Bottle: 34" row that's actually a mix of both programs.
+    if (key === 'calcofi_bottle_hydro') return CANON_VARS.filter(v => v.dataset_key === 'calcofi_bottle' && !CAST_SIDE_BOTTLE_FIELDS.has(v.name));
+    if (key === 'calcofi_bottle_cast') return CANON_VARS.filter(v => v.dataset_key === 'calcofi_bottle' && CAST_SIDE_BOTTLE_FIELDS.has(v.name));
+    return CANON_VARS.filter(v => v.dataset_key === key);
+  }
+  return CANON_VARS.filter(v => categoryOf(v) === key);
 }
 // Renders a group's variable list, nesting anything that matches a
 // PARAMETER_FAMILIES member under one expandable umbrella row instead of
@@ -830,11 +1214,6 @@ const FIELD_DESCRIPTIONS = {
   alkalinity_rep2: 'Total Alkalinity micromoles per kilogram solution (on a replicate sample)',
   ph_rep1: 'pH (the degree of acidity/alkalinity of a solution)',
   ph_rep2: 'pH (the degree of acidity/alkalinity of a solution) on a replicate sample',
-  // r_salinity_sva: intentionally NOT mapped here — the official CSV calls
-  // this field "Reported Salinity (from Specific Volume Anomaly)", but
-  // Ben's own description explicitly warns it's a different parameter/scale
-  // than standard PSS-78 salinity. Keeping Ben's warning rather than
-  // picking one source over the other — flagged to Betty to confirm.
 
   // calcofi_ctd-cast (Cast_Field_Descriptions.csv) — only the surface
   // meteorology fields overlap; the CTD sensor variables (temperature_1/2,
@@ -856,6 +1235,12 @@ const FIELD_DESCRIPTIONS = {
   small_plankton_biomass: 'Standardized volume of plankton with individual displacement volumes <5 mL',
   total_plankton_biomass: 'Standardized volume of plankton in the sample',
   pressure: 'Pressure in decibars (dbar) from the CTD sensor — approximately equivalent to depth in meters',
+  // calcofi_ctd-cast — the raw sensor voltage variables. Their source
+  // `description` fields are identical (case-only) to their display labels
+  // (e.g. "Fluorescence voltage" vs "Fluorescence Voltage"), so
+  // descriptionFor()'s just-repeats-the-name check strips them to nothing.
+  // Real descriptions here instead of relying on the source field.
+  fluorescence_v: 'Raw voltage output from the fluorometer sensor, before conversion to chlorophyll-a concentration',
 };
 
 // Falls back to the per-variable `description` field for loose (non-family)
@@ -904,8 +1289,13 @@ function birdMammalGroup(v) {
 // external taxonomy lookup needed, so nothing here is guessed).
 function fishEggsGroup(v) {
   if (v.dataset_key === 'swfsc_cufes') return 'CUFES (Underway Egg Counts)';
-  if (v.rank && v.rank !== 'Species') return 'Ichthyoplankton — Genus & Higher Taxa';
-  return 'Ichthyoplankton — Species';
+  // Genus/family/order and species used to be two separate groups, but rank
+  // is already visually distinguishable via taxonLabel()'s one-word vs
+  // two-word italic scientific name (e.g. "Thunnus" vs "Thunnus alalunga"),
+  // so splitting them added a header without adding real distinction — and
+  // it kept a genus and its own species apart alphabetically instead of
+  // sitting next to each other.
+  return 'Ichthyoplankton (Fish Eggs & Larvae)';
 }
 // Splits "Zooplankton" by dataset — ZooDB (net-tow holoplankton community),
 // ZooScan (automated imaging, mostly order/class-level), and Phyllosoma
@@ -922,11 +1312,21 @@ function zooplanktonGroup(v) {
 const LOOSE_GROUPERS = {
   'Seabirds & Marine Mammals': { order: ['Seabirds', 'Marine Mammals', 'Sea Turtles'], group: birdMammalGroup },
   'Fish Eggs & Larvae': {
-    order: ['CUFES (Underway Egg Counts)', 'Ichthyoplankton — Genus & Higher Taxa', 'Ichthyoplankton — Species'],
+    order: ['CUFES (Underway Egg Counts)', 'Ichthyoplankton (Fish Eggs & Larvae)'],
     group: fishEggsGroup },
   'Zooplankton': {
     order: ['ZooDB (Holoplankton Community)', 'ZooScan (Imaged Zooplankton)', 'Zooplankton Biovolume', 'Phyllosoma (Lobster Larvae)', 'Zooplankton'],
     group: zooplanktonGroup },
+};
+// Explicit priority order for how families list within a category — puts
+// the most commonly searched physical parameters first. Categories not
+// listed here keep their current (roughly build-order) sequence. Loose
+// (non-family) items already sort alphabetically below, which works fine
+// for the handful of less-common physical readings (Beam Attenuation,
+// Pressure, Transmissometer, Water Color).
+const CATEGORY_ITEM_ORDER = {
+  'Physical Oceanography': ['Temperature', 'Salinity', 'Density (Sigma Theta)', 'Oxygen', 'Depth', 'Pressure'],
+  'Productivity & Pigments': ['Chlorophyll-a', 'Phaeopigment', 'Primary Productivity (C14 Assimilation)', 'Photosynthetically Active Radiation'],
 };
 function renderVarList(groupKey, vars) {
   const families = {}, loose = [];
@@ -935,7 +1335,15 @@ function renderVarList(groupKey, vars) {
     if (fm) (families[fm.family.name] ||= { family: fm.family, items: [] }).items.push({ v, member: fm.member, source: fm.source });
     else loose.push(v);
   });
-  const familyHtml = Object.values(families).map(({ family, items }) => {
+  const familyList = Object.values(families);
+  const priority = CATEGORY_ITEM_ORDER[groupKey];
+  if (priority) {
+    familyList.sort((a, b) => {
+      const ai = priority.indexOf(a.family.name), bi = priority.indexOf(b.family.name);
+      return (ai === -1 ? priority.length : ai) - (bi === -1 ? priority.length : bi);
+    });
+  }
+  const familyHtml = familyList.map(({ family, items }) => {
     const famKey = groupKey + '::' + family.name;
     const famOpen = expandedFamilyKey === famKey;
     // A group member (e.g. Temperature) may have several items sharing the
@@ -1010,7 +1418,14 @@ function renderVarList(groupKey, vars) {
   const looseRow = (v, hidden) => {
     const label = displayLabel(v);
     const desc = descriptionFor(v, label);
-    const letter = /[A-Za-z]/.test(label[0]) ? label[0].toUpperCase() : '#';
+    // Must match letterOf() exactly (common name first, scientific name
+    // fallback) — this used to key off displayLabel() instead, which
+    // ignores common_name entirely and falls back to the raw scientific
+    // name. That mismatch is why clicking a jump-nav letter showed genus
+    // entries under the wrong letter: the nav button and initial view used
+    // the correct common-name letter, but the click handler re-filtered
+    // using this attribute, computed a different (wrong) way.
+    const letter = /[A-Za-z]/.test(sortNameFor(v)[0]) ? sortNameFor(v)[0].toUpperCase() : '#';
     return `<div class="inventory-subitem" data-vid="${encodeURIComponent(v.variable_id)}" data-letter="${letter}"${hidden ? ' style="display:none"' : ''}>
         <span class="inventory-subitem-name">${taxonLabel(v)}</span>
         ${desc ? `<span class="inventory-family-method">${desc}</span>` : ''}
@@ -1022,7 +1437,7 @@ function renderVarList(groupKey, vars) {
   // rather than removed, so the row's layout stays stable rather than
   // shifting around as data changes.
   const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-  const letterOf = v => { const l = displayLabel(v)[0]; return /[A-Za-z]/.test(l) ? l.toUpperCase() : '#'; };
+  const letterOf = v => { const l = sortNameFor(v)[0]; return /[A-Za-z]/.test(l) ? l.toUpperCase() : '#'; };
   const jumpNav = (listId, items, activeLetter) => {
     if (items.length < 150) return '';
     const present = new Set(items.map(letterOf));
@@ -1030,10 +1445,22 @@ function renderVarList(groupKey, vars) {
       ? `<button class="inventory-jumpnav-btn${l === activeLetter ? ' inventory-jumpnav-btn-active' : ''}" onclick="jumpToLetter('${listId}','${l}')">${l}</button>`
       : `<span class="inventory-jumpnav-btn inventory-jumpnav-btn-off">${l}</span>`).join('')}</div>`;
   };
+  // Phytoplankton has no PARAMETER_FAMILIES groups — every item here is a
+  // loose row. "Phytoplankton Abundance" is the actual per-sample measurement
+  // (cells/L); the 11 taxa below it are mostly reference/community-level
+  // (see 2026-07 investigation — most have very limited real data behind
+  // them). Pinned to the top so the one item with the most usable data
+  // isn't buried under taxa names.
+  const PINNED_LOOSE_ITEM = { 'Phytoplankton': 'phytoplankton_abundance' };
+  const pinned = PINNED_LOOSE_ITEM[groupKey];
   loose.sort((a, b) => {
+    if (pinned) {
+      const aPinned = a.name === pinned, bPinned = b.name === pinned;
+      if (aPinned !== bPinned) return aPinned ? -1 : 1;
+    }
     const aTaxon = a.variable_type === 'taxon', bTaxon = b.variable_type === 'taxon';
     if (aTaxon !== bTaxon) return aTaxon ? -1 : 1; // taxa first, community-level metrics last
-    return displayLabel(a).localeCompare(displayLabel(b));
+    return sortNameFor(a).localeCompare(sortNameFor(b));
   });
   let looseHtml;
   const grouper = LOOSE_GROUPERS[groupKey];
@@ -1079,7 +1506,7 @@ function renderInventoryPanel() {
 
   const rows = keys.map(k => {
     const count = inventoryMode === 'dataset' ? DATASET_VAR_COUNTS[k] : CAT_COUNTS[k];
-    const label = inventoryMode === 'dataset' ? dsMeta(k).label : k;
+    const label = inventoryMode === 'dataset' ? dsMeta(k).label : catLabel(k);
     const isOpen = expandedInventoryGroup === k;
     const sub = isOpen
       ? `<div class="inventory-sublist">${inventoryMode === 'dataset' ? renderFlatVarList(inventoryVarsFor(k)) : renderVarList(k, inventoryVarsFor(k))}</div>`
@@ -1172,7 +1599,7 @@ function initChartTooltip() {
   const tip = document.getElementById('chart-tooltip');
   if (!tip) return;
   document.addEventListener('mouseover', e => {
-    const el = e.target.closest('.ybar[data-tip], .mbar[data-tip]');
+    const el = e.target.closest('.ybar[data-tip], .mbar[data-tip], .depth-dot[data-tip]');
     if (!el) return;
     tip.textContent = el.dataset.tip;
     tip.style.display = 'block';
@@ -1183,38 +1610,156 @@ function initChartTooltip() {
     tip.style.top = (e.clientY - 28) + 'px';
   });
   document.addEventListener('mouseout', e => {
-    if (e.target.closest('.ybar[data-tip], .mbar[data-tip]')) tip.style.display = 'none';
+    if (e.target.closest('.ybar[data-tip], .mbar[data-tip], .depth-dot[data-tip]')) tip.style.display = 'none';
   });
+}
+// ---- pin-to-compare: lets a person pin a dataset card from one station,
+// click a different station, and still see the first one's numbers —
+// solves the "have to scroll back and forth to compare stations" problem.
+// PIN_CANDIDATES holds enough to redraw any card that's ever been rendered
+// with a stationId (keyed by station+dataset+label, since Bottle/Cast share
+// a dataset_key but need separate entries); PINNED_CARDS is just the
+// person's actual picks. No cap — pin as many as you want.
+const PIN_CANDIDATES = {};
+let PINNED_CARDS = [];
+const pinKeyFor = (stationId, datasetKey, label) => `${stationId}::${datasetKey}::${label}`;
+const isPinned = key => PINNED_CARDS.some(p => p.key === key);
+function togglePin(key) {
+  const idx = PINNED_CARDS.findIndex(p => p.key === key);
+  if (idx !== -1) { PINNED_CARDS.splice(idx, 1); renderPinnedTray(); applyStyles(); if(currentStation) openStation(currentStation); return; }
+  const cand = PIN_CANDIDATES[key];
+  if (!cand) return;
+  PINNED_CARDS.push({ key, ...cand });
+  renderPinnedTray();
+  applyStyles();
+  if (currentStation) openStation(currentStation); // updates this card's pin icon to "pinned"
+}
+let draggedPinKey = null;
+function renderPinnedTray() {
+  let tray = document.getElementById('pinned-tray');
+  if (!PINNED_CARDS.length) { if (tray) tray.remove(); return; }
+  // rebuilding via innerHTML below replaces the scrollable .pinned-tray-cards
+  // element entirely, which would silently reset its scroll position back
+  // to 0 on every render (including after a drag-to-reorder drop) — capture
+  // it first and restore it after, so reordering doesn't jump the view.
+  const prevCards = tray && tray.querySelector('.pinned-tray-cards');
+  const prevScrollLeft = prevCards ? prevCards.scrollLeft : 0;
+  if (!tray) {
+    tray = document.createElement('div');
+    tray.id = 'pinned-tray';
+    document.body.appendChild(tray);
+  }
+  tray.innerHTML = `<div class="pinned-tray-header">
+      <span>Comparing ${PINNED_CARDS.length} station${PINNED_CARDS.length === 1 ? '' : 's'}</span>
+      <button class="pinned-tray-clear" onclick="PINNED_CARDS=[];renderPinnedTray();applyStyles();if(currentStation) openStation(currentStation);">Clear all</button>
+    </div>
+    <div class="pinned-tray-cards">
+      ${PINNED_CARDS.map(p => `<div class="pinned-tray-item" draggable="true" data-pin-key="${p.key}" onclick="locatePinnedStation('${p.grid_key}')">
+          <div class="pinned-tray-station"><span><span class="pinned-tray-drag-handle">⠿</span>Station ${p.station_id}</span>
+            <button class="pinned-tray-unpin" onclick="event.stopPropagation(); togglePin('${p.key}')" aria-label="Unpin">✕</button>
+          </div>
+          ${datasetCard(p.d, { label: p.label, color: p.color })}
+        </div>`).join('')}
+    </div>`;
+  const newCards = tray.querySelector('.pinned-tray-cards');
+  if (newCards) newCards.scrollLeft = prevScrollLeft;
+  // Drag-to-reorder — plain HTML5 drag/drop, no library. Rewired after every
+  // render since innerHTML replaces the whole tray each time (same pattern
+  // as every other delegated-listener block in this file).
+  tray.querySelectorAll('.pinned-tray-item[data-pin-key]').forEach(el => {
+    el.addEventListener('dragstart', () => {
+      draggedPinKey = el.dataset.pinKey;
+      el.classList.add('pinned-tray-item-dragging');
+    });
+    el.addEventListener('dragend', () => el.classList.remove('pinned-tray-item-dragging'));
+    el.addEventListener('dragover', e => e.preventDefault());
+    el.addEventListener('drop', e => {
+      e.preventDefault();
+      const targetKey = el.dataset.pinKey;
+      if (!draggedPinKey || draggedPinKey === targetKey) return;
+      const fromIdx = PINNED_CARDS.findIndex(p => p.key === draggedPinKey);
+      const toIdx = PINNED_CARDS.findIndex(p => p.key === targetKey);
+      if (fromIdx === -1 || toIdx === -1) return;
+      const [moved] = PINNED_CARDS.splice(fromIdx, 1);
+      PINNED_CARDS.splice(toIdx, 0, moved);
+      draggedPinKey = null;
+      renderPinnedTray();
+    });
+  });
+}
+// Pans the map to a pinned station and flashes its ring — lets you find
+// where a card in the compare tray actually is, without switching the main
+// panel away from whatever station you currently have open.
+function locatePinnedStation(gridKey) {
+  const s = BY_KEY[gridKey];
+  const mk = MARKERS[gridKey];
+  if (!s || !mk) return;
+  const targetZoom = Math.max(map.getZoom(), 7);
+  // The tray sits fixed at the bottom of the screen, on top of the map —
+  // a plain flyTo centers on the full container height, unaware the bottom
+  // ~40vh is covered. Shift the pan target by half the tray's actual height
+  // (in map pixels, at the target zoom) so the station lands in the
+  // visible area above it instead of right behind it.
+  const trayEl = document.getElementById('pinned-tray');
+  const trayHeight = trayEl ? trayEl.getBoundingClientRect().height : 0;
+  const point = map.project([s.lat, s.lon], targetZoom).add([0, trayHeight / 2]);
+  const target = map.unproject(point, targetZoom);
+  map.flyTo(target, targetZoom, { duration: 0.5 });
+  mk.bringToFront();
+  const el = mk.getElement && mk.getElement();
+  if (el) {
+    el.classList.add('marker-flash');
+    setTimeout(() => el.classList.remove('marker-flash'), 1200);
+  }
 }
 function datasetCard(d, opts) {
   opts = opts || {};
   const meta = dsMeta(d.dataset_key);
+  const label = opts.label || meta.label;
+  const color = opts.color || meta.color;
   const depth = (d.depth_min != null || d.depth_max != null)
     ? `${Math.round(d.depth_min ?? 0)}–${Math.round(d.depth_max ?? 0)} m` : 'depth n/a';
   const clickAttrs = opts.clickable
-    ? ` onclick="openDatasetCardModal('${d.dataset_key}')"` : '';
-  return `<div class="ds-card${opts.clickable ? ' ds-card-clickable' : ''}${opts.large ? ' ds-card-large' : ''}" style="--c:${meta.color}"${clickAttrs}>
-      <div class="ds-head"><span class="ds-dot"></span><span class="ds-label">${meta.label}</span>
-        <span class="ds-realm ${d.realm}">${d.realm}</span></div>
+    ? ` onclick="openDatasetCardModal('${d.dataset_key}', '${label.replace(/'/g, "\\'")}', '${color}')"` : '';
+  // Registering the pin candidate is a side effect of rendering — same
+  // pattern as MARKERS being populated during renderStations(). Only when
+  // this card belongs to a real station (stationId set) and isn't already
+  // the enlarged/pinned-tray rendering of itself (opts.large / no clickable
+  // both signal "not the original small card").
+  let pinBtn = '';
+  if (opts.stationId && !opts.large) {
+    const key = pinKeyFor(opts.stationId, d.dataset_key, label);
+    PIN_CANDIDATES[key] = { station_id: opts.stationId, grid_key: opts.stationGridKey, label, color, d };
+    const pinned = isPinned(key);
+    pinBtn = `<button class="ds-pin-btn${pinned ? ' ds-pin-btn-active' : ''}" title="${pinned ? 'Unpin' : 'Pin to compare'}"
+        onclick="event.stopPropagation(); togglePin('${key}')">${pinned ? '📌' : '📍'}</button>`;
+  }
+  return `<div class="ds-card${opts.clickable ? ' ds-card-clickable' : ''}${opts.large ? ' ds-card-large' : ''}" style="--c:${color}"${clickAttrs}>
+      <div class="ds-head"><span class="ds-dot"></span><span class="ds-label">${label}</span>
+        <span class="ds-realm ${d.realm}">${d.realm}</span>${pinBtn}</div>
       <div class="ds-stats">
         <div class="ds-stat"><span class="ds-stat-label">Date Range</span><span class="ds-stat-val">${day(d.time_min)} → ${day(d.time_max)}</span></div>
         <div class="ds-stat"><span class="ds-stat-label">Depth Range</span><span class="ds-stat-val">${depth}</span></div>
         <div class="ds-stat"><span class="ds-stat-label">Coverage</span><span class="ds-stat-val">${num(d.n_surveys)} surveys · ${num(d.n_obs)} obs</span></div>
       </div>
-      <div class="bars-label">observations by year</div>${yearBars(d.years, meta.color, opts.large)}
-      <div class="bars-label">seasonality (by month)</div>${monthBars(d.months, meta.color)}
+      <div class="bars-label">observations by year</div>${yearBars(d.years, color, opts.large)}
+      <div class="bars-label">seasonality (by month)</div>${monthBars(d.months, color)}
       ${opts.clickable ? '<div class="ds-card-expand-hint">⤢ click to expand</div>' : ''}
     </div>`;
 }
 // Opens the enlarged, big-screen view of a dataset's coverage card for the
 // currently open station — reuses the existing modal-backdrop/modal markup.
-function openDatasetCardModal(datasetKey) {
+// `label`/`color` carry through the split-accordion override (Hydrographic
+// Bottle vs Hydrographic Cast, both backed by dataset_key: calcofi_bottle —
+// see datasetAccordion) so the enlarged modal matches whichever card the
+// person actually clicked, indigo Cast color included.
+function openDatasetCardModal(datasetKey, label, color) {
   if (!currentStation) return;
   const d = (currentStation.datasets || []).find(x => x.dataset_key === datasetKey);
   if (!d) return;
   const meta = dsMeta(d.dataset_key);
-  document.getElementById('modal-title').textContent = `${meta.label} — Station ${currentStation.station_id}`;
-  document.getElementById('modal-body').innerHTML = datasetCard(d, { large: true });
+  document.getElementById('modal-title').textContent = `${label || meta.label} — Station ${currentStation.station_id}`;
+  document.getElementById('modal-body').innerHTML = datasetCard(d, { large: true, label, color });
   document.getElementById('modal-footer').style.display = 'none';
   document.getElementById('modal').classList.add('modal-large');
   document.getElementById('modal-backdrop').classList.add('open');
@@ -1234,7 +1779,7 @@ function renderFlatVarList(vars) {
   const catRank = c => { const i = CATEGORY_ORDER.indexOf(c); return i === -1 ? Infinity : i; };
   const catKeys = Object.keys(byCat).sort((a, b) => catRank(a) - catRank(b));
   return catKeys.map(c => `
-      <div class="inventory-subcategory-header">${c}</div>
+      <div class="inventory-subcategory-header">${catLabel(c)}</div>
       ${byCat[c].map(v => {
           const label = displayLabel(v);
           const desc = descriptionFor(v, label);
@@ -1248,23 +1793,25 @@ function renderFlatVarList(vars) {
         }).join('')}`).join('')
     || '<div class="cov-empty">No cataloged variables.</div>';
 }
-function datasetAccordion(d) {
-  const meta = dsMeta(d.dataset_key);
-  const vars = CANON_VARS.filter(v => v.dataset_key === d.dataset_key);
+function datasetAccordion(d, s, opts) {
+  opts = opts || {};
+  const label = opts.label || dsMeta(d.dataset_key).label;
+  const vars = opts.vars || CANON_VARS.filter(v => v.dataset_key === d.dataset_key);
   const varList = renderFlatVarList(vars);
   return `<details class="ds-accordion-row" open>
       <summary class="ds-accordion-header">
-        <span class="ds-accordion-label">${meta.label}</span>
+        <span class="ds-accordion-label">${label}</span>
         <span class="ds-accordion-right">
           <span class="ds-accordion-count">${vars.length}</span>
           <span class="ds-accordion-chevron">▸</span>
         </span>
       </summary>
-      <div class="ds-accordion-body">${datasetCard(d, { clickable: true })}
+      <div class="ds-accordion-body">${datasetCard(d, { clickable: true, label, color: opts.color, stationId: s.station_id, stationGridKey: s.grid_key })}
         <details class="params-toggle">
           <summary class="params-toggle-summary">Show Parameters</summary>
           <div class="params-list">${varList}</div>
         </details>
+        ${decadeBlockFor(d, s, { clickable: true })}
       </div>
     </details>`;
 }
@@ -1299,45 +1846,344 @@ function updateBackButton() {
 }
 function openStation(s) {
   currentStation = s;
+  applyStyles(); // rings the clicked marker — see the currentStation block in applyStyles()
   document.getElementById('panel-empty').style.display = 'none';
   document.getElementById('panel-header').style.display = 'block';
   showBackToCategories();
   document.getElementById('panel-station-id').textContent = `Station ${s.station_id}`;
   document.getElementById('panel-coords').textContent =
     `${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}`;
+  document.getElementById('panel-depth-summary').innerHTML = '';
   const c = document.getElementById('panel-content');
   if (!s.n_datasets) {
     c.innerHTML = `<div class="cov-empty">No integrated-database observations recorded at this grid station.</div>`;
     return;
   }
-  const cards = (s.datasets || []).map(d => datasetAccordion(d)).join('');
-  c.innerHTML = `<div class="cov-summary">
-      <div><span class="k">datasets</span><span class="v">${s.n_datasets}</span></div>
-      <div><span class="k">surveys</span><span class="v">${num(s.n_surveys)}</span></div>
-      <div><span class="k">observations</span><span class="v">${num(s.n_obs)}</span></div>
-      <div title="This station's own observation date range — may differ from the year slider above, which spans every station site-wide."><span class="k">span</span><span class="v">${yr(s.time_min)}–${yr(s.time_max)}</span></div>
-    </div>${cards}${decadeBlocks(s)}`;
+  // calcofi_bottle is one physical DB table shared by two real-world
+  // collection programs (Bottle chemistry + Cast meteorology/metadata — see
+  // CAST_SIDE_BOTTLE_FIELDS). Split it into two accordion rows so Dry Bulb,
+  // Wet Bulb, Water Color etc. don't sit under a "Hydrographic Bottle"
+  // header. Coverage stats (date range/depth/year-month bars) come from the
+  // optional bottle_cast_coverage.json when this station has an entry there
+  // (real per-subset numbers); otherwise both cards fall back to the shared
+  // whole-dataset record `d`, same as before that file existed.
+  const cards = (s.datasets || []).flatMap(d => {
+    if (d.dataset_key !== 'calcofi_bottle') return [datasetAccordion(d, s)];
+    const all = CANON_VARS.filter(v => v.dataset_key === 'calcofi_bottle');
+    const castVars = all.filter(v => CAST_SIDE_BOTTLE_FIELDS.has(v.name));
+    const bottleVars = all.filter(v => !CAST_SIDE_BOTTLE_FIELDS.has(v.name));
+    // If a station genuinely has zero recorded observations for one subset
+    // (e.g. no weather/meteorology readings ever logged there, only bottle
+    // chemistry), falling back to the OTHER subset's real numbers is
+    // misleading — it looks like matching real coverage when there isn't
+    // any. Show an honest empty state instead (day()/datasetCard already
+    // render null/0 as "—"/"0 obs").
+    const EMPTY_COV = { time_min: null, time_max: null, depth_min: null, depth_max: null, n_obs: 0, n_samples: 0, n_surveys: 0, years: null, months: null };
+    // If the file hasn't loaded (rare/pre-refresh), fall back to the shared
+    // whole-dataset record — same graceful degradation as before this fix
+    // existed. If it HAS loaded and this station simply has no entry for a
+    // subset, that's a real zero — falling back to the other subset's
+    // numbers there would misleadingly look like matching real coverage.
+    const noDataFallback = bottleCastCovLoaded ? EMPTY_COV : d;
+    const hydroCov = { ...d, ...(BOTTLE_CAST_COV[s.grid_key + '::calcofi_bottle_hydro'] || noDataFallback) };
+    const castCov = { ...d, ...(BOTTLE_CAST_COV[s.grid_key + '::calcofi_bottle_cast'] || noDataFallback) };
+    return [
+      datasetAccordion(hydroCov, s, { label: 'Hydrographic Bottle', vars: bottleVars }),
+      datasetAccordion(castCov, s, { label: 'Hydrographic Cast', vars: castVars, color: '#be8c63' }),
+    ];
+  }).join('');
+  const dpCount = depthProfileCount(s);
+  // Two tabs: Overview (existing dataset/decade content, unchanged) and its
+  // own Depth Profiles panel — previously nested at the bottom of Overview
+  // inside a details toggle, now a first-class destination instead of one
+  // more thing to scroll past. Depth tab is omitted entirely when a station
+  // has no depth-resolved data, same as the old toggle's behavior.
+  // Starts on whichever tab was last viewed (lastStationTab), not always
+  // Overview — clicking through several stations while comparing depth
+  // profiles shouldn't mean re-clicking "Depth Profiles" every single time.
+  // Falls back to Overview if this particular station has no depth tab at
+  // all, since there's nothing to land on.
+  const startTab = (lastStationTab === 'depth' && dpCount) ? 'depth' : 'overview';
+  const tabs = dpCount ? `<div class="panel-tabs">
+      <button class="panel-tab${startTab === 'overview' ? ' active' : ''}" data-tab="overview">Overview</button>
+      <button class="panel-tab${startTab === 'depth' ? ' active' : ''}" data-tab="depth">Depth Profiles <span class="panel-tab-count">${dpCount}</span></button>
+    </div>` : '';
+  c.innerHTML = `${tabs}
+    <div class="panel-tab-content" data-tabpanel="overview"${startTab === 'depth' ? ' style="display:none"' : ''}>
+      <div class="cov-summary">
+        <div><span class="k">datasets</span><span class="v">${s.n_datasets}</span></div>
+        <div><span class="k">surveys</span><span class="v">${num(s.n_surveys)}</span></div>
+        <div><span class="k">observations</span><span class="v">${num(s.n_obs)}</span></div>
+        <div title="This station's own observation date range — may differ from the year slider above, which spans every station site-wide."><span class="k">span</span><span class="v">${yr(s.time_min)}–${yr(s.time_max)}</span></div>
+      </div>${cards}
+    </div>
+    <div class="panel-tab-content" data-tabpanel="depth"${startTab === 'overview' ? ' style="display:none"' : ''}></div>`;
   c.querySelectorAll('.data-link[data-vid]').forEach(el =>
     el.addEventListener('click', () => selectVariable(decodeURIComponent(el.dataset.vid))));
+  wirePanelTabs(c, s);
+  if (startTab === 'depth') {
+    renderDepthTab(c, s);
+    document.getElementById('panel-depth-summary').innerHTML = depthSummaryFor(s);
+  }
+}
+// Switches the active tab button/panel, and lazily fills the Depth Profiles
+// panel with its rows (+ each row's own lazy chart) the first time it's
+// switched to — matches the same "don't build it until it's actually looked
+// at" approach the nested per-variable rows already use.
+function wirePanelTabs(c, s) {
+  const tabBtns = c.querySelectorAll('.panel-tab');
+  tabBtns.forEach(btn => btn.addEventListener('click', () => {
+    tabBtns.forEach(b => b.classList.toggle('active', b === btn));
+    lastStationTab = btn.dataset.tab;
+    c.querySelectorAll('.panel-tab-content').forEach(p =>
+      p.style.display = (p.dataset.tabpanel === btn.dataset.tab) ? '' : 'none');
+    // Sampled-depth/bathymetry note only means something next to the actual
+    // depth profiles — stays out of the Overview tab entirely.
+    document.getElementById('panel-depth-summary').innerHTML =
+      btn.dataset.tab === 'depth' ? depthSummaryFor(s) : '';
+    if (btn.dataset.tab === 'depth') renderDepthTab(c, s);
+  }));
+}
+function renderDepthTab(c, s) {
+  const panel = c.querySelector('.panel-tab-content[data-tabpanel="depth"]');
+  if (panel.dataset.rendered) return;
+  panel.dataset.rendered = '1';
+  panel.innerHTML = `<div class="depth-profile-list">${depthProfileBlocks(s)}</div>`;
+  panel.querySelectorAll('.depth-profile[data-dpkey]').forEach(row => {
+    row.addEventListener('toggle', () => {
+      if (!row.open || row.dataset.rendered) return;
+      row.dataset.rendered = '1';
+      const [datasetKey, , varName] = decodeURIComponent(row.dataset.dpkey).split('::');
+      const rows = DEPTH_PROFILES[datasetKey][s.station_id][varName];
+      const v = CANON_VARS.find(cv => cv.dataset_key === datasetKey && cv.name === varName);
+      const unit = (v && v.units) || '';
+      const meta = dsMeta(datasetKey);
+      const chart = row.querySelector('.depth-profile-chart');
+      chart.innerHTML = depthProfileSVG(rows, unit, meta.color, 280, 182, s.bathymetry_depth_m);
+      chart.querySelector('svg').addEventListener('click', e => {
+        e.stopPropagation();
+        openDepthProfileModal(row.dataset.dpkey);
+      });
+    });
+  });
 }
 
 // ---- plankton decade-means (station panel) ----------------------------------
-// For the two CCE-LTER plankton datasets, decades.json carries the mean community
-// density by decade at this station (built from the release DB by
-// scripts/build_decades.sql). Ports PR #1's decade-means onto the release-DB data.
+// For the CCE-LTER Euphausiids dataset, decades.json carries the mean
+// community density by decade at this station (built from the release DB by
+// scripts/build_decades.sql). Ports PR #1's decade-means onto the release-DB
+// data. Rendered as a horizontal bar chart (bar width proportional to that
+// dataset's own max decade value) instead of a plain number list — the list
+// version didn't make relative change across decades legible at a glance.
+// Folded into that dataset's own accordion card (datasetAccordion) rather
+// than sitting separately at the end of the panel.
+//
+// ZooDB is deliberately excluded (see DECADE_EXCLUDED_DATASETS) — its 33
+// taxa span three overlapping taxonomic tiers (Class/Order/Family, e.g.
+// Copepoda > Calanoida > Aetideidae), and a straight sum across all 33
+// double- or triple-counts abundance in any tow where more than one tier
+// was recorded for the same organisms. Verified against the real data:
+// 48 of 350 tows have Copepoda + Calanoida + family-level entries all
+// present simultaneously (triple-counted), and separately 79 of 350 tows
+// (22.6%) have no copepod entry at all at any tier (a genuine gap, not
+// fixable by any aggregation formula). A "fixed" number here would still
+// be quietly wrong for a large fraction of the underlying tows, so the
+// block is removed rather than shown with an aggregation that can't
+// actually be trusted. Euphausiids has no equivalent hierarchy conflict.
+const DECADE_EXCLUDED_DATASETS = new Set(['cce-lter_zoodb']);
 const DECADE_UNITS = { 'cce-lter_zoodb': 'count/1000 m³', 'cce-lter_euphausiids': 'count/tow' };
-function decadeBlocks(s) {
-  return (s.datasets || []).map(d => {
-    const rows = DECADES[d.dataset_key] && DECADES[d.dataset_key][s.station_id];
-    if (!rows || !rows.length) return '';
-    const meta = dsMeta(d.dataset_key), unit = DECADE_UNITS[d.dataset_key] || '';
-    const items = rows.slice().sort((a, b) => a.decade.localeCompare(b.decade)).map(r =>
-      `<div class="dec-row"><span class="dec-yr">${r.decade}</span>`
-      + `<span class="dec-val">${num(Math.round(r.mean_density))} <span class="dec-unit">${unit}</span>`
-      + `<span class="dec-n">· ${r.n_tows} tow${r.n_tows === 1 ? '' : 's'}</span></span></div>`).join('');
-    return `<div class="dec-block" style="--c:${meta.color}">`
-      + `<div class="dec-head">Mean ${meta.label} density by decade</div>${items}</div>`;
+function decadeBlockFor(d, s, opts) {
+  opts = opts || {};
+  if (DECADE_EXCLUDED_DATASETS.has(d.dataset_key)) return '';
+  const rows = DECADES[d.dataset_key] && DECADES[d.dataset_key][s.station_id];
+  if (!rows || !rows.length) return '';
+  const meta = dsMeta(d.dataset_key), unit = DECADE_UNITS[d.dataset_key] || '';
+  const sorted = rows.slice().sort((a, b) => a.decade.localeCompare(b.decade));
+  const max = Math.max(...sorted.map(r => r.mean_density));
+  const items = sorted.map(r => {
+    const pct = max > 0 ? Math.max(4, Math.round(100 * r.mean_density / max)) : 0;
+    return `<div class="dec-row">
+        <span class="dec-yr">${r.decade}</span>
+        <span class="dec-bar-track"><span class="dec-bar-fill" style="width:${pct}%"></span></span>
+        <span class="dec-val">${num(Math.round(r.mean_density))}</span>
+        <span class="dec-n">${r.n_tows}</span>
+      </div>`;
   }).join('');
+  // Clickable only in its normal (small) rendering — the enlarged modal
+  // reuses this same function with opts.large, so it shouldn't itself be
+  // clickable again. Purely a visibility aid (the card is small) — there's
+  // no truncated/hidden data being revealed, same content either size.
+  const clickAttrs = opts.clickable
+    ? ` onclick="openDecadeModal('${d.dataset_key}')" style="cursor:pointer"` : '';
+  return `<div class="dec-block${opts.large ? ' dec-block-large' : ''}${opts.clickable ? ' dec-block-clickable' : ''}" style="--c:${meta.color}"${clickAttrs}>
+      <div class="dec-head">Mean density by decade <span class="dec-unit">(${unit})</span></div>
+      <div class="dec-col-labels"><span></span><span></span><span>density</span><span>tows</span></div>
+      ${items}
+      ${opts.clickable ? '<div class="dec-block-expand-hint">⤢ click to expand</div>' : ''}
+    </div>`;
+}
+// Opens the enlarged view of a station's decade-means block — same
+// modal-backdrop/modal markup as openDatasetCardModal, just for this block
+// instead of the main coverage card.
+function openDecadeModal(datasetKey) {
+  if (!currentStation) return;
+  const d = (currentStation.datasets || []).find(x => x.dataset_key === datasetKey);
+  if (!d) return;
+  const meta = dsMeta(d.dataset_key);
+  document.getElementById('modal-title').textContent = `${meta.label} — Mean Density by Decade — Station ${currentStation.station_id}`;
+  document.getElementById('modal-body').innerHTML = decadeBlockFor(d, currentStation, { large: true });
+  document.getElementById('modal-footer').style.display = 'none';
+  document.getElementById('modal').classList.add('modal-large');
+  document.getElementById('modal-backdrop').classList.add('open');
+}
+
+// ---- depth profiles (station panel) -----------------------------------------
+// For any variable with depth-resolved measurements at a station, show a compact
+// inline value-vs-depth chart (depth on the inverted y-axis, value on x). Sourced
+// from depth_profiles.json (see DEPTH_PROFILES load above) — same per-station
+// lookup pattern as DECADES/decadeBlocks just above.
+// Builds the plot SVG. `w`/`h` let the modal render a larger version of the same
+// chart from the same data, rather than a separate large-mode code path.
+function depthProfileSVG(rows, unit, color, w, h, bathyDepth, large) {
+  const sorted = rows.slice().sort((a, b) => a.depth_m - b.depth_m);
+  const depths = sorted.map(r => r.depth_m), values = sorted.map(r => r.value);
+  // Scale the axis to the SAMPLED depths only — never to the seafloor. Folding
+  // bathyDepth in here squashed every shallow profile into a sliver at the top
+  // of the plot (a 0–200 m bottle cast at a station with a 4,000 m seafloor got
+  // 5% of the plot height); measured on the shipped data, 1,630 of the 4,095
+  // profiles with a GEBCO depth — 40% — landed inside the top quarter. It also
+  // made the `bathyDepth <= dMax` guard below tautological, so the seafloor line
+  // drew even for casts that never went anywhere near it. Clipping instead of
+  // rescaling is what lets that guard do its job.
+  const dMin = 0, dMax = Math.max(...depths);
+  const vMin = Math.min(...values), vMax = Math.max(...values);
+  const peak = sorted.reduce((a, b) => (b.value > a.value ? b : a), sorted[0]);
+
+  // Larger canvas (the enlarge modal) gets more padding, bigger text, bigger
+  // dots and a thicker line — the small card's sizing looked comically tiny
+  // blown up to modal size instead of actually being easier to read there.
+  const padL = large ? 46 : 30, padT = large ? 20 : 14, padR = large ? 16 : 10, padB = large ? 34 : 24;
+  const plotW = w - padL - padR, plotH = h - padT - padB;
+  const x = v => padL + (vMax === vMin ? plotW / 2 : (v - vMin) / (vMax - vMin) * plotW);
+  const y = d => padT + (dMax === dMin ? 0 : (d - dMin) / (dMax - dMin) * plotH);
+  const dotR = large ? 5 : 3, dotRPeak = large ? 6.5 : 4, lineW = large ? 2.5 : 2;
+
+  const pts = sorted.map(r => `${x(r.value).toFixed(1)},${y(r.depth_m).toFixed(1)}`).join(' ');
+  const dots = sorted.map(r => {
+    const isPeak = r === peak;
+    return `<circle class="depth-dot" cx="${x(r.value).toFixed(1)}" cy="${y(r.depth_m).toFixed(1)}"
+        r="${isPeak ? dotRPeak : dotR}" fill="${isPeak ? 'var(--accent2)' : color}" stroke="var(--panel)" stroke-width="1.5"
+        data-tip="${Math.round(r.depth_m)} m: ${r.value.toFixed(2)} ${unit}"></circle>`;
+  }).join('');
+
+  // Seafloor line — same convention as ctd-viz's build_profile_plotly():
+  // dashed horizontal line + "seafloor ≈ Xm" label, only drawn when a depth
+  // was actually supplied and it falls within the plotted range (a station
+  // whose cast never got anywhere near the seafloor shouldn't show one).
+  const bathy = (bathyDepth != null && bathyDepth >= dMin && bathyDepth <= dMax)
+    ? `<line x1="${padL}" y1="${y(bathyDepth).toFixed(1)}" x2="${padL + plotW}" y2="${y(bathyDepth).toFixed(1)}"
+         class="dp-seafloor"/>
+       <text x="${padL + plotW}" y="${(y(bathyDepth) - (large ? 6 : 4)).toFixed(1)}" class="dp-seafloor-label" text-anchor="end">seafloor ≈ ${Math.round(bathyDepth)} m</text>`
+    : '';
+
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" style="overflow:visible" class="${large ? 'dp-large' : ''}">
+      <text x="0" y="${padT - (large ? 10 : 8)}" class="dp-axis-label">depth (m)</text>
+      <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + plotH}" class="dp-axis"/>
+      <line x1="${padL}" y1="${padT + plotH}" x2="${padL + plotW}" y2="${padT + plotH}" class="dp-axis"/>
+      <text x="${padL - (large ? 8 : 6)}" y="${padT + 4}" class="dp-tick" text-anchor="end">${Math.round(dMin)}</text>
+      <text x="${padL - (large ? 8 : 6)}" y="${padT + plotH + 4}" class="dp-tick" text-anchor="end">${Math.round(dMax)}</text>
+      <text x="${padL}" y="${padT + plotH + (large ? 22 : 14)}" class="dp-tick">${vMin.toFixed(1)}</text>
+      <text x="${padL + plotW}" y="${padT + plotH + (large ? 22 : 14)}" class="dp-tick" text-anchor="end">${vMax.toFixed(1)}</text>
+      <text x="${padL + plotW / 2}" y="${padT + plotH + (large ? 30 : 20)}" class="dp-axis-label" text-anchor="middle">value (${unit})</text>
+      ${bathy}
+      <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="${lineW}" stroke-linejoin="round" stroke-linecap="round"/>
+      ${dots}
+    </svg>`;
+}
+// Sampled depth range across every depth-resolved variable at this station,
+// compared against the GEBCO bathymetry estimate (see bathymetry.json load
+// block) — shown once at the top of the panel instead of only inside each
+// individual depth-profile chart, so you don't have to open one to get a
+// sense of how deep this station was actually sampled.
+function depthSummaryFor(s) {
+  let dMin = Infinity, dMax = -Infinity;
+  Object.keys(DEPTH_PROFILES).forEach(datasetKey => {
+    const byStation = DEPTH_PROFILES[datasetKey][s.station_id];
+    if (!byStation) return;
+    Object.values(byStation).forEach(rows => rows.forEach(r => {
+      if (r.depth_m < dMin) dMin = r.depth_m;
+      if (r.depth_m > dMax) dMax = r.depth_m;
+    }));
+  });
+  if (dMin === Infinity) return '';
+  const sampledLine = `<div class="panel-depth-row"><span class="dsum-label">Sampled Depth</span> <span class="dsum-val">${Math.round(dMin)}–${Math.round(dMax)} m</span></div>`;
+  if (s.bathymetry_depth_m == null) return sampledLine;
+  const seafloor = s.bathymetry_depth_m;
+  return `${sampledLine}
+    <div class="panel-depth-row">
+      <span class="dsum-label">Seafloor (GEBCO)</span> <span class="dsum-val">≈ ${Math.round(seafloor)} m</span>
+    </div>`;
+}
+function depthProfileBlocks(s) {
+  return (s.datasets || []).map(d => {
+    const byVar = DEPTH_PROFILES[d.dataset_key] && DEPTH_PROFILES[d.dataset_key][s.station_id];
+    if (!byVar) return '';
+    const meta = dsMeta(d.dataset_key);
+    return dedupeDepthVars(byVar).map(varName => {
+      const rows = byVar[varName];
+      if (!rows || rows.length < 2) return '';
+      const v = CANON_VARS.find(cv => cv.dataset_key === d.dataset_key && cv.name === varName);
+      const label = v ? resolvedLabel(v) : depthVarLabel(varName);
+      const unit = (v && v.units) || '';
+      const depths = rows.map(r => r.depth_m);
+      const key = encodeURIComponent(`${d.dataset_key}::${s.station_id}::${varName}`);
+      // Nested per-variable row — collapsed by default (text only, no SVG
+      // built yet). The chart for THIS variable is built lazily on its own
+      // toggle listener (wired in openStation()), same lazy pattern as the
+      // outer "Show Depth Profiles" section, just one level deeper — a
+      // station with 20 depth-resolved variables no longer means building
+      // 20 SVGs the moment the outer section opens.
+      return `<details class="depth-profile" style="--c:${meta.color}" data-dpkey="${key}">
+          <summary class="depth-profile-row-summary">
+            <span class="depth-profile-param">${label}${unit ? ` <span class="depth-profile-unit">(${unit})</span>` : ''}</span>
+            <span class="depth-profile-meta"><span class="depth-profile-range">${Math.round(Math.min(...depths))}–${Math.round(Math.max(...depths))} m</span> · ${rows.length} depths</span>
+          </summary>
+          <div class="depth-profile-chart"></div>
+        </details>`;
+    }).join('');
+  }).join('');
+}
+// Count only — cheap, no SVG building — used to decide whether to show the
+// toggle at all and what count to put in its label. Uses the same dedup as
+// depthProfileBlocks() so the count always matches what actually renders.
+function depthProfileCount(s) {
+  return (s.datasets || []).reduce((n, d) => {
+    const byVar = DEPTH_PROFILES[d.dataset_key] && DEPTH_PROFILES[d.dataset_key][s.station_id];
+    if (!byVar) return n;
+    return n + dedupeDepthVars(byVar).filter(varName => byVar[varName] && byVar[varName].length >= 2).length;
+  }, 0);
+}
+// Collapsed by default (unlike decadeBlocks, which is small and always-on) —
+// a station can have dozens of variables with depth-resolved data, and every
+// one of those is a real SVG built from a fetched row set, so eagerly
+// rendering all of them was the actual slowdown. Each row builds its own
+// chart lazily (wired in renderDepthTab) and is cached once built.
+// Click-to-expand — reuses the existing modal-backdrop/modal markup, same as
+// openDatasetCardModal above, just at a larger fixed size for the same SVG.
+function openDepthProfileModal(dpkey) {
+  const [datasetKey, stationId, varName] = decodeURIComponent(dpkey).split('::');
+  const rows = DEPTH_PROFILES[datasetKey] && DEPTH_PROFILES[datasetKey][stationId] && DEPTH_PROFILES[datasetKey][stationId][varName];
+  if (!rows) return;
+  const meta = dsMeta(datasetKey);
+  const v = CANON_VARS.find(cv => cv.dataset_key === datasetKey && cv.name === varName);
+  const label = v ? resolvedLabel(v) : depthVarLabel(varName);
+  const unit = (v && v.units) || '';
+  const station = STATIONS.find(st => st.station_id === stationId);
+  document.getElementById('modal-title').textContent = `${label} — Station ${stationId}`;
+  document.getElementById('modal-body').innerHTML = depthProfileSVG(rows, unit, meta.color, 560, 400, station && station.bathymetry_depth_m, true);
+  document.getElementById('modal-footer').style.display = 'none';
+  document.getElementById('modal').classList.add('modal-large');
+  document.getElementById('modal-backdrop').classList.add('open');
 }
 
 // ---- variable search ----
@@ -1345,7 +2191,18 @@ const searchInput = document.getElementById('search');
 const dropdown = document.getElementById('dropdown');
 
 function wireSearch() {
-  searchInput.addEventListener('input', () => renderDropdown(searchInput.value.trim()));
+  // Debounced rather than capped. renderDropdown() no longer slices to 60 hits
+  // (deliberately — a broad query should show every real match, not hide them
+  // behind a "+N more"), but that means a one-letter query builds ~1,900 rows
+  // and attaches ~1,900 listeners. Firing that on literally every keystroke was
+  // the actual cost; doing it once the typing pauses keeps the full result set
+  // without the per-keystroke rebuild.
+  let ddTimer = null;
+  searchInput.addEventListener('input', () => {
+    ddExpandedGroup = null;
+    clearTimeout(ddTimer);
+    ddTimer = setTimeout(() => renderDropdown(searchInput.value.trim()), 120);
+  });
   searchInput.addEventListener('focus', () => renderDropdown(searchInput.value.trim()));
   document.addEventListener('click', e => {
     if (!e.target.closest('.search-wrapper')) dropdown.classList.remove('open');
@@ -1378,28 +2235,29 @@ function tokenHits(text, token) {
 // so "krill pacific" matches "Pacific Krill" and a variable isn't missed
 // just because the matched word happens to be second/third in its name.
 function varMatch(v, q) {
-  const text = [v.name, v.display_name, v.common_name, ...(v.keywords || [])]
+  // Family labels (e.g. "Primary Productivity (C14 Assimilation)") live in
+  // PARAMETER_FAMILIES, not on the variable record itself — without pulling
+  // them in here, renaming a family updates every display but not search.
+  const fm = familyMemberFor(v);
+  const familyText = fm ? [fm.family.name, fm.member.label, fm.member.short] : [];
+  const text = [v.name, v.display_name, v.common_name, ...(v.keywords || []), ...familyText]
     .filter(Boolean).join(' ').toLowerCase();
   return q.toLowerCase().split(/\s+/).filter(Boolean).every(tok => tokenHits(text, tok));
 }
-function ddItem(v) {
+function ddItem(v, nested) {
   const meta = dsMeta(v.dataset_key);
   const fm = familyMemberFor(v);
-  // fm.source is only set for group-type family members (ones with more
-  // than one dataset source, e.g. Oxygen: Hydrographic Bottle / CTD) —
-  // for those, lead with the dataset name so two "Oxygen" rows don't read
-  // as duplicates. Single-source members just use their normal label.
   const name = (fm && fm.source) ? `${fm.member.label} — ${meta.label}` : resolvedLabel(v);
-  return `<div class="dd-item" data-id="${encodeURIComponent(v.variable_id)}">
-      <span class="dd-dot" style="background:${meta.color}"></span>
+  return `<div class="dd-item${nested ? ' dd-item-nested' : ''}" data-id="${encodeURIComponent(v.variable_id)}">
+      <span class="dd-dot" style="background:${datasetColorFor(v)}"></span>
       <span class="dd-name">${name}</span>
-      <span class="dd-meta">${meta.label}${v.units ? ' · ' + v.units : ''} · ${v.realm}</span>
+      <span class="dd-meta">${datasetLabelFor(v)}${v.units ? ' · ' + v.units : ''} · ${v.realm}</span>
     </div>`;
 }
 function renderDropdown(q) {
   // empty query (just clicked into the search bar) -> show everything,
   // grouped by category, instead of closing the dropdown
-  const hits = q ? CANON_VARS.filter(v => varMatch(v, q)).slice(0, 60) : CANON_VARS;
+  const hits = q ? CANON_VARS.filter(v => varMatch(v, q)) : CANON_VARS;
   if (!hits.length) {
     dropdown.innerHTML = `<div class="dd-empty">no variables match “${q}”</div>`;
   } else {
@@ -1408,16 +2266,101 @@ function renderDropdown(q) {
     hits.forEach(v => (byCat[categoryOf(v)] ||= []).push(v));
     const catRank = c => { const i = CATEGORY_ORDER.indexOf(c); return i === -1 ? Infinity : i; };
     const catKeys = Object.keys(byCat).sort((a, b) => catRank(a) - catRank(b));
-    dropdown.innerHTML = catKeys.map(c => `
+    // Same ordering as the By Category browse panel: family members grouped
+    // together by that category's CATEGORY_ITEM_ORDER priority (e.g.
+    // Temperature/Salinity/Density/Oxygen before Beam Attenuation), members
+    // alphabetized within their family, then loose (non-family) items
+    // alphabetically after every family. No cap — a broad query shows every
+    // real match rather than hiding results behind a "+N more" count.
+    // Potential/Dry Bulb/Wet Bulb Temperature are single-type Temperature
+    // members, so they'd otherwise cluster right at the top with the main
+    // Temperature toggle (same family priority tier). Pushed to the very
+    // bottom of the whole category instead — below even the loose items —
+    // since they're air temp / a computed variant, not what most searches
+    // for "temperature" actually want first.
+    const DEPRIORITIZED_LABELS = new Set(['Potential Temperature', 'Dry Bulb Temperature', 'Wet Bulb Temperature']);
+    const ddSortKey = (v, groupKey) => {
+      const fm = familyMemberFor(v);
+      if (fm && DEPRIORITIZED_LABELS.has(fm.member.label)) return [3, '', 0, sortNameFor(v)];
+      const priority = CATEGORY_ITEM_ORDER[groupKey];
+      const famIdx = fm && priority ? priority.indexOf(fm.family.name) : -1;
+      // Within a family, match its hand-declared member order (e.g.
+      // Temperature: Dry Bulb, Standard, Wet Bulb, Potential) rather than
+      // alphabetizing — that order is intentional, same as what expanding
+      // the family in By Category shows. Group-type members with multiple
+      // sources (Bottle/CTD/DIC etc.) tie-break by that member's own
+      // declared source order, so dedup below always keeps the intended
+      // primary source (e.g. Bottle for Temperature), not an arbitrary one.
+      const memberIdx = fm ? fm.family.members.indexOf(fm.member) : -1;
+      const sourceIdx = fm && fm.source ? fm.member.sources.indexOf(fm.source) : -1;
+      if (fm && famIdx !== -1) return [0, famIdx, memberIdx, sourceIdx];
+      if (fm) return [1, fm.family.name, memberIdx, sourceIdx];
+      return [2, '', 0, sortNameFor(v)];
+    };
+    dropdown.innerHTML = catKeys.map(c => {
+      const sorted = byCat[c].slice().sort((a, b) => {
+        const ka = ddSortKey(a, c), kb = ddSortKey(b, c);
+        for (let i = 0; i < ka.length; i++) { if (ka[i] < kb[i]) return -1; if (ka[i] > kb[i]) return 1; }
+        return 0;
+      });
+      // Group-type family members (Temperature, Salinity, Density, Oxygen,
+      // Oxygen Saturation, Dynamic Height) come from more than one dataset —
+      // rather than listing "Temperature — Hydrographic Bottle", "— CTD
+      // Cast Files", "— Carbonate Chemistry / DIC" as 3+ near-duplicate
+      // rows, show the parameter name once as a toggle; clicking it expands
+      // the same dataset-picker cards By Category uses (sourceCardRow),
+      // instead of guessing which source the person wants.
+      const groups = {}; // "Family::Member" -> [{v, member, source}, ...]
+      const loose = [];
+      sorted.forEach(v => {
+        const fm = familyMemberFor(v);
+        if (fm && fm.source) {
+          const key = fm.family.name + '::' + fm.member.label;
+          (groups[key] ||= { member: fm.member, its: [] }).its.push({ v, member: fm.member, source: fm.source });
+        } else {
+          loose.push(v);
+        }
+      });
+      const groupKeys = Object.keys(groups); // already in sorted order (first-seen)
+      const itemCount = groupKeys.length + loose.length;
+      const rowsHtml = [];
+      sorted.forEach(v => {
+        const fm = familyMemberFor(v);
+        if (fm && fm.source) {
+          const key = fm.family.name + '::' + fm.member.label;
+          if (groups[key]._rendered) return; // already emitted this group's row
+          groups[key]._rendered = true;
+          const { member, its } = groups[key];
+          const open = ddExpandedGroup === key;
+          rowsHtml.push(`<div class="dd-group-toggle" data-dd-group-key="${encodeURIComponent(key)}">
+              <span class="dd-dot dd-dot-empty"></span>
+              <span class="dd-name">${member.label}<span class="dd-group-caret">${open ? '▾' : '▸'}</span></span>
+              <span class="dd-meta">${its.length} datasets</span>
+            </div>${open ? `<div class="dd-group-sources">${its.map(it => ddItem(it.v, true)).join('')}</div>` : ''}`);
+        } else {
+          rowsHtml.push(ddItem(v));
+        }
+      });
+      return `
         <div class="dropdown-group-header">
           <span>${c}</span>
-          <span class="dropdown-group-count">${byCat[c].length}</span>
+          <span class="dropdown-group-count">${itemCount}</span>
         </div>
-        ${byCat[c].map(ddItem).join('')}`).join('');
+        ${rowsHtml.join('')}`;
+    }).join('');
   }
   dropdown.querySelectorAll('.dd-item').forEach(el =>
     el.addEventListener('mousedown', () => selectVariable(decodeURIComponent(el.dataset.id))));
+  dropdown.querySelectorAll('.dd-group-toggle[data-dd-group-key]').forEach(el =>
+    el.addEventListener('mousedown', () => toggleDdGroup(decodeURIComponent(el.dataset.ddGroupKey))));
   dropdown.classList.add('open');
+}
+// Expands/collapses a group-type family member's dataset picker within the
+// search dropdown (see renderDropdown) — re-renders against whatever's
+// currently typed, same pattern as toggleFamily() for the browse panel.
+function toggleDdGroup(key) {
+  ddExpandedGroup = (ddExpandedGroup === key) ? null : key;
+  renderDropdown(searchInput.value.trim());
 }
 
 function selectVariable(vid) {
@@ -1434,14 +2377,20 @@ function selectVariable(vid) {
 function highlight(v) {
   selectedVar = v;
   document.getElementById('clear-btn').classList.add('visible');
-  const meta = dsMeta(v.dataset_key);
   applyStyles();  // uses whatever yearRange currently is — doesn't touch the slider
-  const n = STATIONS.filter(s => activeDatasets(s).some(d => d.dataset_key === v.dataset_key)).length;
+  const n = stationsForVar(v).size;
   document.getElementById('year-slider').classList.toggle('var-active', n > 0);
   const banner = document.getElementById('search-banner');
-  banner.innerHTML = `<b style="color:${meta.color}">${resolvedLabel(v)}</b> — `
-    + `${n} stations with <b>${meta.label}</b> coverage`
-    + (yearRange ? ` in <b>${yearRange[0]}–${yearRange[1]}</b>` : '');
+  // Only claim the year range when the number actually reflects it. On the
+  // per-taxon path it doesn't (no year bins in taxon_coverage.json), so say
+  // "all years" rather than printing an unfiltered count under a filtered label.
+  const yearAware = stationsForVarIsYearAware(v);
+  const yearNote = !yearRange ? ''
+    : yearAware ? ` in <b>${yearRange[0]}–${yearRange[1]}</b>`
+    : ` <span class="banner-note" title="Per-taxon coverage has no year breakdown yet, so this count spans the full record regardless of the slider.">(all years)</span>`;
+  banner.innerHTML = `<b style="color:${datasetColorFor(v)}">${resolvedLabel(v)}</b> — `
+    + `${n} stations with <b>${datasetLabelFor(v)}</b> coverage`
+    + yearNote;
   banner.style.display = 'block';
 }
 function showVariablePanel(v) {
@@ -1451,12 +2400,13 @@ function showVariablePanel(v) {
   updateBackButton();
   document.getElementById('panel-station-id').textContent = resolvedPlainLabel(v);
   document.getElementById('panel-coords').textContent = 'Select a highlighted station';
-  const stationCount = STATIONS.filter(s => activeDatasets(s).some(d => d.dataset_key === v.dataset_key)).length;
+  document.getElementById('panel-depth-summary').innerHTML = '';
+  const stationCount = stationsForVar(v).size;
   const desc = descriptionFor(v, displayLabel(v)) || v.description || 'No description available.';
   const src = v.source && (v.source.access_url || v.source.metadata_url);
   document.getElementById('panel-content').innerHTML = `
     <div class="panel-info-block">
-      <b>Dataset:</b> ${meta.label}<br><br>
+      <b>Dataset:</b> ${datasetLabelFor(v)}<br><br>
       <b>Description:</b> ${desc}<br><br>
       ${v.units ? `<b>Units:</b> ${v.units}<br><br>` : ''}
       ${v.aphia_id ? `<b>WoRMS:</b> <a target="_blank" rel="noopener" href="https://www.marinespecies.org/aphia.php?p=taxdetails&id=${v.aphia_id}">AphiaID ${v.aphia_id}</a><br><br>` : ''}
@@ -1470,6 +2420,7 @@ function showVariablePanel(v) {
 function clearAll() {
   selectedVar = null;
   currentStation = null;
+  lastStationTab = 'overview';
   searchInput.value = '';
   dropdown.classList.remove('open');
   document.getElementById('clear-btn').classList.remove('visible');
@@ -1486,6 +2437,205 @@ function clearAll() {
 function togglePanel() { document.getElementById('side-panel').classList.toggle('collapsed'); }
 function showAboutModal() { document.getElementById('about-backdrop').classList.add('open'); }
 function hideAboutModal() { document.getElementById('about-backdrop').classList.remove('open'); }
+// ---- guided tour: a single callout that repositions itself next to
+// whatever element the current step is about, with a small arrow pointing
+// at it — like the CTD app's own tour, instead of one static wall of text.
+const WALKTHROUGH_DISMISS_KEY = 'calcofi_walkthrough_dismissed';
+let tourStepIndex = 0;
+// Some steps need the app to actually be in a certain state first (a
+// station open, so its cards/pin icon exist to point at) — `before()` runs
+// right before that step is shown. Picks the first station with real depth
+// data so the Depth Profiles tab step has something behind it too.
+const WALKTHROUGH_STEPS = [
+  { selector: '#search', title: 'Search', body: 'Type a common or scientific name — "chlorophyll", "nitrate", "Sardinops sagax" — results are grouped by category in the search bar dropdown. When a parameter comes from more than one dataset, like Temperature, you\'ll see multiple source options — click one to view its coverage.' },
+  { selector: '.inventory-view-tabs', title: 'By Category vs. By Dataset', body: 'Use By Category when you know what you\'re looking for — if something is measured by more than one instrument, those readings are grouped together in a dropdown. Use By Dataset to see what parameters a specific dataset monitors.', offsetX: -20 },
+  { selector: '#map', title: 'Click any station', body: 'Click any station to open its full coverage: every dataset measured there, its date range, and depth profiles for each variable, where available.', placement: 'corner-top-right', offsetY: -50,
+    highlightPadTop: 3, highlightPadRight: 0, highlightPadLeft: -4, highlightPadBottom: -3 },
+  { selector: '.ds-card', title: 'Station overview', body: "Click any card to enlarge it. Each one shows a dataset's date range, depth range, and the number of surveys and individual measurements across time.",
+    before: () => openTourExampleStation(), placement: 'left', highlightOffsetX: 2 },
+  { selector: '#year-slider', title: 'Year slider', body: "Spans CalCOFI's full record by default. Selecting a parameter narrows the slider to when that parameter was actually measured.",
+    offsetY: 40, highlightPadX: -17 },
+  { selector: '.panel-tab[data-tab="depth"]', title: 'Depth Profiles', body: "Shows how each variable actually changes with depth at this station, plus a seafloor line from GEBCO bathymetry where available — GEBCO is a modeled estimate, not a direct sounding, so small mismatches with the sampled depth are expected.",
+    before: () => { openTourExampleStation(); const btn = document.querySelector('.panel-tab[data-tab="depth"]'); if (btn && !btn.classList.contains('active')) btn.click(); },
+    placement: 'left' },
+  { selector: '.ds-pin-btn', title: 'Pin to compare', body: 'Pin a card to keep it visible even after you click a different station — pin cards from multiple stations and compare them side by side in a tray at the bottom. Drag pinned cards to reorder them, or click one to pan the map back to that station.',
+    // The previous step switches to the Depth Profiles tab, which hides
+    // the Overview tab (and its pin buttons) entirely — a hidden element's
+    // bounding rect collapses to (0,0), which is why this used to jump to
+    // the top-left corner. Switch back to Overview first so the real card
+    // is visible and measurable again.
+    before: () => { const btn = document.querySelector('.panel-tab[data-tab="overview"]'); if (btn && !btn.classList.contains('active')) btn.click(); },
+    placement: 'corner-top-right', offsetY: -50, calloutAnchorSelector: '#map' },
+];
+// Whether THIS tour run opened the example station itself. Only then is the
+// station the tour's to clean up — see endTour().
+let tourOpenedStation = false;
+function openTourExampleStation() {
+  if (currentStation) return;
+  const s = STATIONS.find(st => st.n_datasets > 0 && depthProfileCount(st) > 0) || STATIONS.find(st => st.n_datasets > 0);
+  if (s) { openStation(s); tourOpenedStation = true; }
+}
+function startWalkthroughTour() {
+  tourStepIndex = 0;
+  tourOpenedStation = false;
+  renderTourStep();
+}
+function endTour() {
+  document.getElementById('tour-callout').style.display = 'none';
+  const hl = document.getElementById('tour-highlight-box');
+  if (hl) hl.style.display = 'none';
+  window.removeEventListener('resize', repositionTour);
+  window.removeEventListener('scroll', repositionTour, true);
+  localStorage.setItem(WALKTHROUGH_DISMISS_KEY, '1');
+  // Only clear what the tour itself put on screen. The `?` button can start a
+  // tour mid-session, and an unconditional clearAll() there threw away the
+  // variable and station the person had already chosen just because they
+  // glanced at the help.
+  if (tourOpenedStation) clearAll();
+  tourOpenedStation = false;
+}
+function tourNext() {
+  if (tourStepIndex < WALKTHROUGH_STEPS.length - 1) { tourStepIndex++; renderTourStep(); }
+  else endTour();
+}
+function tourPrev() {
+  if (tourStepIndex > 0) { tourStepIndex--; renderTourStep(); }
+}
+// A separate floating highlight box, not a class added to the target
+// element itself — the old approach (a box-shadow attached directly to
+// e.g. #map) gets silently clipped by the map's own container (Leaflet
+// needs overflow on its container), and couldn't be nudged independently
+// of the element's real position. This one is appended straight to <body>,
+// so nothing can clip it, and `highlightOffsetX/Y` per step can shift it a
+// few pixels without moving the actual UI element underneath.
+function positionTourHighlight(target, step) {
+  let hl = document.getElementById('tour-highlight-box');
+  if (!hl) {
+    hl = document.createElement('div');
+    hl.id = 'tour-highlight-box';
+    document.body.appendChild(hl);
+  }
+  const r = target.getBoundingClientRect();
+  const padX = step.highlightPadX != null ? step.highlightPadX : 3;
+  const padY = step.highlightPadY != null ? step.highlightPadY : 3;
+  const padL = step.highlightPadLeft != null ? step.highlightPadLeft : padX;
+  const padR = step.highlightPadRight != null ? step.highlightPadRight : padX;
+  const padT = step.highlightPadTop != null ? step.highlightPadTop : padY;
+  const padB = step.highlightPadBottom != null ? step.highlightPadBottom : padY;
+  const hx = step.highlightOffsetX || 0, hy = step.highlightOffsetY || 0;
+  hl.style.left = (r.left - padL + hx) + 'px';
+  hl.style.top = (r.top - padT + hy) + 'px';
+  hl.style.width = Math.max(0, r.width + padL + padR) + 'px';
+  hl.style.height = Math.max(0, r.height + padT + padB) + 'px';
+  hl.style.display = 'block';
+}
+function renderTourStep() {
+  const step = WALKTHROUGH_STEPS[tourStepIndex];
+  if (step.before) step.before();
+  const callout = document.getElementById('tour-callout');
+  // Give the DOM a tick to update (e.g. openStation()'s innerHTML rebuild)
+  // before measuring where the target actually ended up.
+  setTimeout(() => {
+    const target = document.querySelector(step.selector);
+    if (!target) { tourNext(); return; } // target never rendered (e.g. no depth data anywhere) — skip it
+    target.scrollIntoView({ block: 'center', behavior: 'instant' });
+    positionTourHighlight(target, step);
+    document.getElementById('tour-title').textContent = step.title;
+    document.getElementById('tour-body').textContent = step.body;
+    document.getElementById('tour-progress').textContent = `${tourStepIndex + 1} / ${WALKTHROUGH_STEPS.length}`;
+    document.getElementById('tour-prev-btn').style.visibility = tourStepIndex === 0 ? 'hidden' : 'visible';
+    document.getElementById('tour-next-btn').textContent = tourStepIndex === WALKTHROUGH_STEPS.length - 1 ? 'Done' : 'Next';
+    callout.style.display = 'block';
+    // The callout's own position can target a different element than the
+    // highlight ring (calloutAnchorSelector) — e.g. Pin's ring stays on the
+    // actual pin icon, but its text bubble sits in the same screen spot the
+    // map step used, rather than crowding the side panel.
+    const calloutTarget = step.calloutAnchorSelector ? (document.querySelector(step.calloutAnchorSelector) || target) : target;
+    positionTourCallout(calloutTarget, callout, step);
+    window.addEventListener('resize', repositionTour);
+    // Capture phase: the side panel scrolls in its own element, and scroll
+    // events don't bubble — steps 4 and 6 point at .ds-card/.ds-pin-btn INSIDE
+    // that panel, so without capture the ring stays put while the card it's
+    // ringing scrolls away.
+    window.addEventListener('scroll', repositionTour, true);
+  }, 30);
+}
+// Re-measures the current step's target and moves the ring + callout to match.
+// Both are position:fixed, placed from a one-shot getBoundingClientRect(), so
+// without this they detach from their target on any resize or panel scroll.
+// Cheap enough to run raw, but rAF-throttled since scroll fires in bursts.
+let tourRepositionPending = false;
+function repositionTour() {
+  const callout = document.getElementById('tour-callout');
+  if (!callout || callout.style.display === 'none') return;
+  if (tourRepositionPending) return;
+  tourRepositionPending = true;
+  requestAnimationFrame(() => {
+    tourRepositionPending = false;
+    const step = WALKTHROUGH_STEPS[tourStepIndex];
+    const target = document.querySelector(step.selector);
+    if (!target) return;   // target vanished mid-step — leave the callout where it is
+    positionTourHighlight(target, step);
+    const calloutTarget = step.calloutAnchorSelector ? (document.querySelector(step.calloutAnchorSelector) || target) : target;
+    positionTourCallout(calloutTarget, callout, step);
+  });
+}
+// Three placement modes:
+// - default: below the target, flipping above if there's no room (used for
+//   small, normal-sized controls like the search bar or the toggle tabs)
+// - 'left': callout sits just to the left of the target with an arrow
+//   pointing right at it — for elements inside the narrow side panel, where
+//   "below" would either spill off the bottom or overlap the next card
+// - 'corner-top-right': for a target that fills most of the screen (the
+//   map) — below/above flip logic breaks down for something that tall, so
+//   this insets the callout near the target's top-right corner instead
+// `offsetY` nudges the final vertical position down a bit further, for
+// steps whose default spot reads as too cramped against a small widget.
+function positionTourCallout(target, callout, step) {
+  callout.style.width = (step.width || 340) + 'px';
+  const r = target.getBoundingClientRect();
+  const cw = callout.offsetWidth, ch = callout.offsetHeight;
+  const offsetY = step.offsetY || 0, offsetX = step.offsetX || 0;
+  callout.classList.remove('tour-arrow-top', 'tour-arrow-bottom', 'tour-arrow-right', 'tour-no-arrow');
+
+  if (step.placement === 'corner-top-right') {
+    const left = Math.max(8, r.right - cw - 20);
+    const top = Math.min(r.top + 70 + offsetY, window.innerHeight - ch - 8);
+    callout.style.left = left + 'px';
+    callout.style.top = Math.max(8, top) + 'px';
+    callout.classList.add('tour-no-arrow');
+    return;
+  }
+  if (step.placement === 'left') {
+    const left = Math.max(8, r.left - cw - 10 + offsetX);
+    const top = Math.min(Math.max(8, r.top + offsetY), window.innerHeight - ch - 8);
+    callout.style.left = left + 'px';
+    callout.style.top = top + 'px';
+    callout.classList.add('tour-arrow-right');
+    callout.style.setProperty('--arrow-y', Math.min(Math.max(20, r.top + r.height / 2 - top), ch - 20) + 'px');
+    return;
+  }
+  if (step.placement === 'above') {
+    const left = Math.min(Math.max(8, r.left + offsetX), window.innerWidth - cw - 8);
+    const top = Math.max(8, r.top - ch - 14 + offsetY);
+    callout.style.left = left + 'px';
+    callout.style.top = top + 'px';
+    callout.classList.add('tour-arrow-bottom');
+    callout.style.setProperty('--arrow-x', Math.min(Math.max(20, r.left + r.width / 2 - left), cw - 20) + 'px');
+    return;
+  }
+  let left = Math.min(Math.max(8, r.left + offsetX), window.innerWidth - cw - 8);
+  let top = r.bottom + 14 + offsetY;
+  let arrowSide = 'top';
+  if (top + ch > window.innerHeight - 8) { top = r.top - ch - 14; arrowSide = 'bottom'; }
+  callout.style.left = left + 'px';
+  callout.style.top = Math.max(8, top) + 'px';
+  callout.classList.add(arrowSide === 'top' ? 'tour-arrow-top' : 'tour-arrow-bottom');
+  callout.style.setProperty('--arrow-x', Math.min(Math.max(20, r.left + r.width / 2 - left), cw - 20) + 'px');
+}
+function maybeAutoShowWalkthrough() {
+  if (!localStorage.getItem(WALKTHROUGH_DISMISS_KEY)) startWalkthroughTour();
+}
 function closeModal(e) {
   if (e && e.target && !e.target.classList.contains('modal-backdrop')) return;
   document.getElementById('modal-backdrop').classList.remove('open');

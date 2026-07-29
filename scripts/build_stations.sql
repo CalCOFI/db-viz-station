@@ -6,6 +6,24 @@
 -- time min/max, depth min/max, #observations, #samples, #surveys (distinct
 -- cruises), plus per-year (overall) and per-month (seasonal) histograms.
 --
+-- Also writes public/data/taxon_coverage.json — per-(station, taxon) coverage,
+-- kept as its own file rather than nested into stations.json (which every page
+-- load needs) since joining a taxon dimension in would bloat that file a lot.
+-- Consumed by the portal's stationsForVar() to give ZooDB/Phytoplankton/etc.
+-- taxa their own station counts instead of falling back to whole-dataset
+-- coverage for every taxon regardless of how often it was actually recorded
+-- (see 2026-07 investigation — e.g. ZooDB's Aetideidae was only in 28% of
+-- tows but showed the same station count as Salpida at 81%).
+--
+-- Joined by aphia_id (WoRMS ID), not taxon_key — the portal's variables.json
+-- doesn't carry taxon_key yet, and several taxa share the same scientific_name
+-- across two different taxon_keys (Hydrozoa, Salpida, Siphonophorae, Ctenophora
+-- all confirmed duplicated), so a name-based join would silently merge distinct
+-- taxa. aphia_id is already in variables.json and is the safer key available
+-- today. If build_vars.sql is later updated to carry taxon_key directly, switch
+-- the join key here and in app.js's TAXON_STATIONS lookup — everything else
+-- stays the same.
+--
 -- Run from the repo root (needs the `duckdb` CLI + network to public GCS):
 --   duckdb -c ".read scripts/build_stations.sql"
 --
@@ -33,10 +51,14 @@ FROM read_parquet(r('grid.parquet'));
 -- release (Hive-partitioned by dataset_key), one row per measurement carrying
 -- dataset_key + realm + grid_key + cruise_key + datetime + depth range + sample_key.
 -- Replaces the former hand-rolled per-dataset UNION ALL preview.
+-- taxon_key added (beyond the original column set) to support the new
+-- taxon_cov aggregation below — harmless for every other consumer of `obs`
+-- here since it's simply NULL for non-taxon rows.
 CREATE TEMP TABLE obs AS
 SELECT dataset_key, realm, grid_key,
        CAST(cruise_key AS VARCHAR) AS cruise_key,
-       datetime, depth_min_m AS depth_min, depth_max_m AS depth_max, sample_key
+       datetime, depth_min_m AS depth_min, depth_max_m AS depth_max, sample_key,
+       taxon_key
 FROM read_parquet(r('obs/**/*.parquet'), hive_partitioning=true)
 WHERE grid_key IS NOT NULL;
 
@@ -99,3 +121,23 @@ COPY (
   LEFT JOIN srv s USING (grid_key)
   ORDER BY g.grid_key
 ) TO 'public/data/stations.json' (FORMAT JSON, ARRAY true);
+
+-- per-(station, taxon) coverage — see file header for why this exists and
+-- why the join key is aphia_id rather than taxon_key or scientific_name.
+CREATE TEMP TABLE taxon_cov AS
+SELECT o.grid_key,
+       CAST(t.worms_id AS VARCHAR) AS aphia_id,
+       min(o.datetime)::DATE AS time_min,
+       max(o.datetime)::DATE AS time_max,
+       count(*) AS n_obs,
+       count(DISTINCT o.sample_key) AS n_samples
+FROM obs o
+JOIN read_parquet(r('taxon.parquet')) t USING (taxon_key)
+WHERE o.taxon_key IS NOT NULL AND t.worms_id IS NOT NULL
+GROUP BY 1, 2;
+
+COPY (
+  SELECT grid_key, aphia_id, time_min, time_max, n_obs, n_samples
+  FROM taxon_cov
+  ORDER BY aphia_id, grid_key
+) TO 'public/data/taxon_coverage.json' (FORMAT JSON, ARRAY true);

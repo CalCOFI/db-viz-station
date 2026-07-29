@@ -587,7 +587,13 @@ Promise.all([
   (bathy || []).forEach(r => { bathyByKey[r.grid_key] = r.bathymetry_depth_m; });
   STATIONS.forEach(s => {
     BY_KEY[s.grid_key] = s;
-    if (bathyByKey[s.grid_key] != null) s.bathymetry_depth_m = bathyByKey[s.grid_key];
+    // > 0, not just != null: st45-ln60 carries a bathymetry_depth_m of 0, which
+    // is a nodata sentinel from the GEBCO sampling rather than a real sounding
+    // (a station in 0 m of water isn't a station). Treated as a depth it renders
+    // "Seafloor (GEBCO) ≈ 0 m" and draws a seafloor line across the top of every
+    // profile at that station. Falling through to "no bathymetry" is honest —
+    // 104 of the 218 stations are already in that state (see issue #5).
+    if (bathyByKey[s.grid_key] > 0) s.bathymetry_depth_m = bathyByKey[s.grid_key];
     (s.datasets || []).forEach(d => { (DS_STATIONS[d.dataset_key] ||= new Set()).add(s.grid_key); });
   });
   renderStations();

@@ -212,6 +212,50 @@ a:visited {
   line-height: 1.6;
 }
 
+/* guided tour — a single callout that repositions itself next to whatever
+   element the current step targets (see startWalkthroughTour in app.js) */
+.tour-callout {
+  position: fixed; z-index: 10000; width: 340px; max-width: calc(100vw - 16px);
+  background: var(--panel, #1a1d21); border: 1px solid var(--accent, #4dabf7);
+  border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  padding: 14px 16px;
+}
+.tour-callout::before {
+  content: ''; position: absolute; left: var(--arrow-x, 24px); width: 12px; height: 12px;
+  background: var(--panel, #1a1d21); border: 1px solid var(--accent, #4dabf7);
+  transform: translateX(-50%) rotate(45deg);
+}
+.tour-arrow-top::before { top: -7px; border-right: none; border-bottom: none; }
+.tour-arrow-bottom::before { bottom: -7px; border-left: none; border-top: none; }
+.tour-arrow-right::before {
+  left: auto; right: -7px; top: var(--arrow-y, 24px);
+  border-left: none; border-bottom: none;
+}
+.tour-no-arrow::before { display: none; }
+.tour-callout-title { font-size: 16.5px; font-weight: 700; color: var(--text, #e6e9ed); margin-bottom: 8px; }
+.tour-callout-body { font-size: 14.5px; line-height: 1.55; color: #e2e6ea; margin-bottom: 12px; }
+.tour-callout-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tour-skip { background: none; border: none; color: var(--muted, #9aa0a6); font-size: 12px; cursor: pointer; padding: 4px; }
+.tour-skip:hover { color: var(--text, #e6e9ed); }
+.tour-progress { font-size: 11px; color: var(--muted, #6c757d); font-family: 'Space Mono', monospace; }
+.tour-nav { display: flex; gap: 6px; }
+.tour-prev, .tour-next {
+  font-size: 12px; padding: 6px 12px; border-radius: 4px; cursor: pointer;
+}
+.tour-prev { background: none; border: 1px solid var(--border, #3a3f44); color: var(--muted, #9aa0a6); }
+.tour-prev:hover { color: var(--text, #e6e9ed); border-color: var(--muted); }
+.tour-next { background: var(--accent, #4dabf7); border: none; color: #04263d; font-weight: 700; }
+.tour-next:hover { filter: brightness(1.1); }
+/* Separate floating overlay (not attached to the target element) — avoids
+   getting clipped by a target's own overflow (this is what broke the ring
+   around #map, whose container needs overflow for Leaflet tiles), and can
+   be nudged independently via each step's highlightOffsetX/Y. */
+#tour-highlight-box {
+  position: fixed; z-index: 9999; display: none; pointer-events: none;
+  box-shadow: 0 0 0 3px var(--accent, #4dabf7), 0 0 0 6000px rgba(0,0,0,0.35);
+  border-radius: 6px; transition: left 0.2s, top 0.2s, width 0.2s, height 0.2s;
+}
+
 ul,
 ol {
   padding-left: 25px;
@@ -248,6 +292,27 @@ ol {
 }
 
 #about-button:hover {
+  transform: scale(1.05);
+}
+
+#walkthrough-button {
+  position: fixed;
+  left: 70px;
+  bottom: 20px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent, #4dabf7);
+  color: #04263d;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  font-size: 20px;
+  font-weight: bold;
+  z-index: 9999;
+}
+
+#walkthrough-button:hover {
   transform: scale(1.05);
 }
 
@@ -689,6 +754,13 @@ ol {
   color: var(--muted);
   margin-top: 10px;
 }
+.panel-depth-row {
+  font-size: 13px; color: var(--muted, #9aa0a6); margin-top: 12px;
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.panel-depth-row + .panel-depth-row { margin-top: 2px; }
+.dsum-label { text-transform: uppercase; letter-spacing: .04em; font-size: 11px; color: var(--warning, #ffd43b); }
+.dsum-val { color: var(--warning, #ffd43b); font-weight: 700; font-family: 'Space Mono', monospace; font-size: 14px; }
 
 .panel-empty {
   flex: 1;
@@ -1133,6 +1205,13 @@ select optgroup {
     bottom: 12px;
   }
 
+  #walkthrough-button {
+    width: 48px;
+    height: 48px;
+    left: 68px;
+    bottom: 12px;
+  }
+
   .dropdown {
     max-height: 50vh;
   }
@@ -1193,7 +1272,15 @@ select optgroup {
   border: 1px solid var(--border, #3a3f44); border-left: 3px solid var(--c);
   border-radius: 6px; padding: 10px 11px; margin-bottom: 10px;
   background: color-mix(in srgb, var(--c) 6%, var(--panel, #24272b));
+  position: relative;
 }
+.ds-pin-btn {
+  background: none; border: none; cursor: pointer; font-size: 13px;
+  padding: 2px; line-height: 1; opacity: 1; margin-left: 4px; flex: none;
+  transition: opacity 0.15s;
+}
+.ds-pin-btn:not(.ds-pin-btn-active):hover { opacity: 0.55; }
+.ds-pin-btn-active { opacity: 1; }
 .ds-card-clickable { cursor: pointer; transition: box-shadow 0.15s, border-color 0.15s; }
 .ds-card-clickable:hover { box-shadow: 0 0 0 1px var(--accent), 0 8px 24px rgba(0,0,0,0.35); }
 .ds-card-expand-hint {
@@ -1208,6 +1295,49 @@ select optgroup {
 .ds-card.ds-card-large .ybars { height: 120px; }
 .ds-card.ds-card-large .mbar { height: 70px; font-size: 12px; }
 .ds-card.ds-card-large .ds-stats { font-size: 13px; }
+
+/* pin-to-compare tray — fixed at the bottom of the screen so pinned cards
+   stay visible while browsing other stations. A real page-level fixture,
+   not a widget, so position:fixed is fine here. */
+#pinned-tray {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 500;
+  background: var(--panel, #1a1d21); border-top: 1px solid var(--border, #3a3f44);
+  max-height: 40vh; display: flex; flex-direction: column;
+}
+.pinned-tray-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 16px; font-size: 12px; color: var(--muted, #9aa0a6);
+  border-bottom: 1px solid var(--border, #3a3f44);
+}
+.pinned-tray-clear {
+  background: none; border: 1px solid var(--border, #3a3f44); border-radius: 4px;
+  color: var(--muted, #9aa0a6); font-size: 11px; padding: 3px 8px; cursor: pointer;
+}
+.pinned-tray-clear:hover { color: var(--text, #e6e9ed); border-color: var(--muted); }
+.pinned-tray-cards {
+  display: flex; gap: 12px; padding: 10px 16px; overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: none;
+}
+.pinned-tray-cards::-webkit-scrollbar { display: none;
+}
+.pinned-tray-item { flex: 0 0 280px; cursor: pointer; }
+.pinned-tray-item-dragging { opacity: 0.4; }
+.pinned-tray-drag-handle { cursor: grab; color: var(--muted, #6c757d); margin-right: 2px; }
+.pinned-tray-drag-handle:active { cursor: grabbing; }
+.pinned-tray-station {
+  font-size: 11px; color: var(--muted, #9aa0a6); margin-bottom: 4px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.pinned-tray-unpin {
+  background: none; border: none; color: var(--muted, #9aa0a6); cursor: pointer;
+  font-size: 12px; padding: 0 2px;
+}
+.pinned-tray-unpin:hover { color: var(--text, #e6e9ed); }
+@keyframes marker-flash-pulse {
+  0%, 100% { filter: none; }
+  50% { filter: drop-shadow(0 0 6px #fff) brightness(1.6); }
+}
+.marker-flash { animation: marker-flash-pulse 0.4s ease-in-out 3; }
 
 /* Custom floating tooltip for chart-bar hover — replaces the plain browser
    title tooltip with a styled one showing the same year/count or
@@ -1256,21 +1386,106 @@ select optgroup {
 .mbar { font-size: 8px; text-align: center; color: #0b0c0e; font-weight: 700;
   border-radius: 2px; padding: 3px 0; line-height: 1; }
 
-/* plankton decade-means block (station panel) */
+/* plankton decade-means block — horizontal bar chart, folded into that
+   dataset's own accordion card (below Show Parameters) rather than sitting
+   separately at the end of the panel. */
 .dec-block {
-  border: 1px solid var(--border, #3a3f44); border-left: 3px solid var(--c);
-  border-radius: 6px; padding: 9px 11px; margin-bottom: 10px;
-  background: color-mix(in srgb, var(--c) 5%, var(--panel, #24272b));
+  margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border, #3a3f44);
 }
-.dec-head { font-size: 9px; text-transform: uppercase; letter-spacing: .06em;
-  color: var(--muted, #9aa0a6); margin-bottom: 5px; }
-.dec-row { display: flex; justify-content: space-between; align-items: baseline;
-  font-size: 11px; padding: 2px 0; border-top: 1px solid rgba(255, 255, 255, .04); }
-.dec-row:first-of-type { border-top: none; }
-.dec-yr { color: var(--text, #e6e9ed); font-variant-numeric: tabular-nums; }
-.dec-val { color: var(--text, #e6e9ed); font-weight: 700; font-variant-numeric: tabular-nums; }
-.dec-unit { color: var(--muted, #9aa0a6); font-weight: 400; font-size: 10px; }
-.dec-n { color: var(--muted, #6c757d); font-weight: 400; font-size: 10px; margin-left: 2px; }
+.dec-head {
+  font-size: 9px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted, #9aa0a6); margin-bottom: 2px;
+}
+.dec-head .dec-unit { text-transform: none; letter-spacing: 0; }
+.dec-col-labels {
+  display: grid; grid-template-columns: 44px 1fr 56px 40px; gap: 8px;
+  font-size: 9px; color: var(--muted, #6c757d); margin-bottom: 6px;
+}
+.dec-col-labels span:nth-child(3), .dec-col-labels span:nth-child(4) { text-align: right; }
+.dec-row {
+  display: grid; grid-template-columns: 44px 1fr 56px 40px;
+  align-items: center; gap: 8px; font-size: 11px; padding: 3px 0;
+}
+.dec-yr {
+  color: var(--muted, #9aa0a6); font-family: 'Space Mono', monospace; font-size: 10px;
+}
+.dec-bar-track {
+  height: 6px; border-radius: 3px; background: var(--surface, #24272b);
+  overflow: hidden;
+}
+.dec-bar-fill {
+  display: block; height: 100%; border-radius: 3px;
+  background: var(--c); transition: width 0.3s ease;
+}
+.dec-val {
+  color: var(--text, #e6e9ed); font-weight: 700; font-variant-numeric: tabular-nums;
+  font-family: 'Space Mono', monospace; white-space: nowrap; text-align: right;
+}
+.dec-n { color: var(--muted, #6c757d); font-weight: 400; text-align: right; font-variant-numeric: tabular-nums; }
+.dec-block-clickable { position: relative; transition: box-shadow 0.15s, border-color 0.15s; border-radius: 8px; padding: 4px 6px; margin: 6px -6px 0; }
+.dec-block-clickable:hover { box-shadow: 0 0 0 1px var(--accent); }
+.dec-block-expand-hint {
+  font-size: 9px; color: var(--muted, #9aa0a6); text-align: right; margin-top: 4px; opacity: 0;
+}
+.dec-block-clickable:hover .dec-block-expand-hint { opacity: 1; }
+.dec-block-large .dec-row, .dec-block-large .dec-col-labels { grid-template-columns: 70px 1fr 90px 60px; font-size: 14px; }
+.dec-block-large .dec-bar-track { height: 12px; }
+.dec-block-large .dec-yr { font-size: 13px; }
+
+/* station-panel tabs — Overview / Depth Profiles */
+.panel-tabs {
+  display: inline-flex; margin-bottom: 14px;
+  border: 1px solid var(--border, rgba(0, 194, 255, .15)); border-radius: 20px;
+  overflow: hidden;
+}
+.panel-tab {
+  background: none; border: none; cursor: pointer;
+  padding: 6px 14px;
+  font-size: 12px; color: var(--text); font-weight: 600;
+  transition: background 0.15s, color 0.15s;
+}
+.panel-tab:hover { background: rgba(255, 255, 255, .06); }
+.panel-tab.active { background: var(--accent); color: var(--deep); }
+.panel-tab-count {
+  font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted);
+  margin-left: 3px;
+}
+.panel-tab.active .panel-tab-count { color: var(--deep); opacity: .7; }
+
+/* depth profile rows (Depth Profiles tab) — one row per variable, flat list
+   style matching .data-link rather than a separate boxed-card look. Each row
+   is collapsed by default; the chart below only builds on first expand. */
+.depth-profile {
+  border-bottom: 1px solid rgba(255, 255, 255, .04);
+}
+.depth-profile:last-child { border-bottom: none; }
+.depth-profile-row-summary {
+  cursor: pointer; padding: 9px 4px; list-style: none;
+  display: flex; align-items: center; gap: 10px;
+  border-radius: 4px; transition: background 0.15s;
+}
+.depth-profile-row-summary::-webkit-details-marker { display: none; }
+.depth-profile-row-summary:hover { background: var(--surface); }
+.depth-profile-row-summary::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--c); flex: none;
+}
+.depth-profile-param { font-size: 13px; color: var(--text); flex: 1; }
+.depth-profile-meta {
+  font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted);
+  white-space: nowrap;
+}
+.depth-profile-range { color: var(--text, #ffffff); font-weight: 700; font-size: 13px; }
+.depth-profile-chart { padding: 4px 4px 14px 20px; }
+.dp-axis { stroke: var(--muted); stroke-opacity: .3; stroke-width: 1; }
+.dp-tick, .dp-axis-label { font-size: 9px; fill: var(--muted); font-family: 'Space Mono', monospace; }
+.dp-large .dp-tick, .dp-large .dp-axis-label { font-size: 14px; }
+.dp-large .dp-seafloor-label { font-size: 13px; }
+.dp-seafloor { stroke: var(--muted); stroke-opacity: .6; stroke-width: 1; stroke-dasharray: 3,3; }
+.dp-seafloor-label { font-size: 9px; fill: var(--muted); font-family: 'Space Mono', monospace; }
+.depth-dot { cursor: pointer; }
+.depth-profile-list { margin-top: 4px; }
+
 
 /* dropdown items (coverage view) */
 .dd-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px;
@@ -1280,6 +1495,19 @@ select optgroup {
 .dd-name { color: var(--text, #e6e9ed); font-size: 12px; font-weight: 700; }
 .dd-meta { margin-left: auto; color: var(--muted, #9aa0a6); font-size: 10px; }
 .dd-empty { padding: 10px; color: var(--muted, #9aa0a6); font-size: 12px; }
+/* group-type family members in the search dropdown (e.g. Temperature, backed
+   by 3 datasets) — toggle row matches .dd-item exactly so it doesn't read as
+   a different component; caret + "N datasets" replace the dot + normal meta.
+   Expanded options (.dd-item-nested) are the same row style again, just
+   indented, so the whole thing stays visually consistent top to bottom. */
+.dd-group-toggle { display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+  cursor: pointer; border-bottom: 1px solid var(--border, #2c3036); }
+.dd-group-toggle:hover { background: rgba(77,171,247,.12); }
+.dd-group-toggle .dd-name { display: flex; align-items: center; gap: 6px; }
+.dd-group-caret { color: var(--muted, #9aa0a6); font-size: 10px; }
+.dd-group-sources { background: rgba(255,255,255,.02); }
+.dd-item-nested { padding-left: 26px; }
+.dd-dot-empty { background: #4a4f57; border: none; }
 
 /* variable panel */
 .var-meta { font-size: 12px; color: var(--muted, #c1c7cd); display: flex;

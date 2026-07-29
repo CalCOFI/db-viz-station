@@ -457,6 +457,19 @@ let currentStation = null; // persists across variable selections — the back b
 let lastStationTab = 'overview';
 
 // ---- load prebuilt data ----
+// Fetches a gzip-compressed JSON file and decompresses it in the browser
+// (DecompressionStream is built into every modern browser — no library
+// needed). Used for depth_profiles.json, which got too big for GitHub
+// uncompressed. Same tolerant not-ok/error -> [] fallback as every other
+// optional data file here.
+async function fetchGzJson(url) {
+  const r = await fetch(url);
+  if (!r.ok) return [];
+  const ds = new DecompressionStream('gzip');
+  const decompressed = r.body.pipeThrough(ds);
+  const text = await new Response(decompressed).text();
+  return JSON.parse(text);
+}
 // decades.json (per-station decade-means for the plankton datasets) is optional —
 // tolerate its absence so the map still loads before the first refresh builds it.
 Promise.all([
@@ -465,8 +478,10 @@ Promise.all([
   fetch('./data/decades.json').then(r => r.ok ? r.json() : []).catch(() => []),
   // depth_profiles.json: one row per (dataset_key, station_id, variable_name, depth_m)
   // — built server-side the same way decades.json is (see build_decades.sql pattern).
+  // Shipped gzip-compressed (depth_profiles.json.gz) since the raw file was too
+  // big for GitHub — fetchGzJson decompresses it client-side.
   // Optional/tolerant of absence for the same reason: map should still load pre-refresh.
-  fetch('./data/depth_profiles.json').then(r => r.ok ? r.json() : []).catch(() => []),
+  fetchGzJson('./data/depth_profiles.json.gz').catch(() => []),
   // taxon_coverage.json: one row per (grid_key, aphia_id) — per-taxon station
   // coverage, separate from the per-dataset coverage baked into stations.json.
   // Optional and additive: when absent, station counts/highlighting fall back

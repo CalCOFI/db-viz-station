@@ -14,16 +14,16 @@ erdCalCOFItows,CalCOFI NOAA Ichthyoplankton Tows,bio,swfsc_ichthyo,matching,tow/
 erdCalCOFIinvcnt,Invertebrate count (Cephalopods),bio,swfsc_invert,matching,swfsc_invert folded into swfsc_ichthyo per prior merge
 erdCalCOFIinvsiz,Invertebrate size (Cephalopods),bio,swfsc_invert,matching,swfsc_invert folded into swfsc_ichthyo
 erdCalCOFIcufes,CalCOFI NOAA Continuous Underway Fish-Egg Sampler (CUFES),bio,swfsc_cufes,matching,underway fish eggs
-erdCalCOFIzoovol,Zooplankton biovolume,bio,pic_zooplankton,matching,SIO PIC net-tow biovolume
+erdCalCOFIzoovol,Zooplankton biovolume,bio,sio_pic-zooplankton,matching,SIO PIC net-tow biovolume
 euphausiid,CalCOFI Euphausiid Database,bio,cce-lter_euphausiids,matching,krill abundance by species/life-stage
 /euphausiid/save.php?mode=save,Krill (Euphausiids),bio,cce-lter_euphausiids,matching,duplicate access-URL entry of euphausiid
 zoodb,CalCOFI ZooDB,bio,cce-lter_zoodb,matching,holoplankton community
 zoodb/save.php?mode=save,Permanent zooplankton (Holoplankton) community: ZooDb,bio,cce-lter_zoodb,matching,duplicate access-URL entry of zoodb
 datazoo/catalogs/ccelter/datasets/254,Phytoplankton community (visual estimates),bio,calcofi_phytoplankton,matching,"Venrick EDI knb-lter-cce.254; NOTE calcofi_phytoplankton is in measurement_type but missing from metadata/dataset.csv"
-CAC_FI_SBAS_obs,CalCOFI Farallon Institute Seabirds: Observations,bio,calcofi_bird_mammal_census,partial,Farallon Institute seabird obs; overlaps bird/mammal census (different provider slice)
-CAC_FI_SBAS_sp,CalCOFI Farallon Institute Seabirds: Transect Log,bio,calcofi_bird_mammal_census,partial,transect log for seabird census
-CAC_FL_SBAS_tr,CalCOFI Farallon Institute Seabirds: Species Table,bio,calcofi_bird_mammal_census,partial,species table for seabird census
-knb-lter-cce.262.2,Marine mammal sightings- underway,bio,calcofi_bird_mammal_census,partial,CCE-LTER underway mammal sightings vs CalCOFI census; different source
+CAC_FI_SBAS_obs,CalCOFI Farallon Institute Seabirds: Observations,bio,farallon_bird-mammal,partial,Farallon Institute seabird obs; overlaps bird/mammal census (different provider slice)
+CAC_FI_SBAS_sp,CalCOFI Farallon Institute Seabirds: Transect Log,bio,farallon_bird-mammal,partial,transect log for seabird census
+CAC_FL_SBAS_tr,CalCOFI Farallon Institute Seabirds: Species Table,bio,farallon_bird-mammal,partial,species table for seabird census
+knb-lter-cce.262.2,Marine mammal sightings- underway,bio,farallon_bird-mammal,partial,CCE-LTER underway mammal sightings vs CalCOFI census; different source
 datazoo/catalogs/ccelter/datasets/159,Heterotrophic bacteria & picoautotrophs,bio,,missing,microbial abundance not ingested
 knb-lter-cce.188.4,Dungeness crab postlarvae (Metacarcinus/Cancer magister),bio,,missing,crab megalopae; not ingested (calcofi_phyllosoma is spiny-lobster larvae)
 nt620vn7810,Stanford CalCOFI zooplankton data,bio,,missing,Stanford historical zooplankton archive; not ingested

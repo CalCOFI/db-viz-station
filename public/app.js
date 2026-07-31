@@ -25,32 +25,32 @@ const DATASET_OFFICIAL_NAME = {
   'calcofi_phytoplankton': 'CalCOFI Phytoplankton (Venrick)',
   'swfsc_ichthyo': 'CalCOFI NOAA Ichthyoplankton Tows',
   'swfsc_cufes': 'CalCOFI NOAA Continuous Underway Fish-Egg Sampler (CUFES)',
-  'pic_zooplankton': 'SIO PIC Net-Tow Biovolume',
+  'sio_pic-zooplankton': 'SIO PIC Net-Tow Biovolume',
   'cce-lter_euphausiids': 'CalCOFI Euphausiid Database',
   'calcofi_phyllosoma': 'CalCOFI Lobster Phyllosoma',
   'cce-lter_zoodb': 'CalCOFI ZooDB',
   'cce-lter_zooscan': 'ZooScan PRPOOS Zooplankton',
-  'calcofi_bird_mammal_census': 'CalCOFI Bird & Mammal Census',
+  'farallon_bird-mammal': 'CalCOFI Bird & Mammal Census',
 };
 const DATASET_META = {
-  'calcofi_bottle':             { label: 'Hydrographic Bottle',              realm: 'env', color: '#4dabf7' },
+  'calcofi_bottle':        { label: 'Hydrographic Bottle',              realm: 'env', color: '#4dabf7' },
   // Synthetic keys, not a real dataset_key on any variable — exist only so
   // the top-level "By Dataset" list can show Bottle vs Cast as two separate
   // rows (see inventoryVarsFor/buildCategories). Same color/realm as the
   // real calcofi_bottle entry above since they're the same underlying table.
-  'calcofi_bottle_hydro':        { label: 'Hydrographic Bottle',              realm: 'env', color: '#4dabf7' },
-  'calcofi_bottle_cast':         { label: 'Hydrographic Cast',                realm: 'env', color: '#be8c63' },
-  'calcofi_ctd-cast':           { label: 'CTD Cast Files',                  realm: 'env', color: '#3bc9db' },
-  'calcofi_dic':                { label: 'Carbonate Chemistry / DIC',        realm: 'env', color: '#63e6be' },
-  'calcofi_phytoplankton':      { label: 'Phytoplankton',                    realm: 'bio', color: '#12b886' },
-  'swfsc_ichthyo':              { label: 'Ichthyoplankton (Fish Eggs & Larvae)', realm: 'bio', color: '#ffa94d' },
-  'swfsc_cufes':                { label: 'CUFES Fish Eggs',                  realm: 'bio', color: '#ffd43b' },
-  'pic_zooplankton':            { label: 'Zooplankton',                     realm: 'bio', color: '#69db7c' },
-  'cce-lter_euphausiids':       { label: 'Euphausiids (Krill)',              realm: 'bio', color: '#b197fc' },
-  'calcofi_phyllosoma':         { label: 'Phyllosoma (Lobster Larvae)',      realm: 'bio', color: '#f783ac' },
-  'cce-lter_zoodb':             { label: 'ZooDB (Holoplankton Community)',   realm: 'bio', color: '#38d9a9' },
-  'cce-lter_zooscan':           { label: 'ZooScan (Imaged Zooplankton)',     realm: 'bio', color: '#a9e34b' },
-  'calcofi_bird_mammal_census': { label: 'Seabirds & Marine Mammals',        realm: 'bio', color: '#ff8787' }
+  'calcofi_bottle_hydro':  { label: 'Hydrographic Bottle',              realm: 'env', color: '#4dabf7' },
+  'calcofi_bottle_cast':   { label: 'Hydrographic Cast',                realm: 'env', color: '#be8c63' },
+  'calcofi_ctd-cast':      { label: 'CTD Cast Files',                  realm: 'env', color: '#3bc9db' },
+  'calcofi_dic':           { label: 'Carbonate Chemistry / DIC',        realm: 'env', color: '#63e6be' },
+  'calcofi_phytoplankton': { label: 'Phytoplankton',                    realm: 'bio', color: '#12b886' },
+  'swfsc_ichthyo':         { label: 'Ichthyoplankton (Fish Eggs & Larvae)', realm: 'bio', color: '#ffa94d' },
+  'swfsc_cufes':           { label: 'CUFES Fish Eggs',                  realm: 'bio', color: '#ffd43b' },
+  'sio_pic-zooplankton':   { label: 'Zooplankton',                     realm: 'bio', color: '#69db7c' },
+  'cce-lter_euphausiids':  { label: 'Euphausiids (Krill)',              realm: 'bio', color: '#b197fc' },
+  'calcofi_phyllosoma':    { label: 'Phyllosoma (Lobster Larvae)',      realm: 'bio', color: '#f783ac' },
+  'cce-lter_zoodb':        { label: 'ZooDB (Holoplankton Community)',   realm: 'bio', color: '#38d9a9' },
+  'cce-lter_zooscan':      { label: 'ZooScan (Imaged Zooplankton)',     realm: 'bio', color: '#a9e34b' },
+  'farallon_bird-mammal':  { label: 'Seabirds & Marine Mammals',        realm: 'bio', color: '#ff8787' }
 };
 const dsMeta = id => DATASET_META[id] || { label: id, realm: 'bio', color: '#adb5bd' };
 // A few calcofi_bottle variables (dry_air_temp, wet_air_temp) were actually
@@ -842,8 +842,8 @@ function contentKeywordGroup(v) {
 const DATASET_CATEGORY = {
   'swfsc_ichthyo': 'Fish Eggs & Larvae', 'swfsc_cufes': 'Fish Eggs & Larvae',
   'cce-lter_zoodb': 'Zooplankton', 'cce-lter_zooscan': 'Zooplankton',
-  'pic_zooplankton': 'Zooplankton', 'calcofi_phyllosoma': 'Zooplankton',
-  'cce-lter_euphausiids': 'Euphausiids (Krill)', 'calcofi_bird_mammal_census': 'Seabirds & Marine Mammals',
+  'sio_pic-zooplankton': 'Zooplankton', 'calcofi_phyllosoma': 'Zooplankton',
+  'cce-lter_euphausiids': 'Euphausiids (Krill)', 'farallon_bird-mammal': 'Seabirds & Marine Mammals',
   'calcofi_phytoplankton': 'Phytoplankton'
 };
 function categoryOf(v) {

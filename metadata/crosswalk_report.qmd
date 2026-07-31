@@ -132,7 +132,7 @@ biological program the portal advertises resolves to an integrated-DB dataset:
 hydrographic bottle → `calcofi_bottle`, CTD → `calcofi_ctd-cast`, carbonate
 chemistry → `calcofi_dic`, the six ERDDAP ichthyoplankton tables →
 `swfsc_ichthyo`, CUFES → `swfsc_cufes`, zooplankton biovolume →
-`pic_zooplankton`, euphausiids → `cce-lter_euphausiids`, ZooDB → `cce-lter_zoodb`,
+`sio_pic-zooplankton`, euphausiids → `cce-lter_euphausiids`, ZooDB → `cce-lter_zoodb`,
 phytoplankton → `calcofi_phytoplankton`.
 
 **Ingest backlog (portal advertises, DB lacks — `missing`):**
@@ -149,7 +149,7 @@ observation model).
 
 **Partial mappings to review (`partial`):**
 `r glue::glue_collapse(partial_ds, sep = "; ")` all fold into
-`calcofi_bird_mammal_census`, but come from different provider slices (Farallon
+`farallon_bird-mammal`, but come from different provider slices (Farallon
 Institute seabirds; CCE-LTER underway mammal sightings) than the CalCOFI census
 — confirm these are the same underlying observations before merging.
 

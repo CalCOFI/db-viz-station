@@ -9,7 +9,7 @@
   },
   {
     "dataset_id": "erdCalCOFIeggcnt",
-    "name": "CalCOFI NOAA Fish Egg Counts\u00a0",
+    "name": "CalCOFI NOAA Fish Egg Counts",
     "url": "https://coastwatch.pfeg.noaa.gov/erddap/tabledap/erdCalCOFIeggcnt.html",
     "platform": "erddap",
     "base_url": "https://coastwatch.pfeg.noaa.gov/",
@@ -17,7 +17,7 @@
   },
   {
     "dataset_id": "erdCalCOFIeggstg",
-    "name": "CalCOFI NOAA Fish Egg Stages\u00a0",
+    "name": "CalCOFI NOAA Fish Egg Stages",
     "url": "https://coastwatch.pfeg.noaa.gov/erddap/tabledap/erdCalCOFIeggstg.html",
     "platform": "erddap",
     "base_url": "https://coastwatch.pfeg.noaa.gov/",
@@ -25,7 +25,7 @@
   },
   {
     "dataset_id": "erdCalCOFIinvcnt",
-    "name": "Invertebrate count (Cephalopods)",
+    "name": "Invertebrate Count (Cephalopods)",
     "url": "https://coastwatch.pfeg.noaa.gov/erddap/tabledap/erdCalCOFIinvcnt.html",
     "platform": "erddap",
     "base_url": "https://coastwatch.pfeg.noaa.gov/",
@@ -33,7 +33,7 @@
   },
   {
     "dataset_id": "erdCalCOFIinvsiz",
-    "name": "Invertebrate size (Cephalopods)",
+    "name": "Invertebrate Size (Cephalopods)",
     "url": "https://coastwatch.pfeg.noaa.gov/erddap/tabledap/erdCalCOFIinvsiz.html",
     "platform": "erddap",
     "base_url": "https://coastwatch.pfeg.noaa.gov/",
@@ -41,7 +41,7 @@
   },
   {
     "dataset_id": "erdCalCOFIlrvcnt",
-    "name": "CalCOFI NOAA Fish Larvae Counts\u00a0",
+    "name": "CalCOFI NOAA Fish Larvae Counts",
     "url": "https://coastwatch.pfeg.noaa.gov/erddap/tabledap/erdCalCOFIlrvcnt.html",
     "platform": "erddap",
     "base_url": "https://coastwatch.pfeg.noaa.gov/",
@@ -49,7 +49,7 @@
   },
   {
     "dataset_id": "erdCalCOFIlrvsiz",
-    "name": "CalCOFI NOAA Fish Larvae Sizes\u00a0",
+    "name": "CalCOFI NOAA Fish Larvae Sizes",
     "url": "https://coastwatch.pfeg.noaa.gov/erddap/tabledap/erdCalCOFIlrvsiz.html",
     "platform": "erddap",
     "base_url": "https://coastwatch.pfeg.noaa.gov/",
@@ -57,7 +57,7 @@
   },
   {
     "dataset_id": "erdCalCOFIlrvstg",
-    "name": "CalCOFI NOAA Fish Larvae Stages\u00a0",
+    "name": "CalCOFI NOAA Fish Larvae Stages",
     "url": "https://coastwatch.pfeg.noaa.gov/erddap/tabledap/erdCalCOFIlrvstg.html",
     "platform": "erddap",
     "base_url": "https://coastwatch.pfeg.noaa.gov/",
@@ -65,7 +65,7 @@
   },
   {
     "dataset_id": "siocalcofiHydroBottle",
-    "name": "CalCOFI SIO Hydrographic Bottle Data\u00a0",
+    "name": "CalCOFI SIO Hydrographic Bottle Data",
     "url": "https://coastwatch.pfeg.noaa.gov/erddap/tabledap/siocalcofiHydroBottle.html",
     "platform": "erddap",
     "base_url": "https://coastwatch.pfeg.noaa.gov/",
@@ -73,7 +73,7 @@
   },
   {
     "dataset_id": "siocalcofiHydroCast",
-    "name": "CalCOFI SIO Hydrographic Cast Data\u00a0",
+    "name": "CalCOFI SIO Hydrographic Cast Data",
     "url": "https://coastwatch.pfeg.noaa.gov/erddap/tabledap/siocalcofiHydroCast.html",
     "platform": "erddap",
     "base_url": "https://coastwatch.pfeg.noaa.gov/",
@@ -81,7 +81,7 @@
   },
   {
     "dataset_id": "erdCalCOFIzoovol",
-    "name": "Zooplankton biovolume",
+    "name": "Zooplankton Biovolume",
     "url": "https://coastwatch.pfeg.noaa.gov/erddap/tabledap/erdCalCOFIzoovol.html",
     "platform": "erddap",
     "base_url": "https://coastwatch.pfeg.noaa.gov/",
@@ -105,7 +105,7 @@
   },
   {
     "dataset_id": "CAC_FL_SBAS_tr",
-    "name": "CalCOFI Farallon Institute Seabirds: Species Table\u00a0",
+    "name": "CalCOFI Farallon Institute Seabirds: Species Table",
     "url": "https://coastwatch.pfeg.noaa.gov/erddap/tabledap/CAC_FI_SBAS_tr.html",
     "platform": "erddap",
     "base_url": "https://coastwatch.pfeg.noaa.gov/",
@@ -113,7 +113,7 @@
   },
   {
     "dataset_id": "datazoo/catalogs/ccelter/datasets/254",
-    "name": "Phytoplankton community (visual estimates)",
+    "name": "Phytoplankton Community (Visual Estimates)",
     "url": "https://oceaninformatics.ucsd.edu/datazoo/catalogs/ccelter/datasets/254",
     "platform": "ucsd",
     "base_url": "https://oceaninformatics.ucsd.edu/",
@@ -121,7 +121,7 @@
   },
   {
     "dataset_id": "zoodb/save.php?mode=save",
-    "name": "Permanent zooplankton (Holoplankton) community: ZooDb",
+    "name": "Permanent Zooplankton (Holoplankton) Community: ZooDb",
     "url": "https://oceaninformatics.ucsd.edu/zoodb/",
     "platform": "ucsd",
     "base_url": "https://oceaninformatics.ucsd.edu/",
@@ -129,7 +129,7 @@
   },
   {
     "dataset_id": "knb-lter-cce.188.4",
-    "name": "Dungeness crab postlarvae (Metacarcinus/Cancer magister)",
+    "name": "Dungeness Crab Postlarvae (Metacarcinus/Cancer magister)",
     "url": "https://portal.edirepository.org/nis/mapbrowse?packageid=knb-lter-cce.188.4",
     "platform": null,
     "base_url": "https://portal.edirepository.org/nis/mapbrowse?packageid=",
@@ -137,7 +137,7 @@
   },
   {
     "dataset_id": "knb-lter-cce.262.2",
-    "name": "Marine mammal sightings- underway",
+    "name": "Marine Mammal Sightings- Underway",
     "url": "https://portal.edirepository.org/nis/mapbrowse?packageid=knb-lter-cce.262.2",
     "platform": null,
     "base_url": "https://portal.edirepository.org/nis/mapbrowse?packageid=",
@@ -153,7 +153,7 @@
   },
   {
     "dataset_id": "gov.noaa.nodc:0301029",
-    "name": "Carbonate chemistry - bottles",
+    "name": "Carbonate Chemistry - Bottles",
     "url": "https://www.ncei.noaa.gov/access/metadata/landing-page/bin/iso?id=gov.noaa.nodc:0301029",
     "platform": null,
     "base_url": "https://www.ncei.noaa.gov/access/metadata/landing-page/bin/iso?id=",
@@ -161,7 +161,7 @@
   },
   {
     "dataset_id": "555783",
-    "name": "Genomics of microbial/plankton assemblage (ASVs) - 16S",
+    "name": "Genomics of Microbial/Plankton Assemblage (ASVs) - 16S",
     "url": "https://www.ncbi.nlm.nih.gov/bioproject/555783",
     "platform": null,
     "base_url": "https://www.ncbi.nlm.nih.gov/bioproject/",
@@ -185,7 +185,7 @@
   },
   {
     "dataset_id": "erdCalCOFINOAAhydros",
-    "name": "CalCOFI NOAA Additional CTD\u00a0",
+    "name": "CalCOFI NOAA Additional CTD",
     "url": "https://coastwatch.pfeg.noaa.gov/erddap/tabledap/erdCalCOFINOAAhydros.html",
     "platform": "erddap",
     "base_url": "https://coastwatch.pfeg.noaa.gov/",
@@ -193,7 +193,7 @@
   },
   {
     "dataset_id": "ctd-cast-files/",
-    "name": "CTD cast data (SIO)",
+    "name": "CTD Cast Data (SIO)",
     "url": "https://calcofi.org/data/oceanographic-data/ctd-cast-files/",
     "platform": null,
     "base_url": "https://calcofi.org/data/oceanographic-data/",
@@ -201,7 +201,7 @@
   },
   {
     "dataset_id": "underway/",
-    "name": "Weather - underway/METS data",
+    "name": "Weather - Underway/METS Data",
     "url": "https://calcofi.org/data/oceanographic-data/underway/",
     "platform": null,
     "base_url": "https://calcofi.org/data/oceanographic-data/",
@@ -209,7 +209,7 @@
   },
   {
     "dataset_id": "datazoo/catalogs/ccelter/datasets/159",
-    "name": "Heterotrophic bacteria & picoautotrophs",
+    "name": "Heterotrophic Bacteria & Picoautotrophs",
     "url": "https://oceaninformatics.ucsd.edu/datazoo/catalogs/ccelter/datasets/159",
     "platform": null,
     "base_url": "https://oceaninformatics.ucsd.edu/",
@@ -217,7 +217,7 @@
   },
   {
     "dataset_id": "nt620vn7810",
-    "name": "Stanford CalCOFI zooplankton data",
+    "name": "Stanford CalCOFI Zooplankton Data",
     "url": "https://doi.org/10.25740/nt620vn7810",
     "platform": null,
     "base_url": "https://doi.org/10.25740/",
@@ -225,7 +225,7 @@
   },
   {
     "dataset_id": "ruizt/marine-mammal-edna",
-    "name": "Genomics of plankton assemblage (ASVs) - 18S",
+    "name": "Genomics of Plankton Assemblage (ASVs) - 18S",
     "url": "https://github.com/ruizt/marine-mammal-edna",
     "platform": null,
     "base_url": "https://github.com/",

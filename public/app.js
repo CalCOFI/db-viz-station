@@ -9,7 +9,7 @@
 // ---- map (dark basemap, matching calcofi.io/db-schema palette) ----
 const map = L.map('map', { center: [32.8, -120.2], zoom: 6, worldCopyJump: true })
   .addLayer(L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution: '© OpenStreetMap · © CARTO', subdomains: 'abcd', maxZoom: 19 }));
+    attribution: '© OpenStreetMap · © CARTO', subdomains: 'abcd', maxZoom: 19, crossOrigin: true }));
 
 // dataset display metadata: label + color + realm (env = cool, bio = warm)
 // Official dataset names — Betty's original app's exact titles where they
@@ -26,11 +26,17 @@ const DATASET_OFFICIAL_NAME = {
   'swfsc_ichthyo': 'CalCOFI NOAA Ichthyoplankton Tows',
   'swfsc_cufes': 'CalCOFI NOAA Continuous Underway Fish-Egg Sampler (CUFES)',
   'sio_pic-zooplankton': 'SIO PIC Net-Tow Biovolume',
+  'pic_zooplankton': 'SIO PIC Net-Tow Biovolume', // pre-rename key — still what's actually ingested as of 2026-08
   'cce-lter_euphausiids': 'CalCOFI Euphausiid Database',
   'calcofi_phyllosoma': 'CalCOFI Lobster Phyllosoma',
   'cce-lter_zoodb': 'CalCOFI ZooDB',
   'cce-lter_zooscan': 'ZooScan PRPOOS Zooplankton',
   'farallon_bird-mammal': 'CalCOFI Bird & Mammal Census',
+  'calcofi_bird_mammal_census': 'CalCOFI Bird & Mammal Census', // pre-rename key — still what's actually ingested as of 2026-08
+  'calcofi_mets': 'CalCOFI Underway Meteorological (METS) Data',
+  'sio_mesopelagic-fish': 'CalCOFI Mesopelagic Fish Archive',
+  'ucsd_sio_mesopelagic-fish': 'CalCOFI Mesopelagic Fish Archive', // pre-rename key — still what's actually ingested as of 2026-08
+  'cce-lter_picoplankton-bacteria': 'CCE-LTER Picoplankton & Bacteria',
 };
 const DATASET_META = {
   'calcofi_bottle':        { label: 'Hydrographic Bottle',              realm: 'env', color: '#4dabf7' },
@@ -46,13 +52,22 @@ const DATASET_META = {
   'swfsc_ichthyo':         { label: 'Ichthyoplankton (Fish Eggs & Larvae)', realm: 'bio', color: '#ffa94d' },
   'swfsc_cufes':           { label: 'CUFES Fish Eggs',                  realm: 'bio', color: '#ffd43b' },
   'sio_pic-zooplankton':   { label: 'Zooplankton',                     realm: 'bio', color: '#69db7c' },
+  'pic_zooplankton':       { label: 'Zooplankton',                     realm: 'bio', color: '#69db7c' }, // pre-rename key — still what's actually ingested as of 2026-08
   'cce-lter_euphausiids':  { label: 'Euphausiids (Krill)',              realm: 'bio', color: '#b197fc' },
   'calcofi_phyllosoma':    { label: 'Phyllosoma (Lobster Larvae)',      realm: 'bio', color: '#f783ac' },
   'cce-lter_zoodb':        { label: 'ZooDB (Holoplankton Community)',   realm: 'bio', color: '#38d9a9' },
   'cce-lter_zooscan':      { label: 'ZooScan (Imaged Zooplankton)',     realm: 'bio', color: '#a9e34b' },
-  'farallon_bird-mammal':  { label: 'Seabirds & Marine Mammals',        realm: 'bio', color: '#ff8787' }
+  'farallon_bird-mammal':  { label: 'Seabirds & Marine Mammals',        realm: 'bio', color: '#ff8787' },
+  'calcofi_bird_mammal_census': { label: 'Seabirds & Marine Mammals',   realm: 'bio', color: '#ff8787' }, // pre-rename key — still what's actually ingested as of 2026-08
+  'calcofi_mets':          { label: 'Underway Meteorological (METS) Data', realm: 'env', color: '#74c0fc' },
+  'sio_mesopelagic-fish': { label: 'Mesopelagic Fish',             realm: 'bio', color: '#5c7cfa' },
+  'ucsd_sio_mesopelagic-fish': { label: 'Mesopelagic Fish',             realm: 'bio', color: '#5c7cfa' }, // pre-rename key — still what's actually ingested as of 2026-08
+  'cce-lter_picoplankton-bacteria': { label: 'Picoplankton & Bacteria', realm: 'bio', color: '#94d82d' }
 };
 const dsMeta = id => DATASET_META[id] || { label: id, realm: 'bio', color: '#adb5bd' };
+// Fallback external link for datasets whose variables carry no
+// source.access_url in the data itself — currently just METS.
+const DATASET_URL_FALLBACK = { 'calcofi_mets': 'https://calcofi.org/data/oceanographic-data/underway/' };
 // A few calcofi_bottle variables (dry_air_temp, wet_air_temp) were actually
 // collected as part of the Hydrographic CAST program, not the Bottle
 // program — they share calcofi_bottle's dataset_key because both portal
@@ -85,6 +100,7 @@ function datasetColorFor(v) {
   return dsMeta(v.dataset_key).color;
 }
 const MONTHS = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 // ---- display-name cleanup — ported from Betty's original station-portal
 // build. The release DB's raw variable names are still snake_case for the
@@ -128,6 +144,78 @@ const DISPLAY_NAME_FIXES = {
   'thetys vagina': 'Giant Salp (Thetys vagina)',
   'tomopteris spp.': 'Polychaete Worm (Tomopteris spp.)',
   'atlanta spp.': 'Sea Butterfly Heteropod (Atlanta spp.)',
+  // Higher-rank ZooDB/ZooScan taxa with well-established English common
+  // names. Family-level taxa (Aetideidae, Calanidae, Candaciidae,
+  // Eucalanidae, Euchaetidae, Heterorhabdidae, Lucicutiidae, Metridinidae,
+  // Oithonidae, Pasiphaeidae, Pontellidae, Scolecitrichidae, Tomopteridae,
+  // Galatheidae, Atlantidae) and a few suborders (Ergasilida) are left out —
+  // no real common name in general use, just the scientific name.
+  'panulirus interruptus': 'California Spiny Lobster (Panulirus interruptus)',
+  'appendicularia': 'Larvacean (Appendicularia)',
+  'calanoida': 'Calanoid Copepod (Calanoida)',
+  'chaetognatha': 'Arrow Worm (Chaetognatha)',
+  'copepoda': 'Copepod (Copepoda)',
+  'doliolida': 'Doliolid (Doliolida)',
+  'euthecosomata': 'Shelled Pteropod (Euthecosomata)',
+  'foraminifera': 'Foraminiferan (Foraminifera)',
+  'gammaridea': 'Gammarid Amphipod (Gammaridea)',
+  'gymnosomata': 'Naked Pteropod (Gymnosomata)',
+  'hydrozoa': 'Hydrozoan (Hydrozoa)',
+  'hyperiidea': 'Hyperiid Amphipod (Hyperiidea)',
+  'ostracoda': 'Ostracod (Ostracoda)',
+  'pseudothecosomata': 'Shelled Pteropod (Pseudothecosomata)',
+  'pyrosomatida': 'Pyrosome (Pyrosomatida)',
+  'radiozoa': 'Radiolarian (Radiozoa)',
+  'sergestoidea': 'Sergestid Shrimp (Sergestoidea)',
+  'bryozoa': 'Bryozoan (Bryozoa)',
+  'euphausiacea': 'Krill (Euphausiacea)',
+  'harpacticoida': 'Harpacticoid Copepod (Harpacticoida)',
+  'polychaeta': 'Bristle Worm (Polychaeta)',
+  'rhizaria': 'Rhizarian (Rhizaria)',
+  // CCE-LTER Picoplankton & Bacteria — raw field is 'het_bacteria', cleans to
+  // 'het bacteria' via cleanFieldName(); title-casing alone would leave "Het"
+  // instead of spelling out "Heterotrophic".
+  'het bacteria': 'Heterotrophic Bacteria',
+  // Phytoplankton class-level taxa — well-established common names. The
+  // genus/species entries below them (Leucocryptos marina, Meringosphaera,
+  // Phaeocystis, Pterosperma spp., Richelia intracellularis) have no real
+  // common name in general use, so those are left as scientific names only.
+  'bacillariophyceae': 'Diatom (Bacillariophyceae)',
+  'coccolithophyceae': 'Coccolithophore (Coccolithophyceae)',
+  'dictyochophyceae': 'Silicoflagellate (Dictyochophyceae)',
+  'dinophyceae': 'Dinoflagellate (Dinophyceae)',
+  // calcofi_mets (Underway METS) — raw fields are heavily abbreviated
+  // (temp/pct/rad/dir/deg/etc.), so toTitleCase() alone produces things
+  // like "Atm Pressure Slc Mb" instead of a real label.
+  'oxygen sat pct': 'Oxygen Saturation',
+  'oxygen temp c': 'Oxygen Sensor Temperature',
+  'air temp c': 'Air Temperature',
+  'atm pressure mb': 'Atmospheric Pressure',
+  'atm pressure slc mb': 'Atmospheric Pressure (SLC)',
+  'bottom depth m': 'Bottom Depth',
+  'bottom depth mb m': 'Bottom Depth (MB)',
+  'transmissometer v': 'Transmissometer (Voltage)',
+  'uws flow': 'Underway Seawater Flow Rate',
+  'wind dir deg': 'Wind Direction',
+  'wind speed ms': 'Wind Speed',
+  'long wave rad': 'Long-wave Radiation',
+  'short wave rad': 'Short-wave Radiation',
+  'rel humidity pct': 'Relative Humidity',
+  'sw ph': 'Seawater pH',
+  'dic pco2 raw': 'pCO2',
+  'dic ph raw': 'pH (Raw)',
+  'dic salinity psu': 'Salinity (DIC Analyzer)',
+  'dic temp c': 'Temperature (DIC Analyzer)',
+  'dic valve': 'DIC Analyzer Valve Position',
+  'pred chl': 'Chlorophyll (Predicted)',
+  'pred sal psu': 'Salinity (Predicted)',
+  'chl fluor': 'Chlorophyll Fluorescence',
+  'par surf': 'PAR (Surface)',
+  'ss conductivity': 'Sea Surface Conductivity',
+  'sst c': 'Sea Surface Temperature',
+  'sst c corrected': 'Sea Surface Temperature (Corrected)',
+  'sss psu': 'Sea Surface Salinity',
+  'sss psu corrected': 'Sea Surface Salinity (Corrected)',
   // Euphausiid common names
   'Bentheuphausia amblyops': 'Deep-sea Krill (Bentheuphausia amblyops)',
   'Euphausia brevis': 'Short Krill (Euphausia brevis)',
@@ -178,8 +266,8 @@ const DISPLAY_NAME_FIXES = {
   'Secchi': 'Secchi Depth', 'secchi': 'Secchi Depth',
   'Mesh Size ()': 'Mesh Size', 'mesh size ()': 'Mesh Size',
   // release-DB-specific (not in the old ERDDAP pipeline)
-  'dic': 'DIC', 'oxygen ml l': 'Oxygen', 'oxygen umol kg': 'Oxygen',
-  'par': 'PAR', 'spar': 'Surface PAR', 'isus v': 'ISUS Voltage',
+  'dic': 'Dissolved Inorganic Carbon (DIC)', 'oxygen ml l': 'Oxygen', 'oxygen umol kg': 'Oxygen',
+  'par': 'PAR', 'spar': 'Surface PAR', 'isus v': 'In-Situ Ultraviolet Spectrophotometer (ISUS) Voltage',
   'ctdtemp its90': 'CTD (Conductivity, Temperature, Depth) Temperature (ITS-90)', 'salinity pss78': 'Salinity (PSS-78)',
   'est chlorophyll a': 'Est. Chlorophyll-a',
   'light pct': 'Light Percentage', 'fluorescence v': 'Fluorescence Voltage',
@@ -275,7 +363,35 @@ function dedupeDepthVars(byVar) {
 function taxonLabel(v) {
   if (v.variable_type !== 'taxon') return displayLabel(v);
   const sci = (v.name || '').trim();
-  const commonName = v.common_name;
+  // common_name is patched in from several different source pipelines
+  // (ucsd_sio_mesopelagic-fish, ZooDB, Ichthyoplankton, ...) with no shared
+  // casing guarantee, so it's normalized to title case here. Minor
+  // connector words (of/and/the/a/an/in/on/at/for/to/from/with) stay
+  // lowercase unless they're the first word, so "man-of-war fish" becomes
+  // "Man-of-War Fish", not "Man-Of-War Fish" or "Man-of-war Fish".
+  const MINOR_WORDS = new Set(['of', 'and', 'the', 'a', 'an', 'in', 'on', 'at', 'for', 'to', 'from', 'with']);
+  const titleCaseCommonName = str => {
+    let firstWord = true;
+    return str.replace(/[A-Za-z']+/g, word => {
+      const lower = word.toLowerCase();
+      const isMinor = MINOR_WORDS.has(lower) && !firstWord;
+      firstWord = false;
+      return isMinor ? lower : lower.charAt(0).toUpperCase() + lower.slice(1);
+    });
+  };
+  let commonName = v.common_name ? titleCaseCommonName(v.common_name) : null;
+  // Single-word sci names (Copepoda, Chaetognatha, ...) with no common_name
+  // in the source data fall back to the manually-curated DISPLAY_NAME_FIXES
+  // list, keyed by lowercase sci name as "Common Name (Sci Name)". Pull
+  // just the common-name half out so it renders through the same styled
+  // wrapper below as data-sourced common names — otherwise these fell
+  // through to the plain, unstyled displayLabel() path and their
+  // parenthetical looked inconsistent with the rest of the list.
+  if (!commonName) {
+    const fixed = DISPLAY_NAME_FIXES[sci.toLowerCase()];
+    const m = fixed && fixed.match(/^(.*)\s\([^()]+\)$/);
+    if (m) commonName = m[1];
+  }
   if (commonName && sci && commonName.toLowerCase() !== sci.toLowerCase() && !sci.includes('(')) {
     return `${commonName} <i style="color:var(--muted);font-weight:400;">(${sci})</i>`;
   }
@@ -380,61 +496,74 @@ const REMOVE_VARS = new Set([
   // whether to restore it as its own family member (see Potential Temp,
   // restored above, for the same fix pattern).
   'calcofi_ctd-cast::specific_volume_anomaly', 'calcofi_bottle::r_salinity_sva',
+  // Unidentified METS fields — no known meaning, can't be named/categorized
+  // responsibly. Re-add once the source column mapping is found.
+  'calcofi_mets::unknown_measurement_1', 'calcofi_mets::unknown_measurement_2',
+  // Raw per-unit TSG duplicates that the METS standardization was supposed to
+  // collapse (see the Temperature/Salinity/Conductivity/Density/Sound Velocity
+  // family sources above, which all standardize on TSG1 as the single
+  // representative sensor) but which the family-match logic doesn't catch,
+  // since they're never referenced as a `match` value in any family — they
+  // were falling through to the loose list as raw title-cased leftovers
+  // ("Tsg2 Salinity Psu", "Tsg3 Density", etc.). Same physical quantity,
+  // different physical sensor unit — not distinct data, so removed rather
+  // than folded. tsg1_salinity_psu (uncalibrated) is removed too since the
+  // Salinity family already surfaces tsg1_salinity_psu_calibrated as the one
+  // TSG1 card. Re-add individually if TSG1 turns out not to be the right
+  // canonical unit (open question in Betty's handoff notes).
+  'calcofi_mets::tsg1_salinity_psu', 'calcofi_mets::tsg2_density', 'calcofi_mets::tsg2_salinity_psu',
+  'calcofi_mets::tsg3_density', 'calcofi_mets::tsg3_salinity_psu', 'calcofi_mets::tsg5_salinity_psu',
+  // Rest of the numbered-unit duplicates (raw tsg1_temp_c, plus every
+  // tsg2/2b/3/5 temp/conductivity/sound-velocity field) — same "different
+  // physical sensor unit, not distinct data" reasoning as the tsg2/3/5
+  // salinity/density fields above. Every parameter here already has its
+  // one representative card from TSG1 in the families above.
+  'calcofi_mets::tsg1_temp_c', 'calcofi_mets::tsg2_temp_c', 'calcofi_mets::tsg2b_temp_c',
+  'calcofi_mets::tsg2_conductivity', 'calcofi_mets::tsg2_sound_velocity',
+  'calcofi_mets::tsg3_temp_c', 'calcofi_mets::tsg3_conductivity', 'calcofi_mets::tsg3_sound_velocity',
+  'calcofi_mets::tsg5_temp_c',
+  // Raw sea-surface salinity reading — the Sea Surface Salinity family
+  // member above now surfaces only sss_psu_corrected as the one SSS card,
+  // same fix as the raw sst_c exclusion below.
+  'calcofi_mets::sss_psu',
+  // Raw SBE48 sea-surface temperature reading — the Sea Surface Temperature
+  // family member above now surfaces only sst_c_corrected as the one SST
+  // card, so the uncalibrated raw reading is dropped rather than left to
+  // leak through as its own loose row.
+  'calcofi_mets::sst_c',
+  // Predicted temperature products — removed from the browsable list per
+  // request. Were Temperature family members (Temperature (Predicted),
+  // Sea Surface Temperature (Predicted)); label mapping and category-fix
+  // exact-match entries removed alongside this.
+  'calcofi_mets::pred_temp_c', 'calcofi_mets::pred_sst_c',
+  // bottom_depth_mb_m (multibeam) was already documented above (Depth
+  // family, Bottom Depth member) as sharing one card with the single-beam
+  // reading — "one card per dataset, not one per field" — but was never
+  // actually added here, so it kept leaking through as its own loose
+  // "Bottom Depth (MB)" row instead of being absorbed into that card.
+  'calcofi_mets::bottom_depth_mb_m',
+  // Abundance, from the compound dataset_key
+  // "swfsc_ichthyo;ucsd_sio_mesopelagic-fish" — a data-pipeline artifact (a
+  // field genuinely shared by two source datasets, joined with a literal
+  // semicolon rather than resolving to one real dataset) that doesn't match
+  // any entry in DATASET_META/DATASET_CATEGORY, so it fell through into the
+  // uncategorized "Other" bucket and had 0 real station coverage — flagged
+  // during the parameter-naming audit, now confirmed live and removed.
+  // Re-add once the pipeline resolves it to one real dataset_key.
+  'swfsc_ichthyo;ucsd_sio_mesopelagic-fish::abundance',
 ]);
-// ---- Euphausiid species stand-in ------------------------------------------
-// The release DB still carries Euphausiids as a single aggregate "Euphausiidae"
-// row; the real per-species breakdown isn't published yet (CalCOFI/workflows
-// PR #72). euphausiid_species_coverage.json is a stand-in built from the raw
-// BTEDB export — rough (only ~44% of historical tows land on a currently known
-// grid station, life stages summed per species), but it names 37 real species
-// where the catalogue names one family.
+// ---- Euphausiid species: station-coverage stand-in (VARS synthesis removed) ----
+// CalCOFI/workflows PR #72 landed: variables.json now carries the real 37-species
+// breakdown directly (no more aggregate "Euphausiidae" row), so the VARS-synthesis
+// half of this block is gone — buildCanonicalVars() sees the real taxon records
+// like any other dataset.
 //
-// These 37 variable records are SYNTHESIZED here at load time rather than added
-// to variables.json. That file is owned by .github/workflows/refresh.yml, which
-// regenerates it from build_vars.sql every Monday and on every release dispatch
-// — records hand-added there are silently reverted within a week, taking the
-// feature with them. Deriving them from the coverage file instead means the
-// refresh can't clobber them, and when #72 finally lands and build_vars.sql
-// emits the species for real, deleting this block plus the coverage file is the
-// whole rollback.
-//
-// Everything except the two common names is derivable from the coverage rows:
-// scientific_name -> name/display_name/variable_id, aphia_id -> aphia_id, and
-// rank is Species throughout.
-const EUPHAUSIID_COMMON_NAMES = {
-  'Euphausia pacifica': 'Pacific Krill',
-  'Thysanoessa spinifera': 'Spiny Krill',
-};
-// Set once the stand-in is actually in play — gates hiding the aggregate below,
-// so a missing/empty coverage file degrades to today's single-row behavior
-// rather than to an empty Euphausiids category.
-let euphausiidSpeciesActive = false;
-function synthesizeEuphausiidSpeciesVars(coverageRows) {
-  const bySpecies = new Map();
-  (coverageRows || []).forEach(r => {
-    if (!r.scientific_name || bySpecies.has(r.scientific_name)) return;
-    bySpecies.set(r.scientific_name, r.aphia_id != null ? String(r.aphia_id) : null);
-  });
-  if (!bySpecies.size) return [];
-  euphausiidSpeciesActive = true;
-  return [...bySpecies].map(([sci, aphia]) => ({
-    variable_id: 'cce-lter_euphausiids::' + sci,
-    dataset_key: 'cce-lter_euphausiids',
-    realm: 'bio',
-    variable_type: 'taxon',
-    name: sci,
-    display_name: sci,
-    units: null,
-    description: null,
-    is_canonical: null,
-    aphia_id: aphia,
-    rank: 'Species',
-    common_name: EUPHAUSIID_COMMON_NAMES[sci] || null,
-    keywords: null,
-    science_concepts: null,
-    source: null,
-  }));
-}
+// euphausiid_species_coverage.json is still fetched below, but now only for
+// TAXON_STATIONS (per-station highlighting): build_stations.sql's taxon_coverage.json
+// join doesn't have euphausiid coverage yet, so per-species station highlighting
+// would otherwise fall back to whole-dataset coverage. Once that join lands too,
+// delete the euphausiid-specific merge in the fetch handler below and let the
+// generic taxon_coverage.json loop cover it like every other taxon dataset.
 function buildCanonicalVars() {
   const merged = [], groups = {}, seenExact = new Set();
   // "measurement_type" columns (behavior, count, ...) mixed into an
@@ -461,10 +590,6 @@ function buildCanonicalVars() {
   const taxonDatasets = new Set(VARS.filter(v => v.variable_type === 'taxon').map(v => v.dataset_key));
   VARS.forEach(v => {
     if (REMOVE_VARS.has(v.variable_id)) return;
-    // The aggregate family row is superseded by the 37 synthesized species —
-    // hide it only when those actually loaded, so a missing coverage file
-    // degrades to the aggregate rather than to an empty Euphausiids category.
-    if (euphausiidSpeciesActive && v.variable_id === 'cce-lter_euphausiids::Euphausiidae') return;
     if (v.variable_type === 'measurement_type' && taxonDatasets.has(v.dataset_key) && !KEEP_MEASUREMENT_TYPE.has(v.dataset_key + '::' + v.display_name)) return;
     if (MERGE_DATASETS.has(v.dataset_key)) { (groups[canonicalKey(v)] ||= []).push(v); return; }
     // Collapse exact full-record duplicates — verified against the real
@@ -491,6 +616,13 @@ const DECADES = {};   // dataset_key -> station_id -> [{decade, mean_density, n_
 // exists; every consumer below falls back to dataset-wide coverage when a
 // given aphia_id has no entry here.
 const TAXON_STATIONS = {};
+// "dataset_key::aphia_id" (or "::name::...") -> { grid_key -> years[] } — the
+// per-station, per-year breakdown for taxa where the source data actually
+// has one (currently just euphausiids, from euphausiid_species_coverage.json's
+// own `years` field). Lets stationsForVar() genuinely respect the year
+// slider for these taxa instead of always returning the all-time station
+// set — see stationsForVarIsYearAware().
+const TAXON_YEARS = {};
 // "grid_key::subset" -> coverage row (subset is 'calcofi_bottle_hydro' or
 // 'calcofi_bottle_cast') from the optional bottle_cast_coverage.json — real
 // per-subset date range/depth/year-month bars for the split Bottle/Cast
@@ -511,6 +643,26 @@ const DEPTH_PROFILES = {};   // dataset_key -> station_id -> variable_name -> [{
 // same not-loaded-vs-real-zero distinction as bottleCastCovLoaded above.
 let depthProfilesReady = false;
 let selectedVar = null;
+// ---- station compare/averaging mode ----
+// When active, clicking a marker toggles it into selectedGridKeys instead of
+// opening the station panel. generateComparisonCards() then builds one
+// synthetic averaged `d` object per dataset_key represented among the
+// selected stations, and renders them with the existing datasetCard()
+// (large mode) inside the shared modal — same rendering path as the single-
+// station "expand card" modal, just fed averaged numbers instead of one
+// station's real ones.
+let compareMode = false;
+let selectedGridKeys = new Set();
+// Rubber-band selection: drag a rectangle over the map to select every
+// station inside it in one motion, instead of clicking each one — the
+// difference matters once you're picking 15-20 stations for an average.
+let lassoMode = false;
+let lassoPoints = null;      // array of {x,y} containerPoints traced during the drag
+let lastComparisonStations = []; // stations behind the most recent generateComparisonCards() call — used by downloadComparisonReport()
+let lastComparisonCards = []; // [{d, label}] averaged card data from the same call — used by downloadComparisonReport()'s text rendering
+let CARD_COMPARE_CTX = {}; // cardId -> {datasetKey, label, stations} — for per-card downloads on averaged comparison cards
+let CARD_DL_CTX = {}; // cardId -> {d, label} — for per-card downloads on regular (non-comparison) station cards
+let cardDownloadCounter = 0;
 let currentStation = null; // persists across variable selections — the back button points here until "All Categories" is clicked
 // Which panel tab ('overview' or 'depth') was last viewed — carried across
 // clicking different stations, so comparing depth profiles station to
@@ -563,11 +715,28 @@ Promise.all([
   // — built from the real BTEDB raw export (225 wide Genus_species_stage
   // columns), matched to the existing 218-station grid by Line/Station.
   // Rough/demo-quality (only ~44% of historical tows land on a currently
-  // known grid station; life stages summed together per species) — real
-  // per-species coverage doesn't exist in any release yet, this is a
-  // stand-in until CalCOFI/workflows PR #72 actually gets released.
-  fetch('./data/euphausiid_species_coverage.json').then(r => r.ok ? r.json() : []).catch(() => [])
-]).then(([st, va, dm, tc, bc, bathy, ec]) => {
+  // known grid station; life stages summed together per species). Real
+  // per-species *variable* records now come from variables.json directly
+  // (CalCOFI/workflows PR #72 landed) — this file is only still needed for
+  // per-station highlighting, since build_stations.sql's taxon_coverage.json
+  // join doesn't cover euphausiids yet. Drop this fetch once that lands too.
+  fetch('./data/euphausiid_species_coverage.json').then(r => r.ok ? r.json() : []).catch(() => []),
+  // bird_mammal_species_coverage.json: one row per (grid_key, scientific_name)
+  // — built from the Farallon Institute CCE-LTER package (knb-lter-cce.255),
+  // joining each of the three cruise types' observation table to its transect
+  // log on GIS key for real date + lat/lon, then matched to the 218-station
+  // grid the same way as the euphausiid join. Partial/known-incomplete: the
+  // package's embedded species-code dictionary only resolves 75 of the 292
+  // distinct codes actually used (the rest — 217 codes — are still raw,
+  // unidentified codes with no name to key on), and of those 75, only 46
+  // cross-matched to a scientific name already in variables.json (the rest
+  // are ambiguous multi-species groupings like "Unknown whale" with no
+  // single scientific name, or spelling mismatches not yet reconciled).
+  // Covers ~46 of the ~149 bird/mammal taxa in the catalog; the remainder
+  // still show "(all years)" until the fuller code dictionary from the
+  // earlier RREAS/Farallon/BeachCOMBER resolution effort is available here.
+  fetch('./data/bird_mammal_species_coverage.json').then(r => r.ok ? r.json() : []).catch(() => [])
+]).then(([st, va, dm, tc, bc, bathy, ec, bm]) => {
   STATIONS = st; VARS = va;
   (dm || []).forEach(r => { ((DECADES[r.dataset_key] ||= {})[r.station_id] ||= []).push(r); });
   (tc || []).forEach(r => (TAXON_STATIONS[r.dataset_key + '::' + r.aphia_id] ||= new Set()).add(r.grid_key));
@@ -575,13 +744,23 @@ Promise.all([
   // resolved aphia_id yet (see the Nematoscelis/"Hansarsia" synonym
   // question) — stationsForVar() checks aphia_id first, name second.
   (ec || []).forEach(r => {
-    if (r.aphia_id) (TAXON_STATIONS['cce-lter_euphausiids::' + r.aphia_id] ||= new Set()).add(r.grid_key);
+    if (r.aphia_id) {
+      (TAXON_STATIONS['cce-lter_euphausiids::' + r.aphia_id] ||= new Set()).add(r.grid_key);
+      ((TAXON_YEARS['cce-lter_euphausiids::' + r.aphia_id] ||= {})[r.grid_key] = r.years);
+    }
     (TAXON_STATIONS['cce-lter_euphausiids::name::' + r.scientific_name] ||= new Set()).add(r.grid_key);
+    ((TAXON_YEARS['cce-lter_euphausiids::name::' + r.scientific_name] ||= {})[r.grid_key] = r.years);
   });
-  // Append the 37 per-species records the release catalogue doesn't have yet —
-  // see synthesizeEuphausiidSpeciesVars(). Must happen before buildCanonicalVars()
-  // below, which is what actually filters and groups VARS.
-  VARS = VARS.concat(synthesizeEuphausiidSpeciesVars(ec));
+  // Same pattern as euphausiids above, keyed by scientific_name (no aphia_id
+  // resolved for this join yet) — populated under both the current and
+  // pre-rename dataset_key, same dual-key safety as DATASET_META until the
+  // release DB actually ships with the renamed key.
+  (bm || []).forEach(r => {
+    ['farallon_bird-mammal', 'calcofi_bird_mammal_census'].forEach(dk => {
+      (TAXON_STATIONS[dk + '::name::' + r.scientific_name] ||= new Set()).add(r.grid_key);
+      ((TAXON_YEARS[dk + '::name::' + r.scientific_name] ||= {})[r.grid_key] = r.years);
+    });
+  });
   (bc || []).forEach(r => { BOTTLE_CAST_COV[r.grid_key + '::' + r.subset] = r; });
   const bathyByKey = {};
   (bathy || []).forEach(r => { bathyByKey[r.grid_key] = r.bathymetry_depth_m; });
@@ -600,6 +779,9 @@ Promise.all([
   wireSearch();
   initYearSlider();
   initChartTooltip();
+  map.on('mousedown', startLasso);
+  map.on('mousemove', moveLasso);
+  map.on('mouseup', endLasso);
   buildCanonicalVars();
   buildCategories();
   renderInventoryPanel();
@@ -679,28 +861,50 @@ const activeDatasets = s => (s.datasets || []).filter(datasetInRange);
 // investigation). Single source of truth so the map highlight, the search
 // banner count, and the variable panel's "Collected at N stations" line
 // can't drift out of sync with each other.
-// NOTE: the taxon-level path does not currently respect the year-range
-// slider — taxon_coverage.json has no per-year breakdown yet, unlike the
-// dataset-wide path via activeDatasets(). Add year bins to that file's
-// build if year-filtered taxon counts are needed later.
+// NOTE: the taxon-level path only respects the year-range slider where real
+// per-year data exists (TAXON_YEARS — currently just euphausiids, via
+// euphausiid_species_coverage.json's own `years` field). Add year bins to
+// taxon_coverage.json's build if year-filtered counts are needed for the
+// rest of the taxon-level catalog too.
+function taxonStationsInRange(stationSet, yearsByStation) {
+  if (!yearRange || !yearsByStation) return stationSet;
+  const [a, b] = yearRange;
+  return new Set([...stationSet].filter(gk => {
+    const years = yearsByStation[gk];
+    return years && years.some(o => o.y >= a && o.y <= b);
+  }));
+}
 function stationsForVar(v) {
   const key = v.dataset_key + '::' + v.aphia_id;
-  if (v.aphia_id && TAXON_STATIONS[key]) return TAXON_STATIONS[key];
+  if (v.aphia_id && TAXON_STATIONS[key]) return taxonStationsInRange(TAXON_STATIONS[key], TAXON_YEARS[key]);
   const nameKey = v.dataset_key + '::name::' + v.name;
-  if (!v.aphia_id && TAXON_STATIONS[nameKey]) return TAXON_STATIONS[nameKey];
+  if (!v.aphia_id && TAXON_STATIONS[nameKey]) return taxonStationsInRange(TAXON_STATIONS[nameKey], TAXON_YEARS[nameKey]);
   return new Set(STATIONS.filter(s => activeDatasets(s).some(d => d.dataset_key === v.dataset_key)).map(s => s.grid_key));
 }
 // Whether the count stationsForVar() returns for `v` actually honors the year
-// slider. False on the per-taxon path (taxon_coverage.json has no year bins —
-// see the NOTE above), which is 895 of the 1909 catalogued variables. Callers
-// must not assert a year range next to a number this returns false for: the
-// banner used to read "N stations … in 1950–1980" with an all-time N, which
-// reads as a filtered count and isn't one.
+// slider. True on the per-taxon path only where TAXON_YEARS has real per-year
+// data for this specific taxon (euphausiids); false for the rest of the
+// taxon-level catalog, which is still all-time regardless of the slider.
+// Callers must not assert a year range next to a number this returns false
+// for: the banner used to read "N stations … in 1950–1980" with an all-time
+// N, which reads as a filtered count and isn't one.
 function stationsForVarIsYearAware(v) {
-  if (v.aphia_id && TAXON_STATIONS[v.dataset_key + '::' + v.aphia_id]) return false;
-  if (!v.aphia_id && TAXON_STATIONS[v.dataset_key + '::name::' + v.name]) return false;
+  if (v.aphia_id && TAXON_STATIONS[v.dataset_key + '::' + v.aphia_id]) return !!TAXON_YEARS[v.dataset_key + '::' + v.aphia_id];
+  if (!v.aphia_id && TAXON_STATIONS[v.dataset_key + '::name::' + v.name]) return !!TAXON_YEARS[v.dataset_key + '::name::' + v.name];
   return true;
 }
+// calcofi_mets aggregates ~54 distinct raw parameters (per-unit TSG sensors,
+// meteorology, derived/predicted products) that were installed, retired, or
+// added to the release DB at different times — datasetYearSpan() (and the
+// auto-snap in selectVariable() that calls it) can only see the dataset's
+// overall min/max year across ALL of those parameters combined, not any one
+// parameter's own coverage. So selecting a single METS parameter still
+// locks/labels the slider to the whole dataset's span, which can overstate
+// how far back or how recent that specific parameter's real data goes.
+// Flagged here so the banner can caveat it instead of implying a precision
+// the data doesn't actually have. Add other multi-parameter datasets here if
+// the same gap turns up for them.
+const DATASET_SPAN_IS_AGGREGATE = new Set(['calcofi_mets']);
 
 function applyStyles() {
   const selSet = selectedVar ? stationsForVar(selectedVar) : null;
@@ -728,18 +932,1016 @@ function applyStyles() {
       mk.setStyle({ color: '#ffd43b', weight: 3 });
       mk.bringToFront();
     }
-    // The station currently open in the side panel gets a thick white ring
-    // on top of whatever style was just applied above (including the gold
-    // pinned ring, if this station happens to be both) — so it's visually
-    // obvious which marker you clicked — previously nothing distinguished
-    // it at all once the panel opened.
-    if (currentStation && s.grid_key === currentStation.grid_key) {
+    // The station currently open in the side panel gets a white ring on
+    // top of whatever style was just applied above. This used to be a
+    // solid filled disc specifically to stay visually distinct from the
+    // cyan compare-selection ring — but now that compare mode suppresses
+    // this marker entirely (below), the two never appear at once, so a
+    // plain outline reads just as clearly as "you are here" without
+    // needing the extra fill.
+    // Suppressed while compare mode is active: "you are here" (single-
+    // station browsing) and "these are selected for comparison" are two
+    // different questions, and showing both at once — especially since the
+    // open station is often unrelated to whatever's being compared — just
+    // reads as two competing highlights on the map with no clear meaning.
+    // Compare mode owns the map's "special marker" attention while it's on;
+    // the white ring comes back once you exit back to single-station
+    // browsing (see toggleCompareMode).
+    if (!compareMode && currentStation && s.grid_key === currentStation.grid_key) {
       mk.setStyle({ color: '#ffffff', weight: 3 });
+      mk.bringToFront();
+    }
+    // Compare-mode selection ring — cyan, distinct from the gold pinned
+    // ring and white current-station ring above, drawn last so it wins if
+    // a station happens to be both selected and pinned/current.
+    if (selectedGridKeys.has(s.grid_key)) {
+      mk.setStyle({ color: '#00e5ff', weight: 3 });
       mk.bringToFront();
     }
   });
 }
 
+// ---- station compare/averaging mode ----
+function toggleCompareMode() {
+  compareMode = !compareMode;
+  // The compare control lives in one spot on the map (top-right): the
+  // collapsed launcher and the expanded panel swap places there rather
+  // than living in separate corners.
+  document.getElementById('compare-toggle-btn').style.display = compareMode ? 'none' : 'flex';
+  document.getElementById('compare-bar').style.display = compareMode ? 'block' : 'none';
+  if (!compareMode) {
+    selectedGridKeys.clear();
+    updateCompareBar();
+    if (lassoMode) toggleLassoMode();
+  }
+  applyStyles(); // entering: hides the white current-station disc; exiting: restores it
+}
+function toggleLassoMode() {
+  lassoMode = !lassoMode;
+  document.getElementById('lasso-select-btn').classList.toggle('active', lassoMode);
+  document.getElementById('lasso-select-label').textContent = lassoMode ? '✕ Stop Lasso Select' : '✏️ Lasso Select';
+  document.getElementById('lasso-svg').style.display = lassoMode ? 'block' : 'none';
+  map.dragging[lassoMode ? 'disable' : 'enable']();
+  if (!lassoMode) { lassoPoints = null; document.getElementById('lasso-polygon').setAttribute('points', ''); }
+}
+function startLasso(e) {
+  if (!lassoMode) return;
+  // Don't start a lasso when the mousedown lands on a station marker itself
+  // (an SVG <path>/<circle>) — let its own click handler run instead, so a
+  // single click on one marker still toggles just that station even while
+  // lasso mode is on.
+  const t = e.originalEvent && e.originalEvent.target;
+  if (t && t.tagName && /path|circle/i.test(t.tagName)) return;
+  lassoPoints = [e.containerPoint];
+  updateLassoPolygon();
+}
+function updateLassoPolygon() {
+  document.getElementById('lasso-polygon').setAttribute('points',
+    lassoPoints.map(p => `${p.x},${p.y}`).join(' '));
+}
+function moveLasso(e) {
+  if (!lassoPoints) return;
+  // Only keep a point if it's moved a few pixels from the last one — a raw
+  // mousemove firehose would otherwise pile up hundreds of near-duplicate
+  // points along a slow drag for no benefit to the traced shape.
+  const last = lassoPoints[lassoPoints.length - 1];
+  if (Math.hypot(e.containerPoint.x - last.x, e.containerPoint.y - last.y) < 2) return;
+  lassoPoints.push(e.containerPoint);
+  updateLassoPolygon();
+}
+// Standard ray-casting point-in-polygon test.
+function pointInPolygon(pt, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].x, yi = poly[i].y, xj = poly[j].x, yj = poly[j].y;
+    const hit = ((yi > pt.y) !== (yj > pt.y)) && (pt.x < (xj - xi) * (pt.y - yi) / (yj - yi) + xi);
+    if (hit) inside = !inside;
+  }
+  return inside;
+}
+function endLasso(e) {
+  if (!lassoPoints) return;
+  if (lassoPoints.length > 2) {
+    STATIONS.forEach(s => {
+      if (!s.n_datasets) return;
+      const mk = MARKERS[s.grid_key];
+      const center = map.latLngToContainerPoint([s.lat, s.lon]);
+      if (pointInPolygon(center, lassoPoints)) { selectedGridKeys.add(s.grid_key); return; }
+      // Center missed — a hand-drawn lasso rarely lands exactly on a
+      // marker's true center, so also test a ring of points around the
+      // marker's actual rendered radius. If any of those overlap the
+      // polygon, the marker visually clips the drawn line and should count.
+      const r = (mk && mk.getRadius && mk.getRadius()) || 4;
+      for (let a = 0; a < 8; a++) {
+        const ang = (a / 8) * 2 * Math.PI;
+        const p = { x: center.x + r * Math.cos(ang), y: center.y + r * Math.sin(ang) };
+        if (pointInPolygon(p, lassoPoints)) { selectedGridKeys.add(s.grid_key); return; }
+      }
+    });
+  }
+  lassoPoints = null;
+  document.getElementById('lasso-polygon').setAttribute('points', '');
+  updateCompareBar();
+  applyStyles();
+}
+// Select-by-line: CalCOFI stations sit along numbered transect lines
+// (s.line, e.g. 80, 90, or historical fractional lines like 66.7) — often
+// the more natural unit to compare than an arbitrary map shape.
+// Tolerance of 0.05 absorbs float rounding on the underlying line value
+// without matching an adjacent line.
+// Select-by-line: CalCOFI transect lines are often fractional
+// "in-between" lines (66.7, 73.3, 76.7, 93.3, etc.), while people naturally
+// type the whole-number line they mean (73, 76, 93). Matching by floor
+// instead of exact/near-exact value means "73" catches a station on line
+// 73.3 too, rather than reporting no match against a station that's
+// visibly labeled 073.3 on the map.
+function selectByLine() {
+  const input = document.getElementById('line-select-input');
+  const target = parseFloat(input.value);
+  if (isNaN(target)) return;
+  let matched = 0;
+  STATIONS.forEach(s => {
+    if (s.n_datasets && s.line != null && Math.floor(s.line) === Math.floor(target)) { selectedGridKeys.add(s.grid_key); matched++; }
+  });
+  input.value = '';
+  updateCompareBar();
+  applyStyles();
+  if (!matched) alert(`No stations with data found on line ${target}.`);
+}
+function toggleStationSelection(gridKey) {
+  const s = BY_KEY[gridKey];
+  if (!s || !s.n_datasets) return; // nothing to average for a station with no data
+  if (selectedGridKeys.has(gridKey)) selectedGridKeys.delete(gridKey);
+  else selectedGridKeys.add(gridKey);
+  updateCompareBar();
+  applyStyles();
+}
+function clearCompareSelection() {
+  selectedGridKeys.clear();
+  updateCompareBar();
+  applyStyles();
+}
+function updateCompareBar() {
+  const n = selectedGridKeys.size;
+  document.getElementById('compare-count').textContent = `${n} Selected`;
+  document.getElementById('compare-generate-btn').disabled = n < 2;
+}
+// Averages a list of {y,n}/{m,n} histograms (one per contributing station)
+// into a single histogram: for each key that appears in ANY contributor,
+// sum n across all contributors (0 for ones missing that key) and divide
+// by the contributor count — so a year only one station has data for still
+// shows as a real average across the whole selected set, not just the
+// stations that happened to have it.
+function averageHistograms(lists, keyField) {
+  const sums = {}, count = lists.length;
+  lists.forEach(list => (list || []).forEach(o => { sums[o[keyField]] = (sums[o[keyField]] || 0) + o.n; }));
+  return Object.keys(sums).map(k => ({ [keyField]: keyField === 'y' ? +k : +k, n: Math.round((sums[k] / count) * 10) / 10 }))
+    .sort((a, b) => a[keyField] - b[keyField]);
+}
+function generateComparisonCards() {
+  const stations = [...selectedGridKeys].map(k => BY_KEY[k]).filter(Boolean);
+  if (stations.length < 2) return;
+  // dataset_key -> list of {station, d} — one entry per station that has that dataset
+  const byDataset = {};
+  stations.forEach(s => (s.datasets || []).forEach(d => (byDataset[d.dataset_key] ||= []).push({ station: s, d })));
+  const comparisonCards = [];
+  const cardsHtml = Object.keys(byDataset).sort().map(dk => {
+    const entries = byDataset[dk], meta = dsMeta(dk), n = entries.length;
+    const ds = entries.map(e => e.d);
+    const contributingStations = entries.map(e => e.station);
+    const depthMins = ds.map(d => d.depth_min).filter(v => v != null);
+    const depthMaxs = ds.map(d => d.depth_max).filter(v => v != null);
+    const avgD = {
+      dataset_key: dk,
+      realm: ds[0].realm,
+      time_min: ds.reduce((m, d) => (d.time_min && (!m || d.time_min < m)) ? d.time_min : m, null),
+      time_max: ds.reduce((m, d) => (d.time_max && (!m || d.time_max > m)) ? d.time_max : m, null),
+      depth_min: depthMins.length ? Math.min(...depthMins) : null,
+      depth_max: depthMaxs.length ? Math.max(...depthMaxs) : null,
+      n_obs: Math.round(ds.reduce((s, d) => s + (d.n_obs || 0), 0) / n),
+      n_surveys: Math.round(ds.reduce((s, d) => s + (d.n_surveys || 0), 0) / n),
+      years: averageHistograms(ds.map(d => d.years), 'y'),
+      months: averageHistograms(ds.map(d => d.months), 'm')
+    };
+    comparisonCards.push({ d: avgD, label: meta.label, color: meta.color, n, total: stations.length });
+    const stationsListHtml = contributingStations
+      .slice()
+      .sort((a, b) => a.station_id.localeCompare(b.station_id))
+      .map(s => `<span>${s.station_id}</span><span>${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}</span>`)
+      .join('');
+    return `<div class="avg-card-note">Averaged across ${n} of ${stations.length} selected stations that have ${meta.label} data
+      <details class="params-toggle avg-stations-toggle">
+        <summary class="params-toggle-summary">Show ${n} station${n === 1 ? '' : 's'}</summary>
+        <div class="avg-stations-list">${stationsListHtml}</div>
+      </details></div>
+      ${datasetCard(avgD, { large: true, label: meta.label, color: meta.color, compareContext: contributingStations })}`;
+  }).join('');
+  lastComparisonCards = comparisonCards;
+  document.getElementById('modal-title').textContent = `Averaged Coverage — ${stations.length} stations selected`;
+  const downloadBtnHtml = `<button class="download-btn cards-download-btn" id="comparison-download-btn" onclick="downloadComparisonReport()"
+      title="Download a PDF with a map screenshot, these averaged coverage cards, and the selected stations' coordinates">
+      ⬇ Download coverage cards
+    </button>`;
+  document.getElementById('modal-body').innerHTML = downloadBtnHtml + (cardsHtml || '<div class="cov-empty">No datasets in common.</div>');
+  document.getElementById('modal-footer').style.display = 'none';
+  document.getElementById('modal').classList.add('modal-large');
+  document.getElementById('modal-backdrop').classList.add('open');
+  lastComparisonStations = stations; // used by downloadComparisonReport()
+}
+
+// ---- download report (map screenshot + coverage cards + station list) ----
+// Slices a tall canvas across as many PDF pages as needed, scaled to the
+// page's usable width. firstPageStartY lets the first slice start below
+// whatever heading text is already on that page; later pages start at the
+// plain top margin.
+// Prints a list of text lines, starting a new page whenever one would run
+// past the bottom margin — so a long station list is never silently
+// truncated, just spread across as many pages as it needs.
+// Draws a bordered, zebra-striped table of stations — Station ID /
+// Latitude / Longitude columns with a header row — instead of a bare list
+// of "id (lat, lon)" lines. Paginates row by row. Returns the y position
+// after the table.
+// Adds a light border frame and a "CalCOFI Station Data Portal / Page X of
+// Y" footer to every page already in the doc. Called once right before
+// doc.save(), after all content/pages exist, rather than threaded through
+// every page-building step individually.
+function finalizeDocChrome(doc, marginPt) {
+  const total = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= total; p++) {
+    doc.setPage(p);
+    const w = doc.internal.pageSize.getWidth(), h = doc.internal.pageSize.getHeight();
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(150, 154, 160);
+    doc.text('CalCOFI Station Data Portal', marginPt, h - 12);
+    doc.text(`Page ${p} of ${total}`, w - marginPt, h - 12, { align: 'right' });
+  }
+}
+// A short colored rule under the main title, for a bit of visual identity
+// beyond plain black text — same accent color as the coverage card that
+// follows, so the two feel like one document rather than two styles glued
+// together.
+function drawTitleRule(doc, marginPt, y, color, widthPt) {
+  const [r, g, b] = hexRGB(color);
+  doc.setDrawColor(r, g, b);
+  doc.setLineWidth(2);
+  doc.line(marginPt, y, marginPt + Math.min(widthPt || 120, 160), y);
+}
+// Draws a consistent header block — bold title, colored accent rule, muted
+// subtitle line — shared by all four PDF downloads so they read as one
+// document style instead of four slightly different ones. Leaves the doc's
+// text color/weight reset to plain black/normal before returning, so
+// whatever's drawn next doesn't inherit the subtitle's muted gray.
+// Returns the y position to continue drawing below it.
+function drawReportHeader(doc, title, subtitle, marginPt, color) {
+  doc.setFont(undefined, 'bold');
+  doc.setFontSize(17);
+  doc.setTextColor(20, 22, 26);
+  doc.text(title, marginPt, marginPt);
+  drawTitleRule(doc, marginPt, marginPt + 9, color);
+  doc.setFont(undefined, 'normal');
+  doc.setFontSize(9.5);
+  doc.setTextColor(122, 126, 132);
+  doc.text(subtitle, marginPt, marginPt + 27);
+  doc.setTextColor(20, 22, 26);
+  return marginPt + 46;
+}
+// Embeds an image with a thin frame around it, instead of a bare
+// doc.addImage — small touch, but a raw unbordered map screenshot sitting
+// directly on white page background looked unfinished.
+function drawFramedImage(doc, dataUrl, x, y, w, h) {
+  doc.addImage(dataUrl, 'PNG', x, y, w, h);
+  doc.setDrawColor(210, 212, 217);
+  doc.setLineWidth(0.75);
+  doc.rect(x, y, w, h, 'S');
+}
+// A one-line caption under a map image spelling out what a highlighted
+// marker means — the color alone (a white disc, a cyan ring) has no
+// explanatory power once it's a static image outside the app, so this
+// makes it explicit instead of assuming the reader already knows.
+function drawMapCaption(doc, marginPt, y, text) {
+  doc.setFontSize(8);
+  doc.setFont(undefined, 'normal');
+  doc.setTextColor(130, 134, 140);
+  doc.text(text, marginPt, y);
+  return y + 14;
+}
+function drawStationTable(doc, stations, marginPt, y, usableWidth) {
+  const rowH = 15;
+  const colW = [usableWidth * 0.45, usableWidth * 0.275, usableWidth * 0.275];
+  const colX = [marginPt, marginPt + colW[0], marginPt + colW[0] + colW[1]];
+  const headers = ['STATION ID', 'LATITUDE', 'LONGITUDE'];
+  y = ensureSpace(doc, y, rowH * 2, marginPt);
+  doc.setFillColor(230, 232, 236);
+  doc.rect(marginPt, y, usableWidth, rowH, 'F');
+  doc.setFontSize(8);
+  doc.setFont(undefined, 'bold');
+  doc.setTextColor(60, 64, 70);
+  headers.forEach((h, i) => doc.text(h, colX[i] + 5, y + 10.5));
+  doc.setFont(undefined, 'normal');
+  y += rowH;
+  stations.forEach((s, i) => {
+    y = ensureSpace(doc, y, rowH, marginPt);
+    if (i % 2 === 1) {
+      doc.setFillColor(244, 245, 247);
+      doc.rect(marginPt, y, usableWidth, rowH, 'F');
+    }
+    doc.setDrawColor(221, 221, 226);
+    doc.setLineWidth(0.4);
+    doc.rect(marginPt, y, usableWidth, rowH, 'S');
+    doc.setFontSize(9);
+    doc.setTextColor(20, 22, 26);
+    doc.text(s.station_id, colX[0] + 5, y + 10.5);
+    doc.text(s.lat.toFixed(4), colX[1] + 5, y + 10.5);
+    doc.text(s.lon.toFixed(4), colX[2] + 5, y + 10.5);
+    y += rowH;
+  });
+  return y;
+}
+// Starts a new page if `needed` points of vertical space aren't left before
+// the bottom margin — used by the card text renderer below so a card never
+// gets silently cut off mid-block the way an unpaginated image would.
+function ensureSpace(doc, y, needed, marginPt) {
+  const pageHeight = doc.internal.pageSize.getHeight();
+  if (y + needed > pageHeight - marginPt) { doc.addPage(); return marginPt; }
+  return y;
+}
+// Wraps `text` to `maxWidth` and prints it line by line, paginating as
+// needed. Returns the y position after the last line.
+function writeWrapped(doc, text, x, y, maxWidth, marginPt, lineHeight) {
+  doc.splitTextToSize(text, maxWidth).forEach(line => {
+    y = ensureSpace(doc, y, lineHeight, marginPt);
+    doc.text(line, x, y);
+    y += lineHeight;
+  });
+  return y;
+}
+// Renders a coverage card as plain text — label, date/depth/coverage
+// stats, then every year and every month with its actual observation
+// count — instead of a screenshot. Card downloads used to rasterize the
+// on-screen card with html2canvas, which (a) depended on a third-party
+// library that could fail to parse the page's CSS (see the color-mix()
+// incident) and (b) buried the real numbers inside an image instead of
+// searchable/copyable text. This reads the same underlying data
+// (`years`/`months`/etc.) the bar-chart card reads, so the PDF always has
+// real content — never a screenshot, never a "couldn't capture" fallback.
+// Returns the y position after the card, for chaining multiple cards down
+// one page/report.
+// Draws every [label, count] pair as ONE continuous horizontal line —
+// a narrow bar per entry (height proportional to count, so the trend
+// reads at a glance) with its exact "label: count" printed as small
+// rotated text growing upward from the bar's top, so nothing wraps to a
+// second row regardless of how many entries there are. Requested
+// specifically after a multi-row grid version wasn't what "keep it in one
+// line" meant — this is a literal single row. Returns the y position
+// after the strip.
+function drawTimelineStrip(doc, pairs, marginPt, y, usableWidth, color, rowH) {
+  const barMaxH = 34;
+  const n = pairs.length;
+  if (!n) return y;
+  const cellW = usableWidth / n;
+  // Horizontal value labels need roughly (characters × fontSize × 0.55) of
+  // width to clear their neighbors — for a 4-digit comma-formatted number
+  // ("2,860") at the smallest font size that's ~15pt. Below that, fall
+  // back to vertical (90°) labels instead: at 90° a label's horizontal
+  // footprint is just the font's stroke thickness, independent of how many
+  // digits it has, so — confirmed by an actual collision check against a
+  // 72-year span (the densest real case), not just eyeballing it — even
+  // adjacent labels clear each other with no staggering needed. An earlier
+  // attempt staggered alternating labels onto two vertical "lanes" to fix
+  // collisions at 45°, but that's gone now: it's unnecessary at 90° and
+  // made the chart harder to read with every other label at a different
+  // height.
+  const useHorizontalValues = cellW >= 15;
+  const valueZoneH = barMaxH + (useHorizontalValues ? 16 : 22);
+  const yearZoneH = 34;
+  rowH = rowH || (valueZoneH + yearZoneH);
+  y = ensureSpace(doc, y, rowH, marginPt);
+  const max = Math.max(1, ...pairs.map(p => p[1]));
+  const baseline = y + valueZoneH;
+  doc.setDrawColor(226, 227, 231);
+  doc.setLineWidth(0.5);
+  doc.line(marginPt, baseline, marginPt + usableWidth, baseline);
+  const [cR, cG, cB] = hexRGB(color || '#4dabf7');
+  const fontSize = cellW < 7 ? 5 : cellW < 11 ? 5.5 : 6.5;
+  pairs.forEach(([lbl, cnt], i) => {
+    const cx = marginPt + i * cellW + cellW / 2;
+    const barW = Math.max(0.6, cellW * 0.62);
+    if (cnt > 0) {
+      // sqrt, not linear — with one big outlier year (a common CalCOFI
+      // pattern), a linear scale crushes every smaller-but-still-real value
+      // down to the same 2pt floor (e.g. 8 and 21 both landing at
+      // 16*8/191≈0.7 and 16*21/191≈1.8, both clamped to the same minimum —
+      // visually identical despite being a very different count). Square
+      // root keeps meaningfully different counts visually distinct even
+      // when one year dwarfs the rest.
+      const barH = Math.max(3, barMaxH * Math.sqrt(cnt / max));
+      doc.setFillColor(cR, cG, cB);
+      doc.rect(cx - barW / 2, baseline - barH, barW, barH, 'F');
+      doc.setFont(undefined, 'bold');
+      doc.setFontSize(fontSize);
+      doc.setTextColor(50, 53, 58);
+      if (useHorizontalValues) {
+        doc.text(num(Math.round(cnt)), cx, baseline - barH - 3, { align: 'center' });
+      } else {
+        doc.text(num(Math.round(cnt)), cx, baseline - barH - 3, { angle: 90 });
+      }
+    } else {
+      // No bar at all for a genuine zero — a full-saturation colored
+      // sliver (even a 1pt-tall one) reads as "there's a little data here,"
+      // which is the opposite of what a zero count means.
+      doc.setFont(undefined, 'bold');
+      doc.setFontSize(fontSize);
+      doc.setTextColor(180, 183, 188);
+      if (useHorizontalValues) {
+        doc.text('0', cx, baseline - 3, { align: 'center' });
+      } else {
+        doc.text('0', cx, baseline - 3, { angle: 90 });
+      }
+    }
+    // Year — fixed row below the baseline (like a normal chart x-axis),
+    // growing down-right, normal weight. Anchoring it to the baseline
+    // rather than the bar top means every year sits at the same height
+    // regardless of that year's count, so the sequence reads left-to-right
+    // in a straight line instead of zig-zagging with the bar heights.
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(110, 114, 120);
+    doc.text(String(lbl), cx - fontSize * 0.2, baseline + 7, { angle: -45 });
+  });
+  doc.setFont(undefined, 'normal');
+  return y + rowH;
+}
+// Estimates a recurring survey cadence from a month-by-month observation
+// count — by testing each candidate interval's best-fitting phase (e.g.
+// for quarterly: Jan/Apr/Jul/Oct vs Feb/May/Aug/Nov vs Mar/Jun/Sep/Dec)
+// and picking whichever concentrates the most observations into the
+// fewest, evenly-spaced months. k=1 is deliberately excluded — every
+// month trivially sums to 100% of the total, so it can never lose this
+// comparison and isn't a real signal. Requires the winning phase to
+// capture a clear majority (55%+) of the total before calling it a
+// pattern; returns null rather than guessing if nothing stands out.
+function estimateSamplingFrequency(monthCounts) {
+  const total = monthCounts.reduce((a, b) => a + b, 0);
+  if (!total) return null;
+  // Restricted to cadences that are actually realistic for this kind of
+  // survey — quarterly, semi-annual, or a single annual season. Bimonthly
+  // (k=2) and "three times a year" (k=4) were removed: they're not real
+  // sampling patterns here, and structurally had an unfair advantage in
+  // this comparison anyway — a phase with more months in it (bimonthly has
+  // 6, vs quarterly's 4) sums a larger fraction of any reasonably-spread
+  // activity almost automatically, regardless of whether that cadence
+  // reflects anything real about how the surveys were actually run.
+  const candidates = [
+    { k: 3, label: 'quarterly' },
+    { k: 6, label: 'semi-annual (twice a year)' },
+    { k: 12, label: 'a single annual season' },
+  ];
+  let best = null;
+  candidates.forEach(({ k, label }) => {
+    for (let offset = 0; offset < k; offset++) {
+      const months = [];
+      let sum = 0, activeCount = 0;
+      for (let m = offset; m < 12; m += k) {
+        sum += monthCounts[m];
+        if (monthCounts[m] > 0) activeCount++;
+        months.push(m);
+      }
+      const frac = sum / total;
+      // A phase can capture a huge fraction of the total for the wrong
+      // reason: if only 2 months in the whole year have any activity at
+      // all, whichever phase happens to contain both of them "wins" with
+      // 100%, even though that's just 2 data points, not a recurring
+      // pattern — e.g. two surveys 6 months apart (genuinely semi-annual)
+      // can make quarterly look like a perfect fit purely because the
+      // other 2 quarterly months are zero. Requiring most of the phase's
+      // OWN months to show real activity (not just that the total lands in
+      // that phase) rules that out.
+      const density = activeCount / months.length;
+      if (density < 0.6) continue;
+      if (!best || frac > best.frac) best = { k, label, frac, months };
+    }
+  });
+  // Lower bar than before (was 0.55) — with only these three, realistic
+  // candidates left, a clear quarterly pattern in real (noisy) data often
+  // lands in the 45-55% range rather than the 55%+ that was achievable
+  // when wider, unrealistic phases were still in the running.
+  if (!best || best.frac < 0.4) return null;
+  // A wider phase (quarterly's 4 months, semi-annual's 2) will almost
+  // always sum to more than a single month does, just by having more
+  // terms — so a genuinely single-peak pattern (one big survey month, the
+  // rest near-zero) can still "win" as quarterly purely because its phase
+  // happens to contain that one peak plus some low-noise filler months,
+  // not because there's real recurring structure. If one month alone
+  // explains most of what the winning phase captured, it's more honest to
+  // call that a single season than a multi-peak cadence.
+  if (best.k !== 12) {
+    const maxMonth = Math.max(...monthCounts);
+    const maxFrac = maxMonth / total;
+    if (maxFrac / best.frac > 0.7) {
+      const peakMonth = monthCounts.indexOf(maxMonth);
+      best = { k: 12, label: 'a single annual season', frac: maxFrac, months: [peakMonth] };
+    }
+  }
+  const monthList = best.months.map(m => MONTH_ABBR[m]).join(', ');
+  return `Sampling pattern: approximately ${best.label} (concentrated in ${monthList} — ${Math.round(best.frac * 100)}% of observations)`;
+}
+function renderCardText(doc, d, label, marginPt, y, opts) {
+  opts = opts || {};
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const usableWidth = pageWidth - marginPt * 2;
+  const lh = 13;
+  y = ensureSpace(doc, y, 70, marginPt); // keep the header block from splitting across a page break
+  if (opts.withLabel !== false) {
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text(label, marginPt, y);
+    doc.setFont(undefined, 'normal');
+    y += lh + 2;
+  }
+
+  doc.setFont(undefined, 'bold');
+  doc.setFontSize(10);
+  y = ensureSpace(doc, y, lh, marginPt);
+  doc.text('Observations by Year', marginPt, y);
+  y += 5;
+  doc.setFont(undefined, 'normal');
+  if (d.years && d.years.length) {
+    const byYear = {};
+    d.years.forEach(o => byYear[o.y] = o.n);
+    const pairs = [];
+    for (let yr = d.years[0].y; yr <= d.years[d.years.length - 1].y; yr++) pairs.push([String(yr), byYear[yr] || 0]);
+    y = drawTimelineStrip(doc, pairs, marginPt, y, usableWidth, opts.color);
+  } else {
+    doc.setFontSize(9);
+    y = ensureSpace(doc, y, lh, marginPt);
+    doc.text('no dates', marginPt, y);
+    y += lh;
+  }
+  y += 14;
+
+  // Reserves room for the heading + sampling-pattern text + chart together
+  // (~140pt, generous enough for the text to wrap onto two lines) — not
+  // just the heading's own line height. Without this, the heading and text
+  // could fit at the bottom of a page while the chart itself got pushed
+  // alone onto the next one, splitting one section across two pages.
+  y = ensureSpace(doc, y, 140, marginPt);
+  doc.setFont(undefined, 'bold');
+  doc.setFontSize(10);
+  doc.text('Seasonality by Month', marginPt, y);
+  y += 14; // was 5 — not enough clearance below a 10pt heading, the next line's text visibly overlapped it
+  const byMonth = {};
+  (d.months || []).forEach(o => byMonth[o.m] = o.n);
+  const monthPairs = MONTH_ABBR.map((name, i) => [name, byMonth[i + 1] || 0]);
+  const freqText = estimateSamplingFrequency(monthPairs.map(p => p[1]));
+  if (freqText) {
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(20, 22, 26);
+    // writeWrapped, not a single doc.text() call — the unwrapped version ran
+    // straight off the right edge of the page for longer generated strings.
+    y = writeWrapped(doc, freqText, marginPt, y, usableWidth, marginPt, 12);
+    y += 6;
+  }
+  doc.setFont(undefined, 'normal');
+  y = drawTimelineStrip(doc, monthPairs, marginPt, y, usableWidth, opts.color);
+  y += 12;
+  return y;
+}
+// Converts a "#rrggbb" hex string to a [r,g,b] 0-255 array for jsPDF's
+// setFillColor/setDrawColor/setTextColor, which want separate channels
+// rather than a hex string.
+function hexRGB(hex) { return [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)); }
+// Draws the coverage card as native vector shapes and text — same visual
+// design as the on-screen dark card (.ds-card/.ybar/.mbar in styles.css),
+// same color/opacity math as yearBars()/monthBars() — but with jsPDF
+// primitives instead of a rasterized DOM screenshot. This replaced an
+// html2canvas capture of the actual card: raster screenshots of small text
+// and thin bars come out visibly soft/blurry once scaled up to fill a PDF
+// page, a hard limit of html2canvas's own text rendering that more capture
+// resolution only partially compensates for. Vector shapes have no such
+// ceiling — sharp at any zoom or print size, and the resulting PDF is
+// smaller too. Returns the y position after the card.
+function renderCardVector(doc, d, label, color, marginPt, y) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const cardW = pageWidth - marginPt * 2;
+  const padX = 10, padY = 10;
+  const bg = mixHex(color, 6, '#0f1e35');
+  const [bgR, bgG, bgB] = hexRGB(bg);
+  const [cR, cG, cB] = hexRGB(color);
+  const hasYears = d.years && d.years.length;
+  const barsAreaH = hasYears ? 34 : 12;
+  const cardH = padY + 16 /*header*/ + 3 * 12 /*stats*/ + 10 /*gap*/ + 11 /*bars-label*/ + barsAreaH
+    + 20 /*gap*/ + 11 /*bars-label*/ + 13 /*month bars*/ + padY;
+
+  y = ensureSpace(doc, y, cardH + 14, marginPt);
+  const top = y;
+
+  doc.setFillColor(bgR, bgG, bgB);
+  doc.roundedRect(marginPt, top, cardW, cardH, 4, 4, 'F');
+  doc.setDrawColor(58, 63, 68);
+  doc.setLineWidth(0.75);
+  doc.roundedRect(marginPt, top, cardW, cardH, 4, 4, 'S');
+  doc.setFillColor(cR, cG, cB);
+  doc.rect(marginPt, top, 2.5, cardH, 'F'); // left accent bar, matches border-left: 3px solid var(--c)
+
+  let cy = top + padY;
+  // header: dot + label + realm badge
+  doc.setFillColor(cR, cG, cB);
+  doc.circle(marginPt + padX + 3, cy + 2.5, 3, 'F');
+  doc.setTextColor(230, 233, 237);
+  doc.setFont(undefined, 'bold');
+  doc.setFontSize(11);
+  doc.text(label, marginPt + padX + 10, cy + 5.5);
+  const realm = d.realm || 'env';
+  const isBio = realm === 'bio';
+  const badgeFillHex = isBio ? '#69db7c' : '#4dabf7';
+  const badgeTextRGB = isBio ? [140, 233, 154] : [116, 192, 247];
+  const badgeText = realm.toUpperCase();
+  doc.setFont(undefined, 'bold');
+  doc.setFontSize(7);
+  const badgeTextW = doc.getTextWidth(badgeText);
+  const badgeW = badgeTextW + 10, badgeH = 12;
+  const badgeX = marginPt + cardW - padX - badgeW;
+  const [badgeR, badgeG, badgeB] = hexRGB(mixHex(badgeFillHex, isBio ? 16 : 18, bg));
+  doc.setFillColor(badgeR, badgeG, badgeB);
+  doc.roundedRect(badgeX, cy - 3.5, badgeW, badgeH, 6, 6, 'F');
+  doc.setTextColor(badgeTextRGB[0], badgeTextRGB[1], badgeTextRGB[2]);
+  doc.text(badgeText, badgeX + badgeW / 2, cy + 4.5, { align: 'center' });
+  cy += 16;
+
+  // stats: Date Range / Depth Range / Coverage
+  doc.setFont(undefined, 'normal');
+  const depth = (d.depth_min != null || d.depth_max != null)
+    ? `${Math.round(d.depth_min ?? 0)}\u2013${Math.round(d.depth_max ?? 0)} m` : 'depth n/a';
+  const statRows = [
+    ['DATE RANGE', `${day(d.time_min)} - ${day(d.time_max)}`],
+    ['DEPTH RANGE', depth],
+    ['COVERAGE', `${num(d.n_surveys)} surveys \u00b7 ${num(d.n_obs)} obs`],
+  ];
+  statRows.forEach(([lbl, val]) => {
+    doc.setFontSize(7);
+    doc.setTextColor(154, 160, 166);
+    doc.text(lbl, marginPt + padX, cy + 4);
+    doc.setFontSize(9);
+    doc.setTextColor(230, 233, 237);
+    doc.text(val, marginPt + cardW - padX, cy + 4, { align: 'right' });
+    cy += 12;
+  });
+  cy += 10;
+
+  // year bars
+  doc.setFontSize(7);
+  doc.setTextColor(154, 160, 166);
+  doc.text('OBSERVATIONS BY YEAR', marginPt + padX, cy + 4);
+  cy += 11;
+  const barsAreaW = cardW - padX * 2;
+  if (hasYears) {
+    const y0 = d.years[0].y, y1 = d.years[d.years.length - 1].y;
+    const byYear = {};
+    d.years.forEach(o => byYear[o.y] = o.n);
+    const max = Math.max(...d.years.map(o => o.n));
+    const n = y1 - y0 + 1;
+    const gap = 0.6, barW = Math.max(0.4, (barsAreaW - (n - 1) * gap) / n);
+    const baseline = cy + barsAreaH;
+    for (let i = 0; i < n; i++) {
+      const yr = y0 + i, cnt = byYear[yr] || 0;
+      const h = cnt ? (4 + 26 * cnt / max) : 1;
+      const barColor = mixHex(color, cnt ? 85 : 13, bg);
+      doc.setFillColor(...hexRGB(barColor));
+      doc.rect(marginPt + padX + i * (barW + gap), baseline - h, barW, h, 'F');
+    }
+    doc.setFontSize(7);
+    doc.setTextColor(154, 160, 166);
+    doc.text(String(y0), marginPt + padX, baseline + 8);
+    doc.text(String(y1), marginPt + cardW - padX, baseline + 8, { align: 'right' });
+    cy += barsAreaH + 20;
+  } else {
+    doc.setFontSize(8);
+    doc.setTextColor(108, 117, 125);
+    doc.text('no dates', marginPt + padX, cy + 6);
+    cy += barsAreaH;
+  }
+
+  // month bars
+  doc.setFontSize(7);
+  doc.setTextColor(154, 160, 166);
+  doc.text('SEASONALITY (BY MONTH)', marginPt + padX, cy + 4);
+  cy += 11;
+  const byMonth = {};
+  (d.months || []).forEach(o => byMonth[o.m] = o.n);
+  const maxM = Math.max(1, ...Object.values(byMonth));
+  const mGap = 1.2, mBarW = (barsAreaW - 11 * mGap) / 12;
+  for (let i = 0; i < 12; i++) {
+    const cnt = byMonth[i + 1] || 0;
+    const op = 13 + 87 * cnt / maxM; // percent, matches 0.13 + 0.87*n/max
+    const cellColor = mixHex(color, op, bg);
+    const cellX = marginPt + padX + i * (mBarW + mGap);
+    doc.setFillColor(...hexRGB(cellColor));
+    doc.roundedRect(cellX, cy, mBarW, 13, 1.5, 1.5, 'F');
+    doc.setFontSize(6.5);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(11, 12, 14);
+    doc.text(MONTHS[i], cellX + mBarW / 2, cy + 9, { align: 'center' });
+    doc.setFont(undefined, 'normal');
+  }
+  return top + cardH + 14;
+}
+// Temporarily re-centers the live map on one station or fits it to several,
+// captures that view, then restores whatever view the person had before —
+// so a download shows the relevant station(s) in context instead of
+// whatever part of the coast happened to be on screen when they clicked
+// download, without permanently moving the map out from under them.
+// Standard Web Mercator tile math (what every {z}/{x}/{y} XYZ tile server,
+// including the CARTO basemap this app already uses, is indexed by) —
+// converts a lat/lon into "world pixel" coordinates at a given zoom, where
+// one tile is TILE_SIZE x TILE_SIZE world pixels. Used to place both the
+// tile images and the markers from the exact same source coordinates,
+// instead of asking Leaflet where it currently thinks something is.
+const TILE_SIZE = 256;
+function lonToWorldX(lon, zoom) {
+  return (lon + 180) / 360 * TILE_SIZE * Math.pow(2, zoom);
+}
+function latToWorldY(lat, zoom) {
+  const rad = lat * Math.PI / 180;
+  return (1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2 * TILE_SIZE * Math.pow(2, zoom);
+}
+function loadTileImage(z, x, y) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    const subdomains = 'abcd';
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null); // a missing tile shouldn't fail the whole map
+    img.src = `https://${subdomains[(x + y) % subdomains.length]}.basemaps.cartocdn.com/dark_all/${z}/${x}/${y}.png`;
+  });
+}
+// Highest zoom (capped at maxZoom) at which every point fits within
+// canvasW x canvasH pixels with the given padding — the same job
+// Leaflet's fitBounds() does, computed by hand.
+function pickZoomToFit(points, canvasW, canvasH, padding, maxZoom) {
+  if (points.length <= 1) return maxZoom;
+  const lats = points.map(p => p[0]), lons = points.map(p => p[1]);
+  const latMin = Math.min(...lats), latMax = Math.max(...lats);
+  const lonMin = Math.min(...lons), lonMax = Math.max(...lons);
+  for (let z = maxZoom; z >= 1; z--) {
+    const w = lonToWorldX(lonMax, z) - lonToWorldX(lonMin, z);
+    const h = latToWorldY(latMin, z) - latToWorldY(latMax, z); // lat max -> smaller world-Y
+    if (w + padding * 2 <= canvasW && h + padding * 2 <= canvasH) return z;
+  }
+  return 1;
+}
+// Renders the map onto a plain canvas — fetching the same CARTO tile
+// images directly by URL and drawing every station marker ourselves with
+// the projection math above — instead of screenshotting Leaflet's live DOM
+// via html2canvas. Four separate attempts at making that DOM capture
+// reliable (disabling worldCopyJump, capturing the live element instead of
+// a clone, invalidateSize with and without the preceding jump) each
+// produced a different symptom, none confirmed fixed, all reasoned
+// blind without a way to test against the real map. That pattern — not
+// converging, and a new distortion each time — pointed at the capture
+// approach itself rather than any one specific bug within it. This sidesteps
+// the whole category: every pixel here comes directly from the same lat/lon
+// data the app already has, computed once, not captured from a separate
+// stateful library's current rendering.
+function captureMapForStations(stationList) {
+  const canvasW = 1200, canvasH = 490, padding = 70, maxZoom = 6;
+  const points = stationList.map(s => [s.lat, s.lon]);
+  const zoom = pickZoomToFit(points, canvasW, canvasH, padding, maxZoom);
+  const lats = points.map(p => p[0]), lons = points.map(p => p[1]);
+  const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+  const centerLon = (Math.min(...lons) + Math.max(...lons)) / 2;
+  const originWorldX = lonToWorldX(centerLon, zoom) - canvasW / 2;
+  const originWorldY = latToWorldY(centerLat, zoom) - canvasH / 2;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = canvasW;
+  canvas.height = canvasH;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#0b1a2e';
+  ctx.fillRect(0, 0, canvasW, canvasH);
+
+  const maxTileIndex = Math.pow(2, zoom) - 1;
+  const tileMinX = Math.floor(originWorldX / TILE_SIZE), tileMaxX = Math.floor((originWorldX + canvasW) / TILE_SIZE);
+  const tileMinY = Math.floor(originWorldY / TILE_SIZE), tileMaxY = Math.floor((originWorldY + canvasH) / TILE_SIZE);
+  const tilePromises = [];
+  for (let tx = tileMinX; tx <= tileMaxX; tx++) {
+    for (let ty = tileMinY; ty <= tileMaxY; ty++) {
+      if (ty < 0 || ty > maxTileIndex) continue;
+      // Wrap the tile X index around the world so panning near the
+      // antimeridian still resolves to a real tile — worldCopyJump was one
+      // of the theories in the old approach; this sidesteps it structurally
+      // by never asking Leaflet to decide which world-copy to show.
+      const wrappedTx = ((tx % (maxTileIndex + 1)) + (maxTileIndex + 1)) % (maxTileIndex + 1);
+      const px = tx * TILE_SIZE - originWorldX, py = ty * TILE_SIZE - originWorldY;
+      tilePromises.push(loadTileImage(zoom, wrappedTx, ty).then(img => { if (img) ctx.drawImage(img, px, py, TILE_SIZE, TILE_SIZE); }));
+    }
+  }
+
+  return Promise.all(tilePromises).then(() => {
+    // Every known station, faint, as map context — same visual language as
+    // the live app's default (unselected) marker style.
+    STATIONS.forEach(s => {
+      const wx = lonToWorldX(s.lon, zoom) - originWorldX, wy = latToWorldY(s.lat, zoom) - originWorldY;
+      if (wx < -20 || wx > canvasW + 20 || wy < -20 || wy > canvasH + 20) return;
+      const has = (s.n_datasets || 0) > 0;
+      ctx.beginPath();
+      ctx.arc(wx, wy, 5, 0, 2 * Math.PI);
+      ctx.fillStyle = has ? 'rgba(77,171,247,0.72)' : 'rgba(58,63,68,0.35)';
+      ctx.strokeStyle = has ? '#cfd8e3' : '#5a626b';
+      ctx.lineWidth = 1;
+      ctx.fill();
+      ctx.stroke();
+    });
+    // The station(s) this export is actually about — solid white disc for
+    // a single station (matches the on-screen "current station" marker),
+    // cyan ring for a multi-station comparison (matches the on-screen
+    // compare-selection ring) — same color language as the live app, drawn
+    // independently rather than read off it.
+    stationList.forEach(s => {
+      const wx = lonToWorldX(s.lon, zoom) - originWorldX, wy = latToWorldY(s.lat, zoom) - originWorldY;
+      ctx.beginPath();
+      ctx.arc(wx, wy, 7, 0, 2 * Math.PI);
+      if (stationList.length === 1) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+      } else {
+        ctx.strokeStyle = '#00e5ff';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+      }
+    });
+    return canvas;
+  });
+}
+function downloadSingleStationCard(cardId) {
+  const ctx = CARD_DL_CTX[cardId];
+  if (!currentStation || !ctx) return;
+  const s = currentStation;
+  captureMapForStations([s]).then(mapCanvas => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+    const margin = 36, pageWidth = doc.internal.pageSize.getWidth();
+    const usableWidth = pageWidth - margin * 2;
+    let y = drawReportHeader(doc, `${ctx.label} — Station ${s.station_id}`,
+      `Coordinates: ${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}   ·   Generated ${new Date().toLocaleDateString()}`, margin, ctx.color);
+    if (mapCanvas) {
+      const h = Math.min(182, mapCanvas.height * (usableWidth / mapCanvas.width));
+      drawFramedImage(doc, mapCanvas.toDataURL('image/png'), margin, y, usableWidth, h);
+      y = drawMapCaption(doc, margin, y + h + 14, '\u2022 White marker — this station');
+    } else {
+      doc.setFontSize(9);
+      doc.text('(Map screenshot unavailable in this browser — check the console for the specific error.)', margin, y);
+      y += 20;
+    }
+    y = renderCardVector(doc, ctx.d, ctx.label, ctx.color, margin, y);
+    y += 16; // extra breathing room before the reference section
+    y = ensureSpace(doc, y, 40, margin);
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text('Full values (reference)', margin, y);
+    doc.setFont(undefined, 'normal');
+    renderCardText(doc, ctx.d, ctx.label, margin, y + 20, { withLabel: false, color: ctx.color });
+    finalizeDocChrome(doc, margin);
+    doc.save(`calcofi-${s.station_id.replace(/\s+/g, '_')}-${ctx.d.dataset_key}.pdf`);
+  });
+}
+function downloadSingleComparisonCard(cardId) {
+  const ctx = CARD_COMPARE_CTX[cardId];
+  if (!ctx) return;
+  captureMapForStations(ctx.stations).then(mapCanvas => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+    const margin = 36, pageWidth = doc.internal.pageSize.getWidth();
+    const usableWidth = pageWidth - margin * 2;
+    let y = drawReportHeader(doc, `${ctx.label} — Averaged Across ${ctx.stations.length} Stations`,
+      `Generated ${new Date().toLocaleDateString()}`, margin, ctx.color);
+    if (mapCanvas) {
+      const h = Math.min(182, mapCanvas.height * (usableWidth / mapCanvas.width));
+      drawFramedImage(doc, mapCanvas.toDataURL('image/png'), margin, y, usableWidth, h);
+      y = drawMapCaption(doc, margin, y + h + 14, '\u2022 Cyan ring — stations included in this average');
+    } else {
+      doc.setFontSize(9);
+      doc.text('(Map screenshot unavailable in this browser — check the console for the specific error.)', margin, y);
+      y += 20;
+    }
+    y = renderCardVector(doc, ctx.d, ctx.label, ctx.color, margin, y);
+    y += 16; // extra breathing room before the reference section
+    y = ensureSpace(doc, y, 40, margin);
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.text('Full values (reference)', margin, y);
+    doc.setFont(undefined, 'normal');
+    y = renderCardText(doc, ctx.d, ctx.label, margin, y + 20, { withLabel: false, color: ctx.color });
+    y = ensureSpace(doc, y, 40, margin);
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.text(`Contributing Stations (${ctx.stations.length})`, margin, y);
+    doc.setFont(undefined, 'normal');
+    drawStationTable(doc, ctx.stations, margin, y + 16, usableWidth);
+    finalizeDocChrome(doc, margin);
+    doc.save(`calcofi-comparison-${ctx.d.dataset_key}.pdf`);
+  });
+}
+function downloadStationReport() {
+  if (!currentStation) return;
+  const s = currentStation;
+  const btn = document.getElementById('station-download-btn');
+  const original = btn.textContent;
+  btn.textContent = '⬇ Preparing…';
+  btn.disabled = true;
+  captureMapForStations([s]).then(mapCanvas => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+    const margin = 36, pageWidth = doc.internal.pageSize.getWidth();
+    const usableWidth = pageWidth - margin * 2;
+    let y = drawReportHeader(doc, `CalCOFI Station ${s.station_id}`,
+      `Coordinates: ${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}   ·   Datasets: ${s.n_datasets || 0}   ·   Generated ${new Date().toLocaleDateString()}`,
+      margin, '#4dabf7');
+    if (mapCanvas) {
+      const mapH = Math.min(182, mapCanvas.height * (usableWidth / mapCanvas.width));
+      drawFramedImage(doc, mapCanvas.toDataURL('image/png'), margin, y, usableWidth, mapH);
+      y = drawMapCaption(doc, margin, y + mapH + 14, '\u2022 White marker — this station');
+    } else {
+      doc.setFontSize(9);
+      doc.text('(Map screenshot unavailable in this browser.)', margin, y);
+      y += 20;
+    }
+    const entries = stationCardEntries(s);
+    entries.forEach(({ d, label, color }) => {
+      y = ensureSpace(doc, y, 200, margin);
+      doc.setFontSize(14);
+      doc.setFont(undefined, 'bold');
+      doc.text(label, margin, y);
+      doc.setFont(undefined, 'normal');
+      const yAfterCard = renderCardVector(doc, d, label, color, margin, y + 20);
+      y = renderCardText(doc, d, label, margin, yAfterCard, { withLabel: false, color }) + 20;
+    });
+    if (!entries.length) {
+      doc.addPage();
+      doc.setFontSize(9);
+      doc.text('No datasets at this station.', margin, margin);
+    }
+    finalizeDocChrome(doc, margin);
+    doc.save(`calcofi-station-${s.station_id.replace(/\s+/g, '_')}.pdf`);
+  }).catch(err => {
+    console.error(err);
+    alert('Could not generate the PDF — check the browser console for details.');
+  }).finally(() => { btn.textContent = original; btn.disabled = false; });
+}
+function downloadComparisonReport() {
+  const stations = lastComparisonStations;
+  if (!stations.length) return;
+  const btn = document.getElementById('comparison-download-btn');
+  const original = btn.textContent;
+  btn.textContent = '⬇ Preparing…';
+  btn.disabled = true;
+  captureMapForStations(stations).then(mapCanvas => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+    const margin = 36, pageWidth = doc.internal.pageSize.getWidth();
+    const usableWidth = pageWidth - margin * 2;
+    let y = drawReportHeader(doc, `CalCOFI Averaged Coverage — ${stations.length} stations selected`,
+      `Generated ${new Date().toLocaleDateString()}`, margin, '#4dabf7');
+    if (mapCanvas) {
+      const mapH = Math.min(182, mapCanvas.height * (usableWidth / mapCanvas.width));
+      drawFramedImage(doc, mapCanvas.toDataURL('image/png'), margin, y, usableWidth, mapH);
+      y = drawMapCaption(doc, margin, y + mapH + 14, '\u2022 Cyan ring — stations included in this average');
+    } else {
+      doc.setFontSize(9);
+      doc.text('(Map screenshot unavailable in this browser.)', margin, y);
+      y += 20;
+    }
+    y = ensureSpace(doc, y, 60, margin);
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'bold');
+    doc.text(`Selected Stations (${stations.length})`, margin, y);
+    doc.setFont(undefined, 'normal');
+    y = drawStationTable(doc, stations, margin, y + 16, usableWidth) + 20;
+    if (lastComparisonCards.length) {
+      lastComparisonCards.forEach(({ d, label, color, n, total }) => {
+        y = ensureSpace(doc, y, 220, margin);
+        doc.setFontSize(14);
+        doc.setFont(undefined, 'bold');
+        doc.text(label, margin, y);
+        doc.setFont(undefined, 'italic');
+        doc.setFontSize(9);
+        y = writeWrapped(doc, `Averaged across ${n} of ${total} selected stations that have ${label} data`, margin, y + 18, usableWidth, margin, 13);
+        doc.setFont(undefined, 'normal');
+        const yAfterCard = renderCardVector(doc, d, label, color, margin, y + 6);
+        y = renderCardText(doc, d, label, margin, yAfterCard, { withLabel: false, color }) + 20;
+      });
+    } else {
+      doc.addPage();
+      doc.setFontSize(9);
+      doc.text('No datasets in common.', margin, margin);
+    }
+    finalizeDocChrome(doc, margin);
+    doc.save(`calcofi-comparison-${stations.length}-stations.pdf`);
+  }).catch(err => {
+    console.error(err);
+    alert('Could not generate the PDF — check the browser console for details.');
+  }).finally(() => { btn.textContent = original; btn.disabled = false; });
+}
 function initYearSlider() {
   let mn = Infinity, mx = -Infinity;
   STATIONS.forEach(s => (s.datasets || []).forEach(d => (d.years || []).forEach(o => {
@@ -800,6 +2002,12 @@ function lockYearRange(lo, hi) {
 // 1949-2026 range (e.g. calcofi_phyllosoma ends in 2009) — this finds that
 // dataset's real min/max year across every station, so selecting a
 // variable can snap the slider to where its data actually is.
+// CAVEAT: this is a dataset-wide span, not a per-variable one — for a
+// single-parameter dataset that's the same thing, but for a multi-parameter
+// dataset like calcofi_mets it's the min/max across every one of its ~54
+// parameters combined, which can be wider than any individual parameter's
+// real coverage. See DATASET_SPAN_IS_AGGREGATE below, which flags this for
+// the banner caveat.
 function datasetYearSpan(datasetKey) {
   let mn = Infinity, mx = -Infinity;
   STATIONS.forEach(s => (s.datasets || []).forEach(d => {
@@ -819,6 +2027,26 @@ const DATASET_VAR_COUNTS = {}; // dataset_key -> variable count
 
 function contentKeywordGroup(v) {
   const n = (v.display_name || v.name || '').toLowerCase();
+  // 'sw_ph' (calcofi_mets) doesn't match any of the ph patterns below (no
+  // leading "ph"), so it was falling through to calcofi_mets's raw dataset
+  // default of Meteorology & Sea State — exact-name fix rather than
+  // broadening the substring check, which risks new false positives.
+  if (n === 'sw_ph') return 'Carbonate System';
+  // All TSG-prefixed fields (tsg1/2/2b/3/5 temp, conductivity, salinity,
+  // density, sound velocity — including raw/uncalibrated variants not
+  // covered by the family's representative field) are physical
+  // oceanography sensor readings, same as the TSG1 reading already shown
+  // there. Matched before the dataset-default fallback so they don't land
+  // in Meteorology & Sea State just because their abbreviated names
+  // ("tsg2_temp_c") don't contain the literal "temperature" substring.
+  if (n.startsWith('tsg')) return 'Physical Oceanography';
+  // calcofi_mets: 'chl_fluor'/'par_surf'/'pred_chl' don't contain the literal
+  // "fluorescence"/"par "/"chlorophyll" substrings the checks below look
+  // for, and the pred_* fields don't contain "temperature"/"salinity" —
+  // same abbreviation-mismatch bug as sw_ph above, found by auditing where
+  // every calcofi_mets field actually landed after the family-category fix.
+  if (n === 'chl_fluor' || n === 'par_surf' || n === 'pred_chl') return 'Productivity & Pigments';
+  if (n === 'pred_sal_psu') return 'Physical Oceanography';
   if (n === 'ph' || n.startsWith('ph ') || n.startsWith('ph_') || n.includes('ph replicate')) return 'Carbonate System';
   // "dic" as a bare substring false-positives on any word that happens to contain
   // those 3 letters in sequence -- "Dictyochophyceae" (phytoplankton) and
@@ -826,7 +2054,10 @@ function contentKeywordGroup(v) {
   // this reason. Match the real variable names (dic, dic_rep1, dic_rep2) instead.
   if (['alkalinity', 'dissolved inorganic carbon', 'carbonate', 'pco2'].some(k => n.includes(k))
       || n === 'dic' || n.startsWith('dic_') || n.startsWith('dic ')) return 'Carbonate System';
-  if (n === 'isus_v') return 'Physical Oceanography';
+  // ISUS is an in-situ UV nitrate sensor — was wrongly forced to Physical
+  // Oceanography; it measures nitrate, so it belongs with the other
+  // nutrient readings below.
+  if (n === 'isus_v') return 'Nutrients & Chemistry';
   if (['phosphate', 'silicate', 'nitrate', 'nitrite', 'ammoni'].some(k => n.includes(k))) return 'Nutrients & Chemistry';
   // "par"/"spar" (light for photosynthesis) and "light_pct" (light intensity
   // for the C14 productivity incubation) pair with chlorophyll/C14 on the
@@ -835,25 +2066,48 @@ function contentKeywordGroup(v) {
   // false-positives on species names (Bonaparte's Gull, Parakeet Auklet...).
   if (['chlorophyll', 'phaeopigment', 'c14', 'productivity', 'pigment', 'fluorescence', 'light_pct'].some(k => n.includes(k))
       || n === 'par' || n === 'spar' || n.startsWith('par ') || n.startsWith('spar ')) return 'Productivity & Pigments';
-  if (['wind', 'wave', 'weather', 'cloud', 'visibility', 'bulb', 'atmospheric', 'barometric', 'secchi', 'forel'].some(k => n.includes(k))) return 'Meteorology & Sea State';
+  if (['wind', 'wave', 'weather', 'cloud', 'visibility', 'bulb', 'atmospheric', 'barometric', 'secchi', 'forel'].some(k => n.includes(k))
+      || n === 'water_color') return 'Meteorology & Sea State';
   if (['temperature', 'salinity', 'density', 'sigma', 'oxygen', 'o2', 'pressure', 'depth', 'dynamic height'].some(k => n.includes(k))) return 'Physical Oceanography';
   return null;
 }
 const DATASET_CATEGORY = {
   'swfsc_ichthyo': 'Fish Eggs & Larvae', 'swfsc_cufes': 'Fish Eggs & Larvae',
   'cce-lter_zoodb': 'Zooplankton', 'cce-lter_zooscan': 'Zooplankton',
-  'sio_pic-zooplankton': 'Zooplankton', 'calcofi_phyllosoma': 'Zooplankton',
+  'sio_pic-zooplankton': 'Zooplankton', 'pic_zooplankton': 'Zooplankton', 'calcofi_phyllosoma': 'Zooplankton',
   'cce-lter_euphausiids': 'Euphausiids (Krill)', 'farallon_bird-mammal': 'Seabirds & Marine Mammals',
-  'calcofi_phytoplankton': 'Phytoplankton'
+  'calcofi_bird_mammal_census': 'Seabirds & Marine Mammals',
+  'calcofi_phytoplankton': 'Phytoplankton', 'calcofi_mets': 'Meteorology & Sea State',
+  'ucsd_sio_mesopelagic-fish': 'Mesopelagic Fish', 'sio_mesopelagic-fish': 'Mesopelagic Fish', 'cce-lter_picoplankton-bacteria': 'Picoplankton & Bacteria'
+};
+// Family membership is a more reliable category signal than keyword-matching
+// the raw name for members whose raw fields are heavily abbreviated (e.g.
+// calcofi_mets's 'sst_c'/'tsg1_temp_c' don't contain the literal substring
+// "temperature", so contentKeywordGroup() misses them and they were falling
+// through to calcofi_mets's raw dataset default of Meteorology & Sea State —
+// found via screenshot: the whole Temperature/Salinity/Conductivity/Density/
+// Sound Velocity/Oxygen family set was landing there instead of Physical
+// Oceanography, even though the display label was already correct).
+// Checked AFTER contentKeywordGroup so already-correct keyword-driven cases
+// (Alkalinity/DIC/pH -> Carbonate System, Wind -> Meteorology) are untouched.
+const FAMILY_CATEGORY = {
+  'Temperature': 'Physical Oceanography', 'Sea Surface Temperature': 'Physical Oceanography',
+  'Salinity': 'Physical Oceanography', 'Sea Surface Salinity': 'Physical Oceanography',
+  'Conductivity': 'Physical Oceanography', 'Sea Surface Conductivity': 'Physical Oceanography',
+  'Density': 'Physical Oceanography', 'Sound Velocity': 'Physical Oceanography',
+  'Oxygen': 'Physical Oceanography',
 };
 function categoryOf(v) {
   if (v.dataset_key === 'swfsc_ichthyo' && ['small_plankton_biomass', 'total_plankton_biomass'].includes(v.display_name)) return 'Zooplankton';
-  return contentKeywordGroup(v) || DATASET_CATEGORY[v.dataset_key]
-    || (dsMeta(v.dataset_key).realm === 'env' ? 'Physical Oceanography' : 'Other');
+  const kg = contentKeywordGroup(v);
+  if (kg) return kg;
+  const fm = familyMemberFor(v);
+  if (fm && FAMILY_CATEGORY[fm.family.name]) return FAMILY_CATEGORY[fm.family.name];
+  return DATASET_CATEGORY[v.dataset_key] || (dsMeta(v.dataset_key).realm === 'env' ? 'Physical Oceanography' : 'Other');
 }
 const CATEGORY_ORDER = ['Physical Oceanography', 'Nutrients & Chemistry', 'Productivity & Pigments',
-  'Carbonate System', 'Meteorology & Sea State', 'Phytoplankton', 'Zooplankton', 'Euphausiids (Krill)',
-  'Seabirds & Marine Mammals', 'Fish Eggs & Larvae'];
+  'Carbonate System', 'Meteorology & Sea State', 'Phytoplankton', 'Picoplankton & Bacteria', 'Zooplankton',
+  'Euphausiids (Krill)', 'Seabirds & Marine Mammals', 'Mesopelagic Fish', 'Fish Eggs & Larvae'];
 const CATEGORY_ICON = {
   'Physical Oceanography': '🌊',
   'Nutrients & Chemistry': '🧪',
@@ -861,9 +2115,11 @@ const CATEGORY_ICON = {
   'Carbonate System': '🪸',
   'Meteorology & Sea State': '☁️',
   'Phytoplankton': '🔬',
+  'Picoplankton & Bacteria': '🦠',
   'Zooplankton': '🦠',
   'Euphausiids (Krill)': '🦐',
   'Fish Eggs & Larvae': '🐟',
+  'Mesopelagic Fish': '🐡',
   'Seabirds & Marine Mammals': '🐋',
 };
 function catLabel(c) { return CATEGORY_ICON[c] ? `${CATEGORY_ICON[c]} ${c}` : c; }
@@ -913,57 +2169,135 @@ const PARAMETER_FAMILIES = [
     name: 'Temperature',
     members: [
       { type: 'group', label: 'Temperature', short: 'Standard',
-        method: 'In-situ seawater temperature (thermometer/CTD sensor)',
+        method: 'Seawater temperature — bottle sample, CTD cast, carbonate cast, or continuous underway (TSG) intake, depending on dataset',
         sources: [
           { dataset_key: 'calcofi_bottle', match: 'temperature', source: 'Bottle' },
           { dataset_key: 'calcofi_ctd-cast', match: 'temperature_ave', source: 'CTD Cast' },
           { dataset_key: 'calcofi_dic', match: 'ctdtemp_its90', source: 'Carbonate Cast' },
+          // calcofi_mets (Underway METS) — TSG1/2/2b/3/5 are separate
+          // physical thermosalinograph units all landing in the same
+          // calcofi_mets dataset, not genuinely different data, so only
+          // one representative field is surfaced (TSG1's calibrated
+          // variant). The dedicated sea-surface sensor (sst_c/sst_c_
+          // corrected) is a likely-different sensor per the standardization
+          // notes, so it gets its own member below rather than being folded
+          // in here.
+          { dataset_key: 'calcofi_mets', match: 'tsg1_temp_c_calibrated', source: 'METS (Underway)' },
         ] },
-      { type: 'single', dataset_key: 'calcofi_ctd-cast', match: 'potential_temperature_1', label: 'Potential Temperature', short: 'Potential (CTD)',
-        method: 'CTD-mounted thermometer sensor, pressure-corrected potential temperature — a different computed quantity than raw in-situ temperature' },
+      { type: 'group', label: 'Sea Surface Temperature', short: 'SST',
+        method: 'Hull-mounted temperature sensor (SBE48, in the transducer void)',
+        sources: [
+          // sst_c and sst_c_corrected are the same SBE48 sensor, raw vs
+          // calibrated — one physical instrument, not two, so only the
+          // corrected reading is surfaced as the representative field
+          // (same "one card per dataset" pattern as TSG1's calibrated
+          // variant above). Raw sst_c is excluded below.
+          { dataset_key: 'calcofi_mets', match: 'sst_c_corrected', source: 'METS (Underway)', note: 'SBE48 hull sensor, transducer void' },
+        ] },
+      { type: 'single', dataset_key: 'calcofi_ctd-cast', match: 'potential_temperature_1', label: 'Potential Temperature', short: 'Potential',
+        method: 'CTD-mounted thermometer sensor, pressure-corrected potential temperature' },
       { type: 'single', dataset_key: 'calcofi_bottle', match: 'dry_air_temp', label: 'Dry Bulb Temperature', short: 'Dry Bulb',
-        method: 'Shipboard air temp, sling psychrometer — not seawater' },
+        method: 'Shipboard air temp, sling psychrometer' },
       { type: 'single', dataset_key: 'calcofi_bottle', match: 'wet_air_temp', label: 'Wet Bulb Temperature', short: 'Wet Bulb',
-        method: 'Shipboard air temp, sling psychrometer (humidity-adjusted) — not seawater' },
+        method: 'Shipboard air temp, sling psychrometer (humidity-adjusted)' },
     ],
   },
   {
     name: 'Oxygen',
     members: [
-      { type: 'group', label: 'Oxygen', short: 'Bottle',
-        method: 'Dissolved oxygen concentration',
-        sources: [
-          { dataset_key: 'calcofi_bottle', match: 'oxygen_ml_l', source: 'Bottle', note: 'Winkler titration (bottle sample) — reported in mL/L, also available in µmol/kg' },
-          { dataset_key: 'calcofi_ctd-cast', match: 'oxygen_ml_l_ave_sta_corr', source: 'CTD Cast', note: 'CTD-mounted electronic oxygen sensor, station-corrected average of both sensors' },
-        ] },
-      { type: 'group', label: 'Oxygen Saturation', short: 'Bottle Saturation',
-        method: 'Oxygen percent saturation — a different quantity than concentration',
+      { type: 'group', label: 'Oxygen Saturation', short: 'Standard',
+        method: 'Oxygen percent saturation',
         sources: [
           { dataset_key: 'calcofi_bottle', match: 'oxygen_saturation', source: 'Bottle', note: 'Winkler-derived percent saturation (bottle sample)' },
           { dataset_key: 'calcofi_ctd-cast', match: 'oxygen_saturation_1', source: 'CTD Cast (sensor)', note: 'CTD-mounted electronic oxygen sensor, percent saturation' },
+          { dataset_key: 'calcofi_mets', match: 'oxygen_sat_pct', source: 'METS (Underway)', note: 'Continuous underway sensor, reported in %' },
         ] },
+      { type: 'group', label: 'Oxygen', short: 'Standard',
+        method: 'Dissolved oxygen concentration — bottle sample, CTD sensor, or continuous underway system',
+        sources: [
+          { dataset_key: 'calcofi_bottle', match: 'oxygen_ml_l', source: 'Bottle', note: 'Winkler titration (bottle sample) — reported in mL/L, also available in µmol/kg' },
+          { dataset_key: 'calcofi_ctd-cast', match: 'oxygen_ml_l_ave_sta_corr', source: 'CTD Cast', note: 'CTD-mounted electronic oxygen sensor, station-corrected average of both sensors' },
+          // calcofi_mets — same one-card-per-dataset reasoning as
+          // Temperature/Salinity above.
+          { dataset_key: 'calcofi_mets', match: 'oxygen', source: 'METS (Underway)', note: 'Continuous underway sensor, reported in mL/L' },
+        ] },
+      // oxygen_temp_c: the naming follows the same "<parameter>_temp_c"
+      // pattern as air_temp_c (Air Temperature) and dic_temp_c (Temperature
+      // (DIC Analyzer)) elsewhere in this dataset — a temperature reading
+      // taken BY or FOR a specific instrument, not general seawater/air
+      // temperature. Confirmed by the ship's underway processing notes:
+      // "temperature of the water oxygen measurements were made on" — the
+      // oxygen sensor's own reading, not an independent seawater temperature.
+      { type: 'single', dataset_key: 'calcofi_mets', match: 'oxygen_temp_c', label: 'Oxygen Sensor Temperature', short: 'Sensor Temp',
+        method: "The oxygen sensor's own internal temperature reading, used to temperature-compensate the Oxygen measurement" },
     ],
   },
   {
     name: 'Salinity',
     members: [
       { type: 'group', label: 'Salinity', short: 'Standard',
-        method: 'Seawater salinity',
+        method: 'Seawater salinity — bench salinometer, CTD sensor, carbonate cast, or continuous underway (TSG) intake, depending on dataset',
         sources: [
           { dataset_key: 'calcofi_bottle', match: 'salinity', source: 'Bottle', note: 'Bench salinometer reading of the bottle sample' },
           { dataset_key: 'calcofi_ctd-cast', match: 'salinity_ave_corr', source: 'CTD Cast', note: 'CTD-mounted conductivity sensor, station-corrected average of both sensors' },
           { dataset_key: 'calcofi_dic', match: 'salinity_pss78', source: 'Carbonate Cast', note: 'CTD-mounted conductivity sensor, carbonate chemistry cast (PSS-78 scale)' },
+          // calcofi_mets — same one-card-per-dataset reasoning as
+          // Temperature above; sea-surface sensor (sss_psu/sss_psu_
+          // corrected) is a likely-different sensor per the standardization
+          // notes, so it gets its own member below.
+          { dataset_key: 'calcofi_mets', match: 'tsg1_salinity_psu_calibrated', source: 'METS (Underway)', note: 'TSG75 unit, continuous underway intake sensor' },
+        ] },
+      { type: 'group', label: 'Sea Surface Salinity', short: 'SSS',
+        method: 'Sea surface salinity from a dedicated surface sensor, separate from the ship\'s TSG intake sensor',
+        sources: [
+          // sss_psu and sss_psu_corrected are the same dedicated surface
+          // sensor, raw vs calibrated — one physical instrument, not two,
+          // so only the corrected reading is surfaced as the representative
+          // field (same pattern as Sea Surface Temperature above). Raw
+          // sss_psu is excluded below.
+          { dataset_key: 'calcofi_mets', match: 'sss_psu_corrected', source: 'METS (Underway)' },
+        ] },
+      { type: 'single', dataset_key: 'calcofi_mets', match: 'pred_sal_psu', label: 'Salinity (Predicted)', short: 'Predicted',
+        method: 'Derived from a calibration of the TSG intake salinity against CalCOFI 0–7 m bottle salinity — not a direct sensor reading' },
+    ],
+  },
+  {
+    name: 'Conductivity',
+    members: [
+      { type: 'group', label: 'Conductivity', short: 'Standard',
+        method: 'Continuous underway seawater conductivity from the ship\'s thermosalinograph intake',
+        sources: [
+          { dataset_key: 'calcofi_mets', match: 'tsg1_conductivity', source: 'METS (Underway)', note: 'TSG75 unit, continuous underway intake sensor, reported in mS/cm' },
+        ] },
+      // Sea Surface Conductivity (ss_conductivity) — ss_ prefix signals the
+      // same dedicated-surface-sensor pattern as sst_/sss_ above, likely a
+      // different sensor than the TSG1 intake reading, not a duplicate.
+      { type: 'single', dataset_key: 'calcofi_mets', match: 'ss_conductivity', label: 'Sea Surface Conductivity', short: 'SSC',
+        method: 'Sea surface conductivity from a dedicated surface sensor' },
+    ],
+  },
+  {
+    name: 'Density',
+    members: [
+      // Same TSG-redundancy reasoning as Temperature/Salinity above — folded
+      // into one member with 3 sources instead of two near-duplicate rows.
+      { type: 'group', label: 'Density (Sigma Theta)', short: 'Standard',
+        method: 'Potential density (reported as sigma-t)',
+        sources: [
+          { dataset_key: 'calcofi_bottle', match: 'sigma_theta', source: 'Bottle' },
+          { dataset_key: 'calcofi_ctd-cast', match: 'sigma_theta_1', source: 'CTD Cast (station-corrected)' },
+          { dataset_key: 'calcofi_mets', match: 'tsg1_density', source: 'METS (Underway)', note: 'TSG75 unit, continuous underway intake sensor, reported as sigma-t' },
         ] },
     ],
   },
   {
-    name: 'Density (Sigma Theta)',
+    name: 'Sound Velocity',
     members: [
-      { type: 'group', label: 'Density (Sigma Theta)', short: 'Standard',
-        method: 'Potential density, computed from temperature/salinity',
+      // Same TSG-redundancy reasoning as Temperature/Salinity above.
+      { type: 'group', label: 'Sound Velocity', short: 'Underway (TSG)',
+        method: 'Continuous underway sound velocity from the ship\'s thermosalinograph intake',
         sources: [
-          { dataset_key: 'calcofi_bottle', match: 'sigma_theta', source: 'Bottle' },
-          { dataset_key: 'calcofi_ctd-cast', match: 'sigma_theta_1', source: 'CTD Cast (station-corrected)' },
+          { dataset_key: 'calcofi_mets', match: 'tsg1_sound_velocity', source: 'METS (Underway)', note: 'TSG75 unit, continuous underway intake sensor, reported in m/sec' },
         ] },
     ],
   },
@@ -979,12 +2313,47 @@ const PARAMETER_FAMILIES = [
     ],
   },
   {
+    // Same collision pattern as Bottom Depth — calcofi_bottle's wind_direction
+    // (logged during the Bottle/CTD cast, shipboard weather log) and
+    // calcofi_mets's wind_dir_deg (continuous underway) were two disconnected
+    // raw fields both auto-resolving to the identical label "Wind Direction"
+    // with nothing linking them — found via the same duplicate-row audit
+    // that caught Bottom Depth. Kept as its own top-level family (not nested
+    // under a combined "Wind" umbrella) since Direction and Speed are
+    // independently useful parameters, not variants of one measurement.
+    name: 'Wind Direction',
+    members: [
+      { type: 'group', label: 'Wind Direction', short: 'Standard',
+        method: 'Wind direction, reported using an abbreviated 360° azimuth circle (0° = true north, 180° = south)',
+        sources: [
+          { dataset_key: 'calcofi_bottle', match: 'wind_direction', source: 'Hydrographic Cast', note: 'Logged during the Bottle/CTD cast event' },
+          { dataset_key: 'calcofi_mets', match: 'wind_dir_deg', source: 'METS (Underway)', note: 'Continuous underway sensor' },
+        ] },
+    ],
+  },
+  {
+    // Same collision pattern as Wind Direction above.
+    name: 'Wind Speed',
+    members: [
+      { type: 'group', label: 'Wind Speed', short: 'Standard',
+        method: 'Wind speed',
+        sources: [
+          { dataset_key: 'calcofi_bottle', match: 'wind_speed', source: 'Hydrographic Cast', note: 'Logged during the Bottle/CTD cast event, reported in knots' },
+          { dataset_key: 'calcofi_mets', match: 'wind_speed_ms', source: 'METS (Underway)', note: 'Continuous underway sensor, reported in m/s' },
+        ] },
+    ],
+  },
+  {
     name: 'Photosynthetically Active Radiation',
     members: [
       { type: 'single', dataset_key: 'calcofi_ctd-cast', match: 'par', label: 'Photosynthetically Active Radiation', short: 'Standard',
         method: 'Photosynthetically active radiation, standard depth sensor' },
-      { type: 'single', dataset_key: 'calcofi_ctd-cast', match: 'spar', label: 'Surface Photosynthetically Active Radiation', short: 'Surface',
-        method: 'Photosynthetically active radiation, surface sensor — a different sensor placement, not just a different dataset' },
+      { type: 'group', label: 'Surface Photosynthetically Active Radiation', short: 'Surface',
+        method: 'Photosynthetically active radiation measured at the sea surface',
+        sources: [
+          { dataset_key: 'calcofi_ctd-cast', match: 'spar', source: 'CTD Cast' },
+          { dataset_key: 'calcofi_mets', match: 'par_surf', source: 'METS (Underway)', note: 'Continuous underway sensor' },
+        ] },
     ],
   },
   {
@@ -995,6 +2364,7 @@ const PARAMETER_FAMILIES = [
         sources: [
           { dataset_key: 'calcofi_bottle', match: 'ph_rep1', source: 'Bottle', note: 'Bench pH meter reading of the bottle sample' },
           { dataset_key: 'calcofi_ctd-cast', match: 'ph', source: 'CTD Cast (sensor)', note: 'CTD-mounted electronic pH sensor — a different instrument than the bench meter used for bottle samples' },
+          { dataset_key: 'calcofi_mets', match: 'sw_ph', source: 'Underway Sensor', note: 'Continuous underway seawater pH sensor' },
         ] },
     ],
   },
@@ -1002,7 +2372,7 @@ const PARAMETER_FAMILIES = [
     name: 'Alkalinity',
     members: [
       { type: 'group', label: 'Alkalinity', short: 'Bottle',
-        method: 'Total alkalinity, titration of the bottle sample',
+        method: 'Total alkalinity, titration analysis of the water sample',
         sources: [
           { dataset_key: 'calcofi_bottle', match: 'alkalinity_rep1', source: 'Bottle' },
           { dataset_key: 'calcofi_dic', match: 'alkalinity', source: 'Carbonate Cast' },
@@ -1010,14 +2380,36 @@ const PARAMETER_FAMILIES = [
     ],
   },
   {
-    name: 'DIC',
+    name: 'Dissolved Inorganic Carbon (DIC)',
     members: [
-      { type: 'group', label: 'DIC', short: 'Bottle',
-        method: 'Dissolved inorganic carbon, analysis of the bottle sample',
+      { type: 'group', label: 'Dissolved Inorganic Carbon (DIC)', short: 'Bottle',
+        method: 'Dissolved inorganic carbon (DIC), analysis of the water sample',
         sources: [
           { dataset_key: 'calcofi_bottle', match: 'dic_rep1', source: 'Bottle' },
           { dataset_key: 'calcofi_dic', match: 'dic', source: 'Carbonate Cast' },
         ] },
+      // The underway DIC/pCO2 analyzer needs its own intake temperature and
+      // salinity to compute and correct its pCO2/pH output — same role as
+      // Oxygen Sensor Temperature under Oxygen above. Not general seawater
+      // temperature/salinity readings, so kept here as support data for this
+      // instrument rather than merged into the Physical Oceanography
+      // Temperature/Salinity families.
+      { type: 'single', dataset_key: 'calcofi_mets', match: 'dic_salinity_psu', label: 'Salinity (DIC Analyzer)', short: 'DIC Analyzer',
+        method: "The underway DIC analyzer's own intake salinity reading, used to correct its pCO2/pH output — not an independent seawater salinity reading" },
+      { type: 'single', dataset_key: 'calcofi_mets', match: 'dic_temp_c', label: 'Temperature (DIC Analyzer)', short: 'DIC Analyzer',
+        method: "The underway DIC analyzer's own intake temperature reading, used to correct its pCO2/pH output — not an independent seawater temperature reading" },
+      // Valve position is instrument state, not a chemistry measurement —
+      // which sample stream (seawater intake vs. reference gas/standard) the
+      // underway analyzer is currently reading. Same support-data role as
+      // Salinity/Temperature (DIC Analyzer) above, so nested here rather
+      // than left as an unaffiliated loose row.
+      { type: 'single', dataset_key: 'calcofi_mets', match: 'dic_valve', label: 'DIC Analyzer Valve Position', short: 'DIC Analyzer',
+        method: "Which sample stream (seawater intake vs. reference gas/standard) the underway analyzer is currently reading — instrument state, not a chemistry measurement" },
+      // A different physical sensor than pH (Bottle/CTD/Underway) above —
+      // this is the underway DIC analyzer's own raw pH output, not another
+      // dataset measuring the same pH. Own card, not a pH source.
+      { type: 'single', dataset_key: 'calcofi_mets', match: 'dic_ph_raw', label: 'pH (DIC Analyzer, Raw)', short: 'DIC Analyzer',
+        method: 'Raw pH from the underway DIC analyzer, before correction' },
     ],
   },
   {
@@ -1028,10 +2420,62 @@ const PARAMETER_FAMILIES = [
     ],
   },
   {
+    // Ship-level and sea-level-corrected atmospheric pressure were two
+    // separate loose rows with no umbrella linking them — same fold pattern
+    // as Bottom Depth/Atmospheric Pressure (SLC) above sharing one family.
+    name: 'Atmospheric Pressure',
+    members: [
+      { type: 'single', dataset_key: 'calcofi_mets', match: 'atm_pressure_mb', label: 'Atmospheric Pressure', short: 'Ship Level',
+        method: 'Atmospheric pressure (ship level)' },
+      { type: 'single', dataset_key: 'calcofi_mets', match: 'atm_pressure_slc_mb', label: 'Atmospheric Pressure (SLC)', short: 'Sea-level Corrected',
+        method: 'Atmospheric pressure, sea-level corrected' },
+    ],
+  },
+  {
+    // Bottom Depth (seafloor depth beneath the cast) is folded in here as
+    // its own member rather than kept as a separate family — same umbrella
+    // pattern as Dry Bulb/Wet Bulb nesting under Temperature. It's a
+    // conceptually different quantity than water-column Depth above it
+    // (bathymetry-style echosounder reading vs. depth derived from
+    // pressure), but grouping by "depth" is the browsing convention here,
+    // not strict quantity-type separation.
+    // Secchi Depth used to live here too, but its raw field name
+    // ("secchi_depth") matches contentKeywordGroup()'s 'secchi' keyword
+    // before family membership is even checked, so it always displayed
+    // under Meteorology & Sea State, never here — nesting it in this family
+    // was a structural trap (looked like a Depth member, never rendered as
+    // one). Given its own standalone family below instead, matching where
+    // it actually shows up: it's a water-clarity reading, not a
+    // depth/position measurement like Bottom Depth and Depth are.
     name: 'Depth',
     members: [
+      // Was previously 3 unrelated raw fields across 2 datasets with no
+      // shared label, showing as duplicate/colliding "Bottom Depth" rows in
+      // the browse panel.
+      { type: 'group', label: 'Bottom Depth', short: 'Standard',
+        method: 'Water depth at the sampling event (sea floor depth beneath the cast)',
+        sources: [
+          { dataset_key: 'calcofi_bottle', match: 'bottom_depth', source: 'Bottle', note: 'Logged at the Bottle/CTD cast event' },
+          // bottom_depth_mb_m (multibeam) is the same calcofi_mets dataset
+          // as the single-beam reading below — one card per dataset, not
+          // one per field, so only one is surfaced. Single-beam picked as
+          // representative since it's the more consistently populated of
+          // the two; still unconfirmed which one is actually preferred —
+          // flagged in Betty's open questions list.
+          { dataset_key: 'calcofi_mets', match: 'bottom_depth_m', source: 'METS (Underway)', note: 'Single-beam echosounder, continuous underway' },
+        ] },
       { type: 'single', dataset_key: 'calcofi_bottle', match: 'r_depth', label: 'Depth', short: 'From Pressure',
         method: 'Reprocessed depth, derived from pressure' },
+    ],
+  },
+  {
+    // Standalone family, deliberately separate from Depth above — see the
+    // comment there. Lands under Meteorology & Sea State via
+    // contentKeywordGroup()'s 'secchi' keyword match, alongside wave/wind/
+    // cloud readings, since it's optically measuring water clarity, not a
+    // physical depth/position quantity.
+    name: 'Secchi Depth',
+    members: [
       { type: 'single', dataset_key: 'calcofi_bottle', match: 'secchi_depth', label: 'Secchi Depth', short: 'Secchi',
         method: 'Secchi disk depth — water clarity, not a sensor reading' },
     ],
@@ -1042,7 +2486,7 @@ const PARAMETER_FAMILIES = [
       { type: 'single', dataset_key: 'calcofi_bottle', match: 'c14_mean', label: 'C14 Assimilation', short: 'Standard',
         method: 'Light-bottle 14C uptake, per depth, bottle sample (mean of replicate measurements)' },
       { type: 'single', dataset_key: 'calcofi_bottle', match: 'c14_dark', label: 'C14 Assimilation (Dark Control)', short: 'Dark control',
-        method: 'Dark/control bottle, per depth — a different experimental condition, not just a different dataset' },
+        method: 'Dark/control bottle measurement, per depth, used as a baseline for the light-bottle uptake reading' },
     ],
   },
   {
@@ -1055,7 +2499,11 @@ const PARAMETER_FAMILIES = [
           { dataset_key: 'calcofi_ctd-cast', match: 'btl_chlorophyll_a', source: 'CTD Cast (bottle sample)' },
         ] },
       { type: 'single', dataset_key: 'calcofi_ctd-cast', match: 'est_chlorophyll_a_sta_corr', label: 'Est. Chlorophyll-a', short: 'CTD Estimate',
-        method: 'CTD-mounted inline fluorometer estimate, station-corrected — a different instrument than lab analysis of the bottle sample' },
+        method: 'CTD-mounted inline fluorometer estimate, station-corrected' },
+      { type: 'single', dataset_key: 'calcofi_mets', match: 'chl_fluor', label: 'Chlorophyll Fluorescence', short: 'Fluor (Underway)',
+        method: 'Continuous underway fluorescence sensor, reported in volts — a raw signal, not a calibrated Chl a concentration' },
+      { type: 'single', dataset_key: 'calcofi_mets', match: 'pred_chl', label: 'Chlorophyll-a (Predicted)', short: 'Predicted',
+        method: 'Derived from a calibration of the underway fluorescence sensor against CalCOFI 0–7 m bottle Chl a' },
     ],
   },
   {
@@ -1235,12 +2683,21 @@ const FIELD_DESCRIPTIONS = {
   small_plankton_biomass: 'Standardized volume of plankton with individual displacement volumes <5 mL',
   total_plankton_biomass: 'Standardized volume of plankton in the sample',
   pressure: 'Pressure in decibars (dbar) from the CTD sensor — approximately equivalent to depth in meters',
+  air_temp_c: 'Air temperature',
+  uws_flow: 'Measure of water flow through the underway seawater system',
+  rel_humidity_pct: 'Relative humidity',
   // calcofi_ctd-cast — the raw sensor voltage variables. Their source
   // `description` fields are identical (case-only) to their display labels
   // (e.g. "Fluorescence voltage" vs "Fluorescence Voltage"), so
   // descriptionFor()'s just-repeats-the-name check strips them to nothing.
   // Real descriptions here instead of relying on the source field.
   fluorescence_v: 'Raw voltage output from the fluorometer sensor, before conversion to chlorophyll-a concentration',
+
+  // cce-lter_picoplankton-bacteria — flow cytometry counts
+  het_bacteria: 'Heterotrophic bacteria abundance (FCM)',
+  picoeukaryotes: 'Picoeukaryote abundance (FCM)',
+  prochlorococcus: 'Prochlorococcus abundance (FCM)',
+  synechococcus: 'Synechococcus abundance (FCM)',
 };
 
 // Falls back to the per-variable `description` field for loose (non-family)
@@ -1325,7 +2782,8 @@ const LOOSE_GROUPERS = {
 // for the handful of less-common physical readings (Beam Attenuation,
 // Pressure, Transmissometer, Water Color).
 const CATEGORY_ITEM_ORDER = {
-  'Physical Oceanography': ['Temperature', 'Salinity', 'Density (Sigma Theta)', 'Oxygen', 'Depth', 'Pressure'],
+  'Physical Oceanography': ['Temperature', 'Salinity', 'Density', 'Pressure', 'Atmospheric Pressure', 'Conductivity',
+    'Depth', 'Oxygen', 'Dynamic Height', 'Sound Velocity'],
   'Productivity & Pigments': ['Chlorophyll-a', 'Phaeopigment', 'Primary Productivity (C14 Assimilation)', 'Photosynthetically Active Radiation'],
 };
 function renderVarList(groupKey, vars) {
@@ -1351,6 +2809,10 @@ function renderVarList(groupKey, vars) {
     // A single member (e.g. Dry Bulb Temperature) always has exactly one.
     const byMember = new Map();
     items.forEach(it => { (byMember.get(it.member) || byMember.set(it.member, []).get(it.member)).push(it); });
+    // Render in the priority order defined on the family (most commonly
+    // wanted first, Predicted last) rather than Map insertion order, which
+    // just reflects whatever order the raw variables happened to arrive in.
+    const orderedMembers = family.members.filter(m => byMember.has(m));
 
     // A family that boils down to exactly one group member (Alkalinity,
     // DIC, Sigma Theta...) has nothing distinct to say at the family level
@@ -1358,6 +2820,15 @@ function renderVarList(groupKey, vars) {
     // accordion and render its source list directly under the family name.
     if (byMember.size === 1 && [...byMember.keys()][0].type === 'group') {
       const [member, its] = [...byMember.entries()][0];
+      // Only one dataset behind this member (e.g. Conductivity — just
+      // METS) — nothing to choose between, so render it as a plain
+      // clickable row instead of a "choose a dataset" accordion of one.
+      if (its.length === 1) {
+        return `<div class="inventory-subitem" data-vid="${encodeURIComponent(its[0].v.variable_id)}">
+            <span class="inventory-subitem-name">${family.name}</span>
+            <div class="inventory-family-method">${member.method}</div>
+          </div>`;
+      }
       const dupe1 = hasDupDataset(its);
       const sourceRows = famOpen ? its.map(it => sourceCardRow(it, dupe1)).join('') : '';
       return `<div class="inventory-subitem inventory-family-header" data-family-key="${famKey}">
@@ -1382,8 +2853,9 @@ function renderVarList(groupKey, vars) {
         </div>`;
     }
 
-    const shortList = [...byMember.keys()].map(m => m.short).join(', ');
-    const memberRows = famOpen ? [...byMember.entries()].map(([member, its]) => {
+    const shortList = orderedMembers.map(m => m.short).join(', ');
+    const memberRows = famOpen ? orderedMembers.map(member => {
+      const its = byMember.get(member);
       if (member.type === 'single') {
         return `<div class="inventory-subitem" data-vid="${encodeURIComponent(its[0].v.variable_id)}">
             <span class="inventory-subitem-name">${member.label}</span>
@@ -1392,7 +2864,15 @@ function renderVarList(groupKey, vars) {
       }
       // group member: one row, expands to a source list (which dataset
       // measures it) instead of pretending each source is a different
-      // parameter — matches Betty's "Temperature > Bottle; CTD Cast" model
+      // parameter — matches Betty's "Temperature > Bottle; CTD Cast" model.
+      // If there's only one dataset behind it, there's nothing to choose,
+      // so skip the accordion and make it a plain clickable row.
+      if (its.length === 1) {
+        return `<div class="inventory-subitem" data-vid="${encodeURIComponent(its[0].v.variable_id)}">
+            <span class="inventory-subitem-name">${member.label}</span>
+            <div class="inventory-family-method">${member.method}</div>
+          </div>`;
+      }
       const grpKey = famKey + '::' + member.label;
       const grpOpen = expandedGroupKey === grpKey;
       const dupe2 = hasDupDataset(its);
@@ -1446,17 +2926,23 @@ function renderVarList(groupKey, vars) {
       : `<span class="inventory-jumpnav-btn inventory-jumpnav-btn-off">${l}</span>`).join('')}</div>`;
   };
   // Phytoplankton has no PARAMETER_FAMILIES groups — every item here is a
-  // loose row. "Phytoplankton Abundance" is the actual per-sample measurement
-  // (cells/L); the 11 taxa below it are mostly reference/community-level
-  // (see 2026-07 investigation — most have very limited real data behind
-  // them). Pinned to the top so the one item with the most usable data
-  // isn't buried under taxa names.
-  const PINNED_LOOSE_ITEM = { 'Phytoplankton': 'phytoplankton_abundance' };
+  // loose row. "Phytoplankton Abundance" is a community-level measurement,
+  // not a taxon, so the taxa-first sort below already puts it last.
+  const PINNED_LOOSE_ITEM = {};
+  // Items pinned to the bottom of a loose list instead of sorting
+  // alphabetically — e.g. a raw sensor voltage listed alongside the actual
+  // nutrient concentrations it's a proxy for.
+  const PINNED_LOOSE_ITEM_LAST = { 'Nutrients & Chemistry': 'isus_v' };
   const pinned = PINNED_LOOSE_ITEM[groupKey];
+  const pinnedLast = PINNED_LOOSE_ITEM_LAST[groupKey];
   loose.sort((a, b) => {
     if (pinned) {
       const aPinned = a.name === pinned, bPinned = b.name === pinned;
       if (aPinned !== bPinned) return aPinned ? -1 : 1;
+    }
+    if (pinnedLast) {
+      const aLast = a.name === pinnedLast, bLast = b.name === pinnedLast;
+      if (aLast !== bLast) return aLast ? 1 : -1;
     }
     const aTaxon = a.variable_type === 'taxon', bTaxon = b.variable_type === 'taxon';
     if (aTaxon !== bTaxon) return aTaxon ? -1 : 1; // taxa first, community-level metrics last
@@ -1501,7 +2987,7 @@ function jumpToLetter(listId, letter) {
 function renderInventoryPanel() {
   const empty = document.getElementById('panel-empty'); if (!empty) return;
   const keys = inventoryMode === 'dataset'
-    ? Object.keys(DATASET_META).filter(k => DATASET_VAR_COUNTS[k])
+    ? Object.keys(DATASET_META).filter(k => DATASET_VAR_COUNTS[k]).sort((a, b) => dsMeta(a).label.localeCompare(dsMeta(b).label))
     : CATEGORY_ORDER.filter(c => CAT_COUNTS[c]);
 
   const rows = keys.map(k => {
@@ -1556,7 +3042,7 @@ function baseStyle(s, dim = false) {
 function renderStations() {
   STATIONS.forEach(s => {
     const m = L.circleMarker([s.lat, s.lon], baseStyle(s)).addTo(map);
-    m.on('click', () => openStation(s));
+    m.on('click', () => { if (compareMode) toggleStationSelection(s.grid_key); else openStation(s); });
     m.bindTooltip(`${s.station_id}` + (s.n_datasets ? ` · ${s.n_datasets} datasets` : ' · no data'),
       { direction: 'top', offset: [0, -2] });
     MARKERS[s.grid_key] = m;
@@ -1712,6 +3198,22 @@ function locatePinnedStation(gridKey) {
     setTimeout(() => el.classList.remove('marker-flash'), 1200);
   }
 }
+// Computes the same tint the CSS used to do with color-mix() (a P% mix of
+// `hex` into `base`) but as a plain solid hex string. html2canvas 1.4.1
+// (used by the card-download PDF feature) throws "unsupported color
+// function" on CSS color-mix() and aborts the whole capture, so .ds-card's
+// background is set from this instead of color-mix() in the stylesheet —
+// see the --card-bg usage below and the plain var(--card-bg) fallback in
+// styles.css. Only needs to handle the #rrggbb hex strings DATASET_META
+// actually uses.
+function mixHex(hex, pct, base) {
+  const parse = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const [r1, g1, b1] = parse(hex), [r2, g2, b2] = parse(base);
+  const p = pct / 100;
+  const toHex = n => Math.round(n).toString(16).padStart(2, '0');
+  const mix = (a, b) => a * p + b * (1 - p);
+  return `#${toHex(mix(r1, r2))}${toHex(mix(g1, g2))}${toHex(mix(b1, b2))}`;
+}
 function datasetCard(d, opts) {
   opts = opts || {};
   const meta = dsMeta(d.dataset_key);
@@ -1734,9 +3236,28 @@ function datasetCard(d, opts) {
     pinBtn = `<button class="ds-pin-btn${pinned ? ' ds-pin-btn-active' : ''}" title="${pinned ? 'Unpin' : 'Pin to compare'}"
         onclick="event.stopPropagation(); togglePin('${key}')">${pinned ? '📌' : '📍'}</button>`;
   }
-  return `<div class="ds-card${opts.clickable ? ' ds-card-clickable' : ''}${opts.large ? ' ds-card-large' : ''}" style="--c:${color}"${clickAttrs}>
+  // Per-card download — every card gets its own PDF regardless of whether
+  // it belongs to a single open station (uses currentStation for coords)
+  // or is an averaged comparison card (opts.compareContext carries the
+  // specific stations that contributed to THIS dataset, which can differ
+  // per card since not every selected station has every dataset). Renders
+  // as native vector shapes (see renderCardVector) plus exact-value text
+  // (renderCardText) rather than a screenshot of the card — no DOM element
+  // needed, just the underlying data.
+  let downloadBtn;
+  if (opts.compareContext) {
+    const cardId = 'cmpcard' + (cardDownloadCounter++);
+    CARD_COMPARE_CTX[cardId] = { d, label, color, stations: opts.compareContext };
+    downloadBtn = `<button class="ds-download-link" onclick="event.stopPropagation(); downloadSingleComparisonCard('${cardId}')">⬇ Download card</button>`;
+  } else {
+    const cardId = 'stncard' + (cardDownloadCounter++);
+    CARD_DL_CTX[cardId] = { d, label, color };
+    downloadBtn = `<button class="ds-download-link" onclick="event.stopPropagation(); downloadSingleStationCard('${cardId}')">⬇ Download card</button>`;
+  }
+  const avgBadge = opts.compareContext ? '<span class="ds-avg-badge" title="Values on this card are averaged across the contributing stations">AVG</span>' : '';
+  return `<div class="ds-card${opts.clickable ? ' ds-card-clickable' : ''}${opts.large ? ' ds-card-large' : ''}" style="--c:${color};--card-bg:${mixHex(color, 6, '#0f1e35')}"${clickAttrs}>
       <div class="ds-head"><span class="ds-dot"></span><span class="ds-label">${label}</span>
-        <span class="ds-realm ${d.realm}">${d.realm}</span>${pinBtn}</div>
+        <div class="ds-head-right">${avgBadge}<span class="ds-realm ${d.realm}">${d.realm}</span></div>${pinBtn}</div>
       <div class="ds-stats">
         <div class="ds-stat"><span class="ds-stat-label">Date Range</span><span class="ds-stat-val">${day(d.time_min)} → ${day(d.time_max)}</span></div>
         <div class="ds-stat"><span class="ds-stat-label">Depth Range</span><span class="ds-stat-val">${depth}</span></div>
@@ -1744,7 +3265,7 @@ function datasetCard(d, opts) {
       </div>
       <div class="bars-label">observations by year</div>${yearBars(d.years, color, opts.large)}
       <div class="bars-label">seasonality (by month)</div>${monthBars(d.months, color)}
-      ${opts.clickable ? '<div class="ds-card-expand-hint">⤢ click to expand</div>' : ''}
+      <div class="ds-card-footer">${opts.clickable ? '<span class="ds-card-expand-hint">⤢ click to expand</span>' : '<span></span>'}${downloadBtn}</div>
     </div>`;
 }
 // Opens the enlarged, big-screen view of a dataset's coverage card for the
@@ -1844,34 +3365,13 @@ function updateBackButton() {
   }
   btn.style.display = '';
 }
-function openStation(s) {
-  currentStation = s;
-  applyStyles(); // rings the clicked marker — see the currentStation block in applyStyles()
-  document.getElementById('panel-empty').style.display = 'none';
-  document.getElementById('panel-header').style.display = 'block';
-  showBackToCategories();
-  document.getElementById('panel-station-id').textContent = `Station ${s.station_id}`;
-  document.getElementById('panel-coords').textContent =
-    `${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}`;
-  document.getElementById('panel-depth-summary').innerHTML = '';
-  const c = document.getElementById('panel-content');
-  if (!s.n_datasets) {
-    c.innerHTML = `<div class="cov-empty">No integrated-database observations recorded at this grid station.</div>`;
-    return;
-  }
-  // calcofi_bottle is one physical DB table shared by two real-world
-  // collection programs (Bottle chemistry + Cast meteorology/metadata — see
-  // CAST_SIDE_BOTTLE_FIELDS). Split it into two accordion rows so Dry Bulb,
-  // Wet Bulb, Water Color etc. don't sit under a "Hydrographic Bottle"
-  // header. Coverage stats (date range/depth/year-month bars) come from the
-  // optional bottle_cast_coverage.json when this station has an entry there
-  // (real per-subset numbers); otherwise both cards fall back to the shared
-  // whole-dataset record `d`, same as before that file existed.
-  const cards = (s.datasets || []).flatMap(d => {
-    if (d.dataset_key !== 'calcofi_bottle') return [datasetAccordion(d, s)];
-    const all = CANON_VARS.filter(v => v.dataset_key === 'calcofi_bottle');
-    const castVars = all.filter(v => CAST_SIDE_BOTTLE_FIELDS.has(v.name));
-    const bottleVars = all.filter(v => !CAST_SIDE_BOTTLE_FIELDS.has(v.name));
+// Returns the {d, label} pairs that make up a station's coverage cards —
+// same split-Bottle/Cast logic used on-screen (see the comment above the
+// call site in openStation), shared so the PDF report's text rendering
+// always matches exactly what the panel shows, card for card.
+function stationCardEntries(s) {
+  return (s.datasets || []).flatMap(d => {
+    if (d.dataset_key !== 'calcofi_bottle') return [{ d, label: dsMeta(d.dataset_key).label, color: dsMeta(d.dataset_key).color }];
     // If a station genuinely has zero recorded observations for one subset
     // (e.g. no weather/meteorology readings ever logged there, only bottle
     // chemistry), falling back to the OTHER subset's real numbers is
@@ -1888,9 +3388,43 @@ function openStation(s) {
     const hydroCov = { ...d, ...(BOTTLE_CAST_COV[s.grid_key + '::calcofi_bottle_hydro'] || noDataFallback) };
     const castCov = { ...d, ...(BOTTLE_CAST_COV[s.grid_key + '::calcofi_bottle_cast'] || noDataFallback) };
     return [
-      datasetAccordion(hydroCov, s, { label: 'Hydrographic Bottle', vars: bottleVars }),
-      datasetAccordion(castCov, s, { label: 'Hydrographic Cast', vars: castVars, color: '#be8c63' }),
+      { d: hydroCov, label: 'Hydrographic Bottle', color: dsMeta('calcofi_bottle').color },
+      { d: castCov, label: 'Hydrographic Cast', color: '#be8c63' },
     ];
+  });
+}
+function openStation(s) {
+  currentStation = s;
+  applyStyles(); // rings the clicked marker — see the currentStation block in applyStyles()
+  document.getElementById('panel-empty').style.display = 'none';
+  document.getElementById('panel-header').style.display = 'block';
+  showBackToCategories();
+  document.getElementById('panel-station-id').textContent = `Station ${s.station_id}`;
+  document.getElementById('panel-coords').textContent =
+    `${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}`;
+  document.getElementById('panel-depth-summary').innerHTML = '';
+  document.getElementById('compare-control').style.display = 'block';
+  const c = document.getElementById('panel-content');
+  if (!s.n_datasets) {
+    c.innerHTML = `<div class="cov-empty">No integrated-database observations recorded at this grid station.</div>`;
+    return;
+  }
+  // calcofi_bottle is one physical DB table shared by two real-world
+  // collection programs (Bottle chemistry + Cast meteorology/metadata — see
+  // CAST_SIDE_BOTTLE_FIELDS). Split it into two accordion rows so Dry Bulb,
+  // Wet Bulb, Water Color etc. don't sit under a "Hydrographic Bottle"
+  // header. Coverage stats (date range/depth/year-month bars) come from the
+  // optional bottle_cast_coverage.json when this station has an entry there
+  // (real per-subset numbers); otherwise both cards fall back to the shared
+  // whole-dataset record `d`, same as before that file existed.
+  const cards = stationCardEntries(s).map(({ d, label }) => {
+    if (d.dataset_key !== 'calcofi_bottle') return datasetAccordion(d, s);
+    const all = CANON_VARS.filter(v => v.dataset_key === 'calcofi_bottle');
+    const castVars = all.filter(v => CAST_SIDE_BOTTLE_FIELDS.has(v.name));
+    const bottleVars = all.filter(v => !CAST_SIDE_BOTTLE_FIELDS.has(v.name));
+    return label === 'Hydrographic Bottle'
+      ? datasetAccordion(d, s, { label, vars: bottleVars })
+      : datasetAccordion(d, s, { label, vars: castVars, color: '#be8c63' });
   }).join('');
   const dpCount = depthProfileCount(s);
   // Two tabs: Overview (existing dataset/decade content, unchanged) and its
@@ -1915,7 +3449,11 @@ function openStation(s) {
         <div><span class="k">surveys</span><span class="v">${num(s.n_surveys)}</span></div>
         <div><span class="k">observations</span><span class="v">${num(s.n_obs)}</span></div>
         <div title="This station's own observation date range — may differ from the year slider above, which spans every station site-wide."><span class="k">span</span><span class="v">${yr(s.time_min)}–${yr(s.time_max)}</span></div>
-      </div>${cards}
+      </div>
+      <button class="download-btn cards-download-btn" id="station-download-btn" onclick="downloadStationReport()"
+        title="Download a PDF with a map screenshot, this station's coverage cards, and its coordinates">
+        ⬇ Download coverage cards
+      </button>${cards}
     </div>
     <div class="panel-tab-content" data-tabpanel="depth"${startTab === 'overview' ? ' style="display:none"' : ''}></div>`;
   c.querySelectorAll('.data-link[data-vid]').forEach(el =>
@@ -2245,9 +3783,8 @@ function varMatch(v, q) {
   return q.toLowerCase().split(/\s+/).filter(Boolean).every(tok => tokenHits(text, tok));
 }
 function ddItem(v, nested) {
-  const meta = dsMeta(v.dataset_key);
   const fm = familyMemberFor(v);
-  const name = (fm && fm.source) ? `${fm.member.label} — ${meta.label}` : resolvedLabel(v);
+  const name = fm ? fm.member.label : resolvedLabel(v);
   return `<div class="dd-item${nested ? ' dd-item-nested' : ''}" data-id="${encodeURIComponent(v.variable_id)}">
       <span class="dd-dot" style="background:${datasetColorFor(v)}"></span>
       <span class="dd-name">${name}</span>
@@ -2278,7 +3815,9 @@ function renderDropdown(q) {
     // bottom of the whole category instead — below even the loose items —
     // since they're air temp / a computed variant, not what most searches
     // for "temperature" actually want first.
-    const DEPRIORITIZED_LABELS = new Set(['Potential Temperature', 'Dry Bulb Temperature', 'Wet Bulb Temperature']);
+    const DEPRIORITIZED_LABELS = new Set(['Potential Temperature', 'Dry Bulb Temperature', 'Wet Bulb Temperature',
+      'Salinity (Predicted)', 'Oxygen Sensor Temperature', 'Sea Surface Temperature', 'Sea Surface Salinity',
+      'Atmospheric Pressure (SLC)', 'Sea Surface Conductivity', 'Bottom Depth']);
     const ddSortKey = (v, groupKey) => {
       const fm = familyMemberFor(v);
       if (fm && DEPRIORITIZED_LABELS.has(fm.member.label)) return [3, '', 0, sortNameFor(v)];
@@ -2331,6 +3870,12 @@ function renderDropdown(q) {
           if (groups[key]._rendered) return; // already emitted this group's row
           groups[key]._rendered = true;
           const { member, its } = groups[key];
+          // Only one dataset behind this member — nothing to pick between,
+          // so render it as a normal item instead of a toggle-of-one.
+          if (its.length === 1) {
+            rowsHtml.push(ddItem(its[0].v, false));
+            return;
+          }
           const open = ddExpandedGroup === key;
           rowsHtml.push(`<div class="dd-group-toggle" data-dd-group-key="${encodeURIComponent(key)}">
               <span class="dd-dot dd-dot-empty"></span>
@@ -2385,8 +3930,13 @@ function highlight(v) {
   // per-taxon path it doesn't (no year bins in taxon_coverage.json), so say
   // "all years" rather than printing an unfiltered count under a filtered label.
   const yearAware = stationsForVarIsYearAware(v);
+  const isAggregateSpan = DATASET_SPAN_IS_AGGREGATE.has(v.dataset_key);
   const yearNote = !yearRange ? ''
-    : yearAware ? ` in <b>${yearRange[0]}–${yearRange[1]}</b>`
+    : yearAware
+      ? ` in <b>${yearRange[0]}–${yearRange[1]}</b>`
+        + (isAggregateSpan
+          ? ` <span class="banner-note" title="${datasetLabelFor(v)} combines many separately-added parameters — this is the whole dataset's coverage span, not necessarily this specific parameter's.">(dataset span)</span>`
+          : '')
     : ` <span class="banner-note" title="Per-taxon coverage has no year breakdown yet, so this count spans the full record regardless of the slider.">(all years)</span>`;
   banner.innerHTML = `<b style="color:${datasetColorFor(v)}">${resolvedLabel(v)}</b> — `
     + `${n} stations with <b>${datasetLabelFor(v)}</b> coverage`
@@ -2401,9 +3951,10 @@ function showVariablePanel(v) {
   document.getElementById('panel-station-id').textContent = resolvedPlainLabel(v);
   document.getElementById('panel-coords').textContent = 'Select a highlighted station';
   document.getElementById('panel-depth-summary').innerHTML = '';
+  document.getElementById('compare-control').style.display = 'none';
   const stationCount = stationsForVar(v).size;
   const desc = descriptionFor(v, displayLabel(v)) || v.description || 'No description available.';
-  const src = v.source && (v.source.access_url || v.source.metadata_url);
+  const src = (v.source && (v.source.access_url || v.source.metadata_url)) || DATASET_URL_FALLBACK[v.dataset_key];
   document.getElementById('panel-content').innerHTML = `
     <div class="panel-info-block">
       <b>Dataset:</b> ${datasetLabelFor(v)}<br><br>
@@ -2433,10 +3984,61 @@ function clearAll() {
   document.getElementById('panel-back-btn').style.display = 'none';
   document.getElementById('panel-content').innerHTML = '';
   document.getElementById('panel-empty').style.display = '';
+  if (compareMode) toggleCompareMode();
 }
 function togglePanel() { document.getElementById('side-panel').classList.toggle('collapsed'); }
 function showAboutModal() { document.getElementById('about-backdrop').classList.add('open'); }
 function hideAboutModal() { document.getElementById('about-backdrop').classList.remove('open'); }
+// ---- feedback: a custom-styled form (matches the rest of the portal UI)
+// that submits directly to the Google Form's backend endpoint, instead of
+// showing Google's own form UI in an iframe. entry.* field IDs and the
+// formResponse URL come from viewing the published form's page source —
+// they're stable for a given form (Google doesn't rotate them), but if the
+// form is ever rebuilt from scratch with new questions, these need updating.
+const FEEDBACK_ENDPOINT = 'https://docs.google.com/forms/u/0/d/e/1FAIpQLSctJ6UHOwUYvhnvgAC12UhTdjDvv05cqxxkQXUA3Sz3aOWBbQ/formResponse';
+const FEEDBACK_ENTRIES = {
+  working: 'entry.776933298',
+  improve: 'entry.1913371976',
+  broken: 'entry.1714444848',
+  email: 'entry.765283935'
+};
+function showFeedbackModal() {
+  document.getElementById('feedback-backdrop').classList.add('open');
+}
+function hideFeedbackModal() {
+  document.getElementById('feedback-backdrop').classList.remove('open');
+  // Reset to the form view for next time, in case it was left on the thanks screen.
+  document.getElementById('feedback-form').style.display = '';
+  document.getElementById('feedback-thanks').style.display = 'none';
+}
+function closeFeedbackModal(e) { if (e.target.id === 'feedback-backdrop') hideFeedbackModal(); }
+function submitFeedback(e) {
+  e.preventDefault();
+  const btn = document.getElementById('feedback-submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  const fd = new FormData();
+  fd.append(FEEDBACK_ENTRIES.working, document.getElementById('fb-working').value);
+  fd.append(FEEDBACK_ENTRIES.improve, document.getElementById('fb-improve').value);
+  fd.append(FEEDBACK_ENTRIES.broken, document.getElementById('fb-broken').value);
+  fd.append(FEEDBACK_ENTRIES.email, document.getElementById('fb-email').value);
+  // mode: 'no-cors' — Google's formResponse endpoint doesn't send CORS headers,
+  // so the browser blocks reading the response either way. This still submits
+  // the data (confirmed via the spreadsheet/Responses tab); we just can't
+  // inspect success/failure from the response itself, so we optimistically
+  // show the thank-you state once the request has been sent.
+  fetch(FEEDBACK_ENDPOINT, { method: 'POST', mode: 'no-cors', body: fd })
+    .then(() => {
+      document.getElementById('feedback-form').style.display = 'none';
+      document.getElementById('feedback-thanks').style.display = 'block';
+      document.getElementById('feedback-form').reset();
+    })
+    .catch(() => {
+      btn.disabled = false;
+      btn.textContent = 'Submit';
+      alert('Something went wrong sending that — check your connection and try again.');
+    });
+}
 // ---- guided tour: a single callout that repositions itself next to
 // whatever element the current step is about, with a small arrow pointing
 // at it — like the CTD app's own tour, instead of one static wall of text.
@@ -2466,6 +4068,11 @@ const WALKTHROUGH_STEPS = [
     // is visible and measurable again.
     before: () => { const btn = document.querySelector('.panel-tab[data-tab="overview"]'); if (btn && !btn.classList.contains('active')) btn.click(); },
     placement: 'corner-top-right', offsetY: -50, calloutAnchorSelector: '#map' },
+  { selector: '#compare-toggle-btn', title: 'Compare Stations', body: 'A different way to compare: click here to start, then select stations three ways — click individual stations directly, draw a freehand lasso around a group, or type a CalCOFI line number to grab every station on that line. Then generate one averaged coverage card per dataset across your whole selection.',
+    // #compare-control (this button's wrapper) only becomes visible once a
+    // station has been opened at least once — same reason the earlier
+    // steps call this.
+    before: () => openTourExampleStation(), placement: 'left' },
 ];
 // Whether THIS tour run opened the example station itself. Only then is the
 // station the tour's to clean up — see endTour().

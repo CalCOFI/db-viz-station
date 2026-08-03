@@ -35,8 +35,10 @@
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=64" />
+  <link rel="stylesheet" href="styles.css?v=105" />
 </head>
 
 <body>
@@ -78,7 +80,41 @@
       <button class="ys-reset" id="ys-reset" onclick="resetYearFilter()" title="reset to full range">↺</button>
     </div>
 
-    <div id="map"></div>
+    <div class="map-wrapper">
+      <div id="map"></div>
+      <svg id="lasso-svg" class="lasso-svg"><polygon id="lasso-polygon"></polygon></svg>
+      <div class="compare-control" id="compare-control" style="display:none">
+        <button class="compare-toggle-btn" id="compare-toggle-btn" onclick="toggleCompareMode()"
+          title="Select multiple stations to generate an averaged coverage card per dataset">
+          ⛛ Compare Stations
+        </button>
+        <div class="compare-bar" id="compare-bar" style="display:none">
+          <div class="compare-bar-header">
+            <span id="compare-count">0 Stations Selected</span>
+            <button class="compare-bar-close" onclick="toggleCompareMode()" title="Exit compare mode">✕</button>
+          </div>
+          <div class="compare-bar-body">
+            <button class="compare-bar-lasso" id="lasso-select-btn" onclick="toggleLassoMode()"
+              title="Draw a freehand shape on the map — every station inside it gets selected"><span id="lasso-select-label">✏️ Lasso Select</span></button>
+            <div class="line-select-group" title="Type a CalCOFI line number and press Enter to add every station on it to the selection">
+              <span class="line-select-or">OR</span>
+              <div class="line-select-field">
+                <label for="line-select-input">Line</label>
+                <input type="text" id="line-select-input" placeholder="ex: 83.3" inputmode="decimal"
+                  onkeydown="if(event.key==='Enter') selectByLine()">
+              </div>
+            </div>
+            <div class="compare-bar-actions">
+              <button class="compare-bar-btn" onclick="clearCompareSelection()">Clear</button>
+              <button class="compare-bar-btn compare-bar-generate" id="compare-generate-btn" onclick="generateComparisonCards()" disabled>Compare</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <button id="feedback-button" onclick="showFeedbackModal()">
+        Send feedback
+      </button>
+    </div>
   </div>
 
   <div id="panel-resizer" class="panel-resizer">
@@ -224,9 +260,42 @@
     ⓘ
   </button>
 
+  <!-- Feedback -->
+  <div id="feedback-backdrop" class="modal-backdrop" onclick="closeFeedbackModal(event)">
+    <div class="modal" id="feedback-modal" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">Send feedback</div>
+        <button class="modal-close" onclick="hideFeedbackModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <form id="feedback-form" onsubmit="submitFeedback(event)">
+          <label class="feedback-label" for="fb-working">What's working well?</label>
+          <textarea class="feedback-textarea" id="fb-working"
+            placeholder="e.g. the year-range slider, category browse panel"></textarea>
+
+          <label class="feedback-label" for="fb-improve">What needs improvement?</label>
+          <textarea class="feedback-textarea" id="fb-improve"
+            placeholder="e.g. hard to find euphausiid data, map loads slowly"></textarea>
+
+          <label class="feedback-label" for="fb-broken">Found something broken? <span class="feedback-optional">(optional)</span></label>
+          <textarea class="feedback-textarea" id="fb-broken"
+            placeholder="Describe the bug or confusing behavior"></textarea>
+
+          <label class="feedback-label" for="fb-email">Email <span class="feedback-optional">(optional)</span></label>
+          <input class="feedback-input" type="email" id="fb-email" placeholder="name@example.com">
+
+          <button type="submit" class="feedback-submit-btn" id="feedback-submit-btn">Submit</button>
+        </form>
+        <div id="feedback-thanks" class="feedback-thanks" style="display:none">
+          Thanks — your feedback was sent.
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="chart-tooltip"></div>
 
-  <script src="app.js?v=64"></script>
+  <script src="app.js?v=105"></script>
 </body>
 
 </html>

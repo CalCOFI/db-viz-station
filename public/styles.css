@@ -316,6 +316,102 @@ ol {
   transform: scale(1.05);
 }
 
+#feedback-button {
+  position: absolute;
+  right: 10px;
+  bottom: 34px;
+  padding: 9px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--muted);
+  color: #04263d;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 1000;
+}
+
+#feedback-button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.45);
+}
+
+.feedback-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 14px 0 6px;
+}
+
+.feedback-optional {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.feedback-textarea,
+.feedback-input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.09);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  border-radius: 6px;
+  color: #ffffff;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 10px 12px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+
+.feedback-textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.feedback-textarea::placeholder,
+.feedback-input::placeholder {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.feedback-textarea:focus,
+.feedback-input:focus {
+  border-color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 16px rgba(255, 255, 255, 0.12);
+}
+
+.feedback-submit-btn {
+  width: 100%;
+  margin-top: 18px;
+  padding: 10px;
+  border-radius: 6px;
+  border: none;
+  background: var(--accent);
+  color: var(--deep);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.feedback-submit-btn:hover { filter: brightness(1.1); }
+.feedback-submit-btn:disabled { opacity: 0.6; cursor: default; }
+
+.feedback-thanks {
+  color: var(--text);
+  font-size: 14px;
+  text-align: center;
+  padding: 24px 0;
+}
+
+#feedback-iframe {
+  background: var(--panel);
+}
+
 /* Dropdown */
 .dropdown {
   position: absolute;
@@ -455,6 +551,282 @@ ol {
   transition: all 0.2s;
   display: none;
   white-space: nowrap;
+}
+
+/* Compare-stations control — a self-contained module anchored to the
+   top-right corner of the map, independent of the header/search-bar
+   buttons and the bottom-left/bottom-right floating help/feedback
+   buttons. Collapsed it's just .compare-toggle-btn; toggleCompareMode()
+   swaps it out for the expanded .compare-bar panel in the same spot. */
+.compare-control {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 1500;
+}
+
+.compare-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px 7px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 194, 255, 0.35);
+  background: var(--panel);
+  color: var(--text);
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+.compare-toggle-btn:hover {
+  border-color: #00c2ff;
+  background: rgba(0, 194, 255, 0.08);
+}
+
+.download-btn {
+  margin-top: 10px;
+  padding: 6px 12px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.download-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+
+.download-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.cards-download-btn {
+  display: block;
+  width: 100%;
+  margin: 4px 0 14px;
+  padding: 9px 12px;
+  text-align: center;
+  font-size: 11px;
+}
+
+.compare-bar {
+  width: 250px;
+  background: var(--panel);
+  border: 1px solid #00c2ff;
+  border-radius: 8px;
+  z-index: 1500;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.compare-bar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(0, 194, 255, 0.25);
+}
+
+#compare-count {
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #00c2ff;
+}
+
+.compare-bar-close {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.compare-bar-close:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.compare-bar-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+/* Lasso select is its own full-width row — the primary/first way to
+   select stations, so it gets the same visual weight as the "Select
+   Line" bubble below it rather than being squeezed alongside it. */
+.compare-bar-lasso {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 194, 255, 0.15);
+  background: transparent;
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.compare-bar-lasso:hover {
+  border-color: rgba(0, 194, 255, 0.3);
+  background: rgba(0, 194, 255, 0.06);
+}
+
+.compare-bar-lasso.active {
+  border-color: #00c2ff;
+  background: rgba(0, 194, 255, 0.1);
+}
+
+.avg-card-note {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: -8px;
+  margin-bottom: 10px;
+}
+
+.avg-stations-toggle { margin-top: 4px; }
+.avg-stations-toggle .params-toggle-summary { font-size: 11px; padding: 4px 0; }
+.avg-stations-list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 16px;
+  padding: 6px 0 2px;
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+}
+.avg-stations-list span:nth-child(odd) { color: var(--text); }
+.avg-stations-list span:nth-child(even) { color: var(--muted); text-align: right; }
+
+.lasso-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1000;
+  display: none;
+}
+
+#lasso-polygon {
+  fill: rgba(0, 229, 255, 0.15);
+  stroke: #00e5ff;
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+
+/* "OR" sits outside the Line bubble, marking it as an alternative to
+   the lasso row above rather than another unrelated control. */
+.line-select-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.line-select-or {
+  flex-shrink: 0;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--muted);
+}
+
+.line-select-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 194, 255, 0.15);
+  box-sizing: border-box;
+}
+
+.line-select-field label {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.line-select-field input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 12px 10px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 194, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font-family: 'Space Mono', monospace;
+  font-size: 13px;
+  outline: none;
+}
+
+.line-select-field input:focus {
+  border-color: #00e5ff;
+}
+
+.compare-bar-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.compare-bar-btn {
+  flex: 1;
+  padding: 7px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 194, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.compare-bar-btn:hover { background: rgba(255, 255, 255, 0.12); }
+
+.compare-bar-generate {
+  background: #00e5ff;
+  border-color: #00e5ff;
+  color: var(--deep);
+  font-weight: 600;
+}
+
+.compare-bar-generate:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .clear-btn.visible {
@@ -656,8 +1028,14 @@ ol {
   overflow: hidden;
 }
 
-#map {
+.map-wrapper {
   flex: 1;
+  position: relative;
+}
+
+#map {
+  position: absolute;
+  inset: 0;
   background: var(--deep);
   z-index: 1;
 }
@@ -1222,6 +1600,13 @@ select optgroup {
     bottom: 12px;
   }
 
+  #feedback-button {
+    right: 8px;
+    bottom: 30px;
+    padding: 8px 14px;
+    font-size: 12px;
+  }
+
   .dropdown {
     max-height: 50vh;
   }
@@ -1280,8 +1665,8 @@ select optgroup {
 /* per-dataset coverage card */
 .ds-card {
   border: 1px solid var(--border, #3a3f44); border-left: 3px solid var(--c);
-  border-radius: 6px; padding: 10px 11px; margin-bottom: 10px;
-  background: color-mix(in srgb, var(--c) 6%, var(--panel, #24272b));
+  border-radius: 6px; padding: 14px 15px; margin-bottom: 10px;
+  background: var(--card-bg, #17273d);
   position: relative;
 }
 .ds-pin-btn {
@@ -1293,16 +1678,32 @@ select optgroup {
 .ds-pin-btn-active { opacity: 1; }
 .ds-card-clickable { cursor: pointer; transition: box-shadow 0.15s, border-color 0.15s; }
 .ds-card-clickable:hover { box-shadow: 0 0 0 1px var(--accent), 0 8px 24px rgba(0,0,0,0.35); }
+.ds-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+}
 .ds-card-expand-hint {
   font-size: 10px;
   color: var(--muted);
-  text-align: right;
-  margin-top: 8px;
   opacity: 0;
   transition: opacity 0.15s;
 }
 .ds-card-clickable:hover .ds-card-expand-hint { opacity: 1; }
+.ds-download-link {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 10px;
+  color: var(--muted);
+  padding: 0;
+  margin-left: auto;
+  transition: color 0.15s;
+}
+.ds-download-link:hover { color: var(--text); }
 .ds-card.ds-card-large .ybars { height: 120px; }
+.ds-card.ds-card-large .bars { margin-bottom: 24px; }
 .ds-card.ds-card-large .mbar { height: 70px; font-size: 12px; }
 .ds-card.ds-card-large .ds-stats { font-size: 13px; }
 
@@ -1367,34 +1768,39 @@ select optgroup {
   display: none;
   white-space: nowrap;
 }
-.ds-head { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; }
+.ds-head { display: flex; align-items: center; gap: 7px; margin-bottom: 10px; }
 .ds-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c); flex: none; }
-.ds-label { font-weight: 700; font-size: 13px; color: var(--text, #e6e9ed); }
+.ds-label { font-weight: 700; font-size: 14px; color: var(--text, #e6e9ed); }
 .ds-realm { margin-left: auto; font-size: 9px; text-transform: uppercase;
   letter-spacing: .06em; padding: 2px 6px; border-radius: 999px; }
+.ds-head-right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.ds-head-right .ds-realm { margin-left: 0; }
+.ds-avg-badge { font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; padding: 2px 6px; border-radius: 999px;
+  background: rgba(0,194,255,.18); color: #00c2ff; }
 .ds-realm.env { background: rgba(77,171,247,.18); color: #74c0fc; }
 .ds-realm.bio { background: rgba(105,219,124,.16); color: #8ce99a; }
-.ds-stats { display: flex; flex-direction: column; gap: 6px; font-size: 11px;
-  color: var(--muted, #c1c7cd); margin-bottom: 8px; }
+.ds-stats { display: flex; flex-direction: column; gap: 8px; font-size: 11px;
+  color: var(--muted, #c1c7cd); margin-bottom: 12px; }
 .ds-stat { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.ds-stat-label { font-size: 9px; text-transform: uppercase; letter-spacing: .06em;
+.ds-stat-label { font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em;
   color: var(--muted, #9aa0a6); flex-shrink: 0; }
-.ds-stat-val { color: var(--text, #e6e9ed); text-align: right; }
-.bars-label { font-size: 9px; text-transform: uppercase; letter-spacing: .06em;
-  color: var(--muted, #9aa0a6); margin: 6px 0 3px; }
+.ds-stat-val { color: var(--text, #e6e9ed); text-align: right; font-weight: 600; }
+.bars-label { font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted, #9aa0a6); margin: 12px 0 5px; }
 
 /* year sparkline bars */
-.bars { display: flex; align-items: flex-end; gap: 4px; }
+.bars { display: flex; align-items: flex-end; gap: 4px; margin-bottom: 18px; }
 .bars.empty { color: var(--muted, #6c757d); font-size: 10px; }
 .bars .yl { font-size: 9px; color: var(--muted, #9aa0a6); flex: none; padding-bottom: 1px; }
-.ybars { display: flex; align-items: flex-end; gap: 1px; height: 38px; flex: 1;
+.ybars { display: flex; align-items: flex-end; gap: 1px; height: 42px; flex: 1;
   overflow: hidden; }
 .ybar { flex: 1 1 0; min-width: 1px; border-radius: 1px 1px 0 0; }
 
 /* month seasonality cells */
 .mbars { display: grid; grid-template-columns: repeat(12, 1fr); gap: 2px; }
 .mbar { font-size: 8px; text-align: center; color: #0b0c0e; font-weight: 700;
-  border-radius: 2px; padding: 3px 0; line-height: 1; }
+  border-radius: 2px; padding: 4px 0; line-height: 1; }
 
 /* plankton decade-means block — horizontal bar chart, folded into that
    dataset's own accordion card (below Show Parameters) rather than sitting

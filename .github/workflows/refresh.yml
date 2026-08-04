@@ -2,9 +2,16 @@ name: Refresh coverage data
 
 # Rebuilds the prebuilt coverage JSON (public/data/{stations,variables}.json +
 # metadata/crosswalk_variables.csv) from the latest CalCOFI integrated-DB ingest
-# parquet on public GCS, then commits any change (which the Deploy to GitHub Pages
-# workflow picks up). Triggered on every DB release via `gh workflow run` from
+# parquet on public GCS, then commits any change, which the Deploy to GitHub Pages
+# workflow picks up. Triggered on every DB release via `gh workflow run` from
 # CalCOFI/workflows (release promotion), plus a weekly fallback + manual run.
+#
+# The commit below must NOT carry [skip ci]. pages.yml is the only push-triggered
+# workflow in this repo and deploying is precisely what should happen when the
+# data changes — [skip ci] suppressed it, so for months a refresh commit updated
+# the repo and never the site, and new data reached production only when somebody
+# happened to push code for an unrelated reason. Verified 2026-08-04: the four
+# most recent refresh commits had zero associated Pages deploys.
 
 on:
   workflow_dispatch:
@@ -73,6 +80,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "no coverage changes"
           else
-            git commit -m "data: refresh station coverage from latest DB release [skip ci]"
+            git commit -m "data: refresh station coverage from latest DB release"
             git push
           fi

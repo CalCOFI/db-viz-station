@@ -6,12 +6,10 @@ name: Refresh coverage data
 # workflow picks up. Triggered on every DB release via `gh workflow run` from
 # CalCOFI/workflows (release promotion), plus a weekly fallback + manual run.
 #
-# The commit below must NOT carry [skip ci]. pages.yml is the only push-triggered
-# workflow in this repo and deploying is precisely what should happen when the
-# data changes — [skip ci] suppressed it, so for months a refresh commit updated
-# the repo and never the site, and new data reached production only when somebody
-# happened to push code for an unrelated reason. Verified 2026-08-04: the four
-# most recent refresh commits had zero associated Pages deploys.
+# This job must dispatch the deploy itself (last step). Its own push cannot
+# trigger pages.yml, because a push authenticated with GITHUB_TOKEN never
+# triggers workflows — GitHub's recursion guard. Until 2026-08-04 nothing did,
+# so a refresh updated the repo and never the site.
 
 on:
   workflow_dispatch:
@@ -22,6 +20,7 @@ on:
 
 permissions:
   contents: write
+  actions: write   # to dispatch pages.yml — see the note on the deploy step
 
 concurrency:
   group: refresh-coverage
@@ -82,4 +81,23 @@ jobs:
           else
             git commit -m "data: refresh station coverage from latest DB release"
             git push
+            echo "committed=true" >> "$GITHUB_OUTPUT"
           fi
+        id: commit
+
+      # A push made with GITHUB_TOKEN does not trigger workflows. That is a
+      # deliberate GitHub recursion guard, and it silently broke the whole point
+      # of this job: pages.yml only runs `on: push`, so every refresh commit
+      # updated the repo and never the site, and new data reached production
+      # only when a human happened to push something unrelated. Verified
+      # 2026-08-04 — the five most recent refresh commits had zero associated
+      # Pages deploys, and dropping [skip ci] from the commit message (the
+      # obvious first suspect) changed nothing, because the token is the cause.
+      #
+      # So ask for the deploy explicitly. Only when something was actually
+      # committed — an unchanged refresh should not redeploy.
+      - name: Deploy the refreshed data
+        if: steps.commit.outputs.committed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --ref main -R "$GITHUB_REPOSITORY"

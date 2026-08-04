@@ -2,17 +2,10 @@
 <html lang="en">
 
 <head>
-<!-- Google tag (gtag.js) — CalCOFI site property.
-     GENERATED/COPIED from CalCOFI/analytics → snippets/gtag-site.html.
-     Change only db-viz-station; keep the rest byte-identical across sites so
-     one snippet edit can be rolled out mechanically. `content_group` is what
-     the usage report at calcofi.io/analytics/ joins on. -->
+
 <script>
-  // hostname guard: keeps local previews and forks out of the property,
-  // without depending on a build-system flag (these sites are built five
-  // different ways).
   window.__CC_GA = location.hostname.endsWith("calcofi.io")
-                   && !navigator.webdriver;   // skip Playwright/Puppeteer/shot-scraper
+                   && !navigator.webdriver;
 </script>
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-0HVK8TDMCF"></script>
 <script>
@@ -37,6 +30,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
   <link rel="stylesheet" href="styles.css?v=105" />
 </head>
@@ -66,8 +60,6 @@
 
     <div class="search-banner" id="search-banner"></div>
 
-    <!-- Year-range slider: filter the map to stations with coverage in a year window
-         (uses the per-dataset `years` bins in stations.json). -->
     <div class="year-slider" id="year-slider" style="display:none">
       <span class="ys-caption">Years</span>
       <span class="ys-label" id="ys-min-label"></span>
@@ -102,6 +94,7 @@
                 <label for="line-select-input">Line</label>
                 <input type="text" id="line-select-input" placeholder="ex: 83.3" inputmode="decimal"
                   onkeydown="if(event.key==='Enter') selectByLine()">
+                <button type="button" class="line-select-hint" onclick="selectByLine()">↵ Enter</button>
               </div>
             </div>
             <div class="compare-bar-actions">
@@ -158,9 +151,6 @@
     </div>
   </div>
 
-  <!-- Walkthrough tour — a single callout that repositions itself next to
-       whatever UI element the current step is about (see startWalkthroughTour
-       in app.js), rather than a static wall of text in one fixed modal. -->
   <div id="tour-callout" class="tour-callout" style="display:none">
     <div class="tour-callout-title" id="tour-title"></div>
     <div class="tour-callout-body" id="tour-body"></div>
@@ -173,8 +163,6 @@
       </div>
     </div>
   </div>
-
-  <!-- About / Disclaimer -->
 
   <div id="about-backdrop" class="about-backdrop">
 
@@ -243,14 +231,9 @@
 
       </div>
 
-
-
-
     </div>
 
   </div>
-
-  <!-- Floating help/info buttons -->
 
   <button id="walkthrough-button" onclick="startWalkthroughTour()">
     ?
@@ -260,7 +243,6 @@
     ⓘ
   </button>
 
-  <!-- Feedback -->
   <div id="feedback-backdrop" class="modal-backdrop" onclick="closeFeedbackModal(event)">
     <div class="modal" id="feedback-modal" onclick="event.stopPropagation()">
       <div class="modal-header">

@@ -34,7 +34,6 @@ body {
   overflow: hidden;
 }
 
-/* Header */
 header {
   display: flex;
   align-items: center;
@@ -94,12 +93,10 @@ a:link {
   color: var(--accent);
 }
 
-/* 2. Visited link */
 a:visited {
   color: var(--accent2);
 }
 
-/* Search bar */
 .search-bar {
   padding: 10px 24px;
   background: var(--ocean);
@@ -113,14 +110,12 @@ a:visited {
   z-index: 500;
 }
 
-/* Dropdown search wrapper */
 .search-wrapper {
   flex: 1;
   position: relative;
   min-width: 250px;
 }
 
-/* Search icon (drawn with CSS, no image asset needed) */
 .search-wrapper::before {
   content: "";
   position: absolute;
@@ -212,8 +207,6 @@ a:visited {
   line-height: 1.6;
 }
 
-/* guided tour — a single callout that repositions itself next to whatever
-   element the current step targets (see startWalkthroughTour in app.js) */
 .tour-callout {
   position: fixed; z-index: 10000; width: 340px; max-width: calc(100vw - 16px);
   background: var(--panel, #1a1d21); border: 1px solid var(--accent, #4dabf7);
@@ -246,10 +239,7 @@ a:visited {
 .tour-prev:hover { color: var(--text, #e6e9ed); border-color: var(--muted); }
 .tour-next { background: var(--accent, #4dabf7); border: none; color: #04263d; font-weight: 700; }
 .tour-next:hover { filter: brightness(1.1); }
-/* Separate floating overlay (not attached to the target element) — avoids
-   getting clipped by a target's own overflow (this is what broke the ring
-   around #map, whose container needs overflow for Leaflet tiles), and can
-   be nudged independently via each step's highlightOffsetX/Y. */
+
 #tour-highlight-box {
   position: fixed; z-index: 9999; display: none; pointer-events: none;
   box-shadow: 0 0 0 3px var(--accent, #4dabf7), 0 0 0 6000px rgba(0,0,0,0.35);
@@ -259,7 +249,7 @@ a:visited {
 ul,
 ol {
   padding-left: 25px;
-  /* Adjust the pixel value as needed */
+  
 }
 
 .about-minimize {
@@ -412,7 +402,6 @@ ol {
   background: var(--panel);
 }
 
-/* Dropdown */
 .dropdown {
   position: absolute;
   top: calc(100% + 4px);
@@ -508,7 +497,6 @@ ol {
   text-align: center;
 }
 
-/* Category filters */
 .category-filters {
   display: flex;
   gap: 6px;
@@ -553,11 +541,6 @@ ol {
   white-space: nowrap;
 }
 
-/* Compare-stations control — a self-contained module anchored to the
-   top-right corner of the map, independent of the header/search-bar
-   buttons and the bottom-left/bottom-right floating help/feedback
-   buttons. Collapsed it's just .compare-toggle-btn; toggleCompareMode()
-   swaps it out for the expanded .compare-bar panel in the same spot. */
 .compare-control {
   position: absolute;
   top: 14px;
@@ -613,11 +596,15 @@ ol {
   cursor: default;
 }
 
-.cards-download-btn {
-  display: block;
-  width: 100%;
+.cards-download-row {
+  display: flex;
+  gap: 8px;
   margin: 4px 0 14px;
-  padding: 9px 12px;
+}
+
+.cards-download-btn {
+  flex: 1;
+  padding: 8px 10px;
   text-align: center;
   font-size: 11px;
 }
@@ -678,9 +665,6 @@ ol {
   padding: 12px;
 }
 
-/* Lasso select is its own full-width row — the primary/first way to
-   select stations, so it gets the same visual weight as the "Select
-   Line" bubble below it rather than being squeezed alongside it. */
 .compare-bar-lasso {
   display: flex;
   align-items: center;
@@ -744,8 +728,6 @@ ol {
   stroke-dasharray: 5 4;
 }
 
-/* "OR" sits outside the Line bubble, marking it as an alternative to
-   the lasso row above rather than another unrelated control. */
 .line-select-group {
   display: flex;
   align-items: center;
@@ -796,6 +778,19 @@ ol {
   border-color: #00e5ff;
 }
 
+.line-select-hint {
+  flex-shrink: 0;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+
 .compare-bar-actions {
   display: flex;
   gap: 6px;
@@ -838,7 +833,6 @@ ol {
   color: white;
 }
 
-/* Search banner */
 .search-banner {
   display: none;
   padding: 7px 24px;
@@ -854,17 +848,12 @@ ol {
   display: block;
 }
 
-/* "(all years)" qualifier — shown instead of the year range when the station
-   count can't honor the slider (per-taxon path; see stationsForVarIsYearAware).
-   Muted + dotted underline so it reads as a caveat on the number, not as part
-   of the claim, and hints that hovering explains why. */
 .search-banner .banner-note {
   color: var(--muted, #6c757d);
   border-bottom: 1px dotted currentColor;
   cursor: help;
 }
 
-/* year-range slider (dual-handle; filters the map to a year window) */
 .year-slider {
   display: flex;
   align-items: center;
@@ -961,16 +950,12 @@ ol {
   border-color: var(--accent);
 }
 
-/* Amber/gold state — applied only while a variable is selected, so the
-   slider visibly signals "this is now filtering that parameter" instead
-   of always looking the same regardless of selection. */
 #year-slider.var-active .ys-label { color: var(--accent2); }
 #year-slider.var-active .ys-fill { background: var(--accent2); box-shadow: 0 0 20px rgba(250, 204, 21, 0.3); }
 #year-slider.var-active .ys-range::-webkit-slider-thumb { background: var(--accent2); box-shadow: 0 0 6px rgba(250, 204, 21, 0.6); }
 #year-slider.var-active .ys-range::-moz-range-thumb { background: var(--accent2); }
 #year-slider.var-active .ys-reset:hover { color: var(--accent2); border-color: var(--accent2); }
 
-/* category browse chips (in the search bar) */
 .category-filters {
   display: flex;
   flex-wrap: wrap;
@@ -1014,11 +999,6 @@ ol {
   opacity: 0.9;
 }
 
-/* Main layout — left column: header, search bar, year-slider, map stacked
-   vertically. The side panel is a full-height sibling (see body's
-   flex-direction: row), so it spans the whole viewport height instead of
-   starting below the header — and the year-slider/search bar stop at the
-   map's edge instead of spanning across the panel too. */
 .main {
   display: flex;
   flex-direction: column;
@@ -1040,7 +1020,6 @@ ol {
   z-index: 1;
 }
 
-/* side panel */
 .panel {
   width: min(385px, 40vw);
   background: var(--panel);
@@ -1052,15 +1031,11 @@ ol {
   flex-shrink: 0;
   position: relative;
   transition: transform 0.3s ease;
-  scrollbar-width: none;       /* Firefox */
-  -ms-overflow-style: none;    /* old Edge/IE */
+  scrollbar-width: none;       
+  -ms-overflow-style: none;    
 }
-.panel::-webkit-scrollbar { display: none; }  /* Chrome/Safari */
-/* The inner div#panel shares class="panel" with the outer aside#side-panel,
-   which would otherwise make it a second, redundant scroll container
-   nested inside the first — collapsing scroll state onto two separate
-   elements at once, which is what caused the scroll-position jump on
-   toggle. Only the outer #side-panel should scroll. */
+.panel::-webkit-scrollbar { display: none; }  
+
 #panel { overflow-y: visible; }
 
 .panel.collapsed {
@@ -1103,8 +1078,6 @@ ol {
   display: none
 }
 
-/* Back button — single slot at top of panel header, shown for
-   both "back to station" and "back to all categories" */
 .panel-back-btn {
   display: flex;
   align-items: center;
@@ -1193,7 +1166,6 @@ ol {
   border-radius: 2px;
 }
 
-/* Source groups in panel */
 .source-group {
   margin-bottom: 22px;
 }
@@ -1242,10 +1214,6 @@ ol {
   flex: 1;
 }
 
-/* Description line under each parameter name in the per-station accordion,
-   matching the "By Category" browse panel's clean name+sentence style.
-   Wrapped in .data-link-main so it stacks vertically without breaking
-   .data-link's existing flex-row layout (used elsewhere for unit/arrow). */
 .data-link-main { display: flex; flex-direction: column; gap: 2px; flex: 1; }
 .data-link-desc { font-size: 10px; color: var(--muted); line-height: 1.4; }
 
@@ -1429,13 +1397,10 @@ select optgroup {
   background: var(--surface);
 }
 
-/* Leaflet overrides */
 .leaflet-container {
   background: #06121f !important;
 }
 
-/* Smooth fade for marker opacity/color changes (year-slider filtering,
-   variable selection) instead of an instant snap while dragging. */
 .leaflet-interactive {
   transition: fill-opacity 0.2s ease, opacity 0.2s ease, fill 0.2s ease, stroke 0.2s ease;
 }
@@ -1612,7 +1577,6 @@ select optgroup {
   }
 }
 
-
 @media (max-width: 480px) {
 
   .logo-title {
@@ -1635,17 +1599,13 @@ select optgroup {
     font-size: 12px;
   }
 }
-/* ============================================================
-   Integrated-DB coverage view (station-grid refactor, 2026-07)
-   ============================================================ */
+
 :root { --c: #4dabf7; }
 
-/* visibility reconciliation */
 .about-backdrop { display: none !important; }
 .about-backdrop.open { display: flex !important; }
 .panel-content { display: block; }
 
-/* station coverage summary strip */
 .cov-summary {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
   margin: 4px 0 14px;
@@ -1662,7 +1622,6 @@ select optgroup {
 .cov-empty { color: var(--muted, #9aa0a6);
   font-size: 16px; padding: 24px 8px; text-align: center; }
 
-/* per-dataset coverage card */
 .ds-card {
   border: 1px solid var(--border, #3a3f44); border-left: 3px solid var(--c);
   border-radius: 6px; padding: 14px 15px; margin-bottom: 10px;
@@ -1691,6 +1650,12 @@ select optgroup {
   transition: opacity 0.15s;
 }
 .ds-card-clickable:hover .ds-card-expand-hint { opacity: 1; }
+.ds-download-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
 .ds-download-link {
   background: none;
   border: none;
@@ -1698,18 +1663,38 @@ select optgroup {
   font-size: 10px;
   color: var(--muted);
   padding: 0;
-  margin-left: auto;
   transition: color 0.15s;
 }
 .ds-download-link:hover { color: var(--text); }
+.var-picker { display: flex; flex-direction: column; gap: 12px; }
+.var-picker-actions { display: flex; gap: 12px; }
+.var-picker-toggle {
+  background: none; border: 1px solid var(--border, #2a3a55); border-radius: 4px;
+  color: var(--muted); font-size: 11px; padding: 4px 10px; cursor: pointer;
+}
+.var-picker-toggle:hover { color: var(--text); border-color: var(--text); }
+.var-picker-list {
+  display: flex; flex-direction: column; gap: 6px; max-height: 320px;
+  overflow-y: auto; padding-right: 4px;
+}
+.var-pick-row { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.var-pick-row-unconfirmed { color: var(--muted, #6c757d); opacity: 0.6; }
+.var-pick-group { display: flex; flex-direction: column; gap: 6px; }
+.var-pick-group + .var-pick-group { margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.var-pick-group-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+.var-pick-units { color: var(--muted); font-size: 11px; }
+.var-picker-confirm {
+  align-self: flex-start; background: var(--accent, #4dabf7); color: #06121f;
+  border: none; border-radius: 4px; padding: 9px 16px; font-size: 12px;
+  font-weight: 600; cursor: pointer;
+}
+.var-picker-confirm:disabled { opacity: 0.6; cursor: default; }
+.var-picker-status { font-size: 11px; color: var(--muted); min-height: 14px; }
 .ds-card.ds-card-large .ybars { height: 120px; }
 .ds-card.ds-card-large .bars { margin-bottom: 24px; }
 .ds-card.ds-card-large .mbar { height: 70px; font-size: 12px; }
 .ds-card.ds-card-large .ds-stats { font-size: 13px; }
 
-/* pin-to-compare tray — fixed at the bottom of the screen so pinned cards
-   stay visible while browsing other stations. A real page-level fixture,
-   not a widget, so position:fixed is fine here. */
 #pinned-tray {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 500;
   background: var(--panel, #1a1d21); border-top: 1px solid var(--border, #3a3f44);
@@ -1750,9 +1735,6 @@ select optgroup {
 }
 .marker-flash { animation: marker-flash-pulse 0.4s ease-in-out 3; }
 
-/* Custom floating tooltip for chart-bar hover — replaces the plain browser
-   title tooltip with a styled one showing the same year/count or
-   month/count detail. */
 #chart-tooltip {
   position: fixed;
   z-index: 10000;
@@ -1789,7 +1771,6 @@ select optgroup {
 .bars-label { font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em;
   color: var(--muted, #9aa0a6); margin: 12px 0 5px; }
 
-/* year sparkline bars */
 .bars { display: flex; align-items: flex-end; gap: 4px; margin-bottom: 18px; }
 .bars.empty { color: var(--muted, #6c757d); font-size: 10px; }
 .bars .yl { font-size: 9px; color: var(--muted, #9aa0a6); flex: none; padding-bottom: 1px; }
@@ -1797,14 +1778,10 @@ select optgroup {
   overflow: hidden; }
 .ybar { flex: 1 1 0; min-width: 1px; border-radius: 1px 1px 0 0; }
 
-/* month seasonality cells */
 .mbars { display: grid; grid-template-columns: repeat(12, 1fr); gap: 2px; }
 .mbar { font-size: 8px; text-align: center; color: #0b0c0e; font-weight: 700;
   border-radius: 2px; padding: 4px 0; line-height: 1; }
 
-/* plankton decade-means block — horizontal bar chart, folded into that
-   dataset's own accordion card (below Show Parameters) rather than sitting
-   separately at the end of the panel. */
 .dec-block {
   margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border, #3a3f44);
 }
@@ -1848,7 +1825,6 @@ select optgroup {
 .dec-block-large .dec-bar-track { height: 12px; }
 .dec-block-large .dec-yr { font-size: 13px; }
 
-/* station-panel tabs — Overview / Depth Profiles */
 .panel-tabs {
   display: inline-flex; margin-bottom: 14px;
   border: 1px solid var(--border, rgba(0, 194, 255, .15)); border-radius: 20px;
@@ -1868,9 +1844,6 @@ select optgroup {
 }
 .panel-tab.active .panel-tab-count { color: var(--deep); opacity: .7; }
 
-/* depth profile rows (Depth Profiles tab) — one row per variable, flat list
-   style matching .data-link rather than a separate boxed-card look. Each row
-   is collapsed by default; the chart below only builds on first expand. */
 .depth-profile {
   border-bottom: 1px solid rgba(255, 255, 255, .04);
 }
@@ -1902,8 +1875,6 @@ select optgroup {
 .depth-dot { cursor: pointer; }
 .depth-profile-list { margin-top: 4px; }
 
-
-/* dropdown items (coverage view) */
 .dd-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px;
   cursor: pointer; border-bottom: 1px solid var(--border, #2c3036); }
 .dd-item:hover, .dd-item.focused { background: rgba(77,171,247,.12); }
@@ -1911,11 +1882,7 @@ select optgroup {
 .dd-name { color: var(--text, #e6e9ed); font-size: 12px; font-weight: 700; }
 .dd-meta { margin-left: auto; color: var(--muted, #9aa0a6); font-size: 10px; }
 .dd-empty { padding: 10px; color: var(--muted, #9aa0a6); font-size: 12px; }
-/* group-type family members in the search dropdown (e.g. Temperature, backed
-   by 3 datasets) — toggle row matches .dd-item exactly so it doesn't read as
-   a different component; caret + "N datasets" replace the dot + normal meta.
-   Expanded options (.dd-item-nested) are the same row style again, just
-   indented, so the whole thing stays visually consistent top to bottom. */
+
 .dd-group-toggle { display: flex; align-items: center; gap: 8px; padding: 7px 10px;
   cursor: pointer; border-bottom: 1px solid var(--border, #2c3036); }
 .dd-group-toggle:hover { background: rgba(77,171,247,.12); }
@@ -1925,7 +1892,6 @@ select optgroup {
 .dd-item-nested { padding-left: 26px; }
 .dd-dot-empty { background: #4a4f57; border: none; }
 
-/* variable panel */
 .var-meta { font-size: 12px; color: var(--muted, #c1c7cd); display: flex;
   flex-direction: column; gap: 4px; }
 .var-meta .k { color: var(--muted, #9aa0a6); text-transform: uppercase;
@@ -1936,25 +1902,16 @@ select optgroup {
 .src-link:hover { text-decoration: underline; }
 .var-hint { font-size: 11px; color: var(--muted, #9aa0a6); margin-top: 10px; }
 
-/* collapsed side panel */
 #side-panel.collapsed { width: 30px !important; min-width: 30px; }
 #side-panel.collapsed .panel-content,
 #side-panel.collapsed .panel-header,
 #side-panel.collapsed .panel-empty { display: none !important; }
 
-/* keep coverage cards within the panel width */
 .panel-content { overflow-x: hidden; box-sizing: border-box; }
 .ds-card, .cov-summary, .var-panel, .bars, .mbars { box-sizing: border-box; max-width: 100%; }
 .ds-stats span { overflow-wrap: anywhere; }
 .ybars { min-width: 0; }
 
-/* ============================================
-   INVENTORY PANEL — "What CalCOFI Measures"
-   Shown in the right side panel (#panel-empty) before any station is
-   clicked. Ported from Betty's original station-portal build
-   (2026-ucsb-station-data-portal, year-slider-and-integrated-db branch) —
-   replaces the earlier horizontal browse-panel-under-search-bar attempt.
-   ============================================ */
 .panel-empty {
   flex: none;
   display: flex;
@@ -1994,7 +1951,7 @@ select optgroup {
   margin: 0 auto 16px;
   text-align: center;
 }
-/* By Category / By Dataset segmented toggle */
+
 .inventory-view-tabs {
   display: flex;
   justify-content: center;
@@ -2067,7 +2024,6 @@ select optgroup {
 .inventory-subitem-name { font-size: 13px; font-weight: 600; color: #ffffff; }
 .inventory-subitem-meta { font-size: 11px; color: #9aa7ae; font-weight: 400; }
 
-/* dropdown group header — search results grouped by category */
 .dropdown-group-header {
   display: flex;
   align-items: center;
@@ -2095,7 +2051,6 @@ select optgroup {
   flex-shrink: 0;
 }
 
-/* station panel: sub-category header within a dataset's variable list */
 .inventory-subcategory-header {
   font-size: 10px;
   font-weight: 700;
@@ -2108,8 +2063,6 @@ select optgroup {
 }
 .inventory-subcategory-header:first-child { margin-top: 0; border-top: none; }
 
-/* station panel accordion — one row per dataset, native <details>/<summary>
-   so open/close state and the chevron rotation need no JS bookkeeping. */
 .ds-accordion-row {
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -2142,9 +2095,6 @@ select optgroup {
 .ds-accordion-row[open] .ds-accordion-chevron { transform: rotate(90deg); }
 .ds-accordion-body { padding: 12px 14px; background: var(--ocean); }
 
-/* "Show Parameters" toggle — the per-station parameter list is secondary
-   info here (the dataset card above is the main thing), so it's hidden
-   behind a native <details> toggle instead of shown by default. */
 .params-toggle { margin-top: 10px; }
 .params-toggle-summary {
   cursor: pointer;
@@ -2162,19 +2112,6 @@ select optgroup {
 .params-toggle-summary:hover { text-decoration: underline; }
 .params-list { padding-top: 4px; }
 
-
-/* ============================================
-   FONT UPDATE — Inter for UI, Space Mono for codes
-   Ported from Betty's original station-portal build: Space Mono
-   everywhere read as dense/technical for body text, so most UI
-   text moved to Inter (clearer, more plain), keeping Space Mono
-   only where a monospace/code feel actually helps — station IDs,
-   coordinates, counts, and the search input.
-   ============================================ */
-/* Inter (UI text) now loaded via the <link> tag in index.html, alongside
-   Space Mono — a mid-file @import here is silently
-   ignored by browsers unless it's the very first rule in the stylesheet. */
-
 body, .panel, .dd-item, .inventory-label, .inventory-subitem-name,
 .browse-pill, .modal-body, .about-content, .data-link-name,
 .dropdown-group-header, .ds-accordion-label, .cov-summary, .var-panel,
@@ -2182,25 +2119,14 @@ body, .panel, .dd-item, .inventory-label, .inventory-subitem-name,
   font-family: 'Inter', sans-serif;
 }
 
-/* Two-font system: Inter for everything readable (body, titles, prose,
-   hints), Space Mono reserved only for the logo and short numeric/code
-   badges — never for anything that mixes prose and numbers, since
-   switching fonts mid-context is what reads as inconsistent. */
 .logo-title, .logo-sub, .search-input,
 .inventory-count, .browse-count, .dd-meta {
   font-family: 'Space Mono', monospace;
 }
 
-/* ============================================
-   PARAMETER FAMILIES — umbrella rows for related-but-different
-   measurements (e.g. bottle Temperature vs Dry/Wet Bulb Temperature).
-   Ported from Betty's original station-portal build.
-   ============================================ */
 .inventory-family-header { font-style: normal; cursor: pointer; }
 .inventory-umbrella-caret { font-size: 11px; color: var(--muted); flex-shrink: 0; }
-/* Each nesting level gets its own shaded container (family -> group ->
-   sources), matching the screenshot reference, instead of relying only on
-   margin/indent to show depth. */
+
 .inventory-sublinks {
   margin: 6px 0 4px;
   padding: 8px 10px;
@@ -2217,11 +2143,6 @@ body, .panel, .dd-item, .inventory-label, .inventory-subitem-name,
   margin-top: 2px;
 }
 
-/* ============================================
-   VARIABLE DETAIL PANEL — plain flowing layout, not a bordered
-   card, so it uses the full width of the side panel. Ported
-   verbatim from Betty's original station-portal build.
-   ============================================ */
 .panel-info-block { font-size: 14px; line-height: 1.85; color: var(--text); padding: 4px 0; }
 .panel-info-block b { color: var(--text); }
 .panel-info-block a { color: var(--accent); }
@@ -2230,6 +2151,13 @@ body, .panel, .dd-item, .inventory-label, .inventory-subitem-name,
 .panel-subtext { font-size: 11px; color: var(--text); opacity: 0.75; }
 .panel-subtext-muted { color: var(--muted); }
 .panel-station-count { display: block; color: var(--accent); font-size: 15px; font-weight: 700; margin: 10px 0 18px; }
+.panel-fallback-note {
+  display: block;
+  color: var(--muted, #6c757d);
+  font-size: 12px;
+  line-height: 1.6;
+  margin: -14px 0 24px;
+}
 .panel-hint { display: block; color: var(--text); font-size: 13px; line-height: 1.7; margin-bottom: 20px; }
 a.panel-open-dataset-btn {
   display: block;
@@ -2251,11 +2179,6 @@ a.panel-open-dataset-btn {
 }
 a.panel-open-dataset-btn:hover { background: #ffffff; }
 
-/* A-Z jump nav — shown above any long subgroup list (e.g. Ichthyoplankton
-   species) so you can jump straight to a letter instead of scrolling
-   through everything. Letters with zero entries stay visible but greyed
-   out and unclickable, rather than removed, so the row's layout is
-   stable rather than shifting around as the underlying data changes. */
 .inventory-jumpnav {
   display: flex;
   flex-wrap: wrap;
@@ -2286,12 +2209,6 @@ a.panel-open-dataset-btn:hover { background: #ffffff; }
 }
 .inventory-jumpnav-btn-off:hover { border-color: transparent; color: var(--muted); }
 
-/* Source cards — each data source inside a family's dropdown (e.g.
-   Temperature > Bottle / CTD Cast) as its own distinct clickable card,
-   not just another flat row. Bold official dataset name, description
-   below, and a trailing arrow so clicking one reads clearly as an action
-   (selects that variable, updates the map/slider) rather than more
-   expand/collapse like the dropdown toggle above it. */
 .inventory-source-card {
   padding: 10px 4px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);

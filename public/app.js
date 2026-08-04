@@ -675,12 +675,56 @@ const normTaxonName = s => {
   const n = (s || '').trim().toLowerCase().replace(/\s+/g, ' ');
   return TAXON_NAME_SYNONYMS[n] || n;
 };
+// ---- data cache-busting ----------------------------------------------------
+// index.html loads app.js and styles.css as `?v=NNN`, but the data files were
+// fetched bare, and GitHub Pages serves them `max-age=600` with no way to set
+// headers. So a returning visitor could pair a fresh app.js with a stations.json
+// cached from before a dataset was renamed and get, say, a CSV named
+// calcofi_bird_mammal_census long after the release stopped using that key.
+// (Observed in the wild, 2026-08-04. DATASET_KEY_ALIASES is what kept the UI
+// coherent through it, but the raw key still reached a filename.)
+//
+// So every data URL carries the release it was built from. refresh.yml writes
+// version.json alongside the data whenever it regenerates from a release, which
+// means the query string changes on its own the moment the release does — no
+// hand-bumped counter to forget. version.json itself is fetched `no-cache` so
+// it always revalidates; it's a few dozen bytes and usually answers 304.
+//
+// Degrades safely: no version.json (a preview, a fork, an old deploy) simply
+// means unversioned URLs, i.e. exactly today's behavior.
+let DATA_VERSION = null, DATA_BUILT = null;
+async function loadDataVersion() {
+  try {
+    const r = await fetch('./data/version.json', { cache: 'no-cache' });
+    if (r.ok) {
+      const v = await r.json();
+      DATA_VERSION = v.release || null;
+      DATA_BUILT = v.built || null;
+    }
+  } catch (e) {
+    console.warn('no data/version.json — data URLs will not be cache-busted', e);
+  }
+  showDataVersion();
+  return DATA_VERSION;
+}
+// Name the release in the About box. Without this nothing on the page says
+// which snapshot of the database is on screen, so a stale load is invisible to
+// the person looking at it and to whoever they report it to.
+function showDataVersion() {
+  const el = document.getElementById('about-data-version');
+  if (!el || !DATA_VERSION) return;
+  const built = DATA_BUILT ? ` · rebuilt ${DATA_BUILT.slice(0, 10)}` : '';
+  el.innerHTML = `Showing CalCOFI integrated release <strong>${DATA_VERSION}</strong>${built}.`;
+  el.style.display = '';
+}
+const dataUrl = name =>
+  `./data/${name}` + (DATA_VERSION ? `?v=${encodeURIComponent(DATA_VERSION)}` : '');
 // decades.json (per-station decade-means for the plankton datasets) is optional —
 // tolerate its absence so the map still loads before the first refresh builds it.
-Promise.all([
-  fetch('./data/stations.json').then(r => r.json()),
-  fetch('./data/variables.json').then(r => r.json()),
-  fetch('./data/decades.json').then(r => r.ok ? r.json() : []).catch(() => []),
+loadDataVersion().then(() => Promise.all([
+  fetch(dataUrl('stations.json')).then(r => r.json()),
+  fetch(dataUrl('variables.json')).then(r => r.json()),
+  fetch(dataUrl('decades.json')).then(r => r.ok ? r.json() : []).catch(() => []),
   // taxon_coverage.json: one row per (grid_key, aphia_id) — per-taxon station
   // coverage, separate from the per-dataset coverage baked into stations.json.
   // Optional and additive: when absent, station counts/highlighting fall back
@@ -688,11 +732,11 @@ Promise.all([
   // same "54 stations" regardless of how often that specific taxon was
   // actually recorded — see 2026-07 investigation). When present, per-taxon
   // numbers are used automatically — no other code change needed either way.
-  fetch('./data/taxon_coverage.json').then(r => r.ok ? r.json() : []).catch(() => []),
+  fetch(dataUrl('taxon_coverage.json')).then(r => r.ok ? r.json() : []).catch(() => []),
   // bottle_cast_coverage.json: one row per (grid_key, subset) — real
   // per-subset coverage for the split Hydrographic Bottle/Cast cards.
   // Optional/additive, same tolerant pattern as the rest.
-  fetch('./data/bottle_cast_coverage.json').then(r => { bottleCastCovLoaded = r.ok; return r.ok ? r.json() : []; }).catch(() => []),
+  fetch(dataUrl('bottle_cast_coverage.json')).then(r => { bottleCastCovLoaded = r.ok; return r.ok ? r.json() : []; }).catch(() => []),
   // bathymetry.json: one row per (grid_key, bathymetry_depth_m) — seafloor
   // depth sampled from GEBCO 2025, the same source + method the CalCOFI/apps
   // ctd-viz app uses (bathymetry isn't in the release DB yet — tracked as
@@ -700,7 +744,7 @@ Promise.all([
   // already relies on, just precomputed once instead of sampled live).
   // Optional/additive: absent means depth-profile charts just don't draw a
   // seafloor line, same as before this existed.
-  fetch('./data/bathymetry.json').then(r => r.ok ? r.json() : []).catch(() => []),
+  fetch(dataUrl('bathymetry.json')).then(r => r.ok ? r.json() : []).catch(() => []),
   // euphausiid_species_coverage.json: one row per (grid_key, scientific_name)
   // — built from the real BTEDB raw export (225 wide Genus_species_stage
   // columns), matched to the existing 218-station grid by Line/Station.
@@ -708,7 +752,7 @@ Promise.all([
   // known grid station; life stages summed together per species) — real
   // per-species coverage doesn't exist in any release yet, this is a
   // stand-in until CalCOFI/workflows PR #72 actually gets released.
-  fetch('./data/euphausiid_species_coverage.json').then(r => r.ok ? r.json() : []).catch(() => []),
+  fetch(dataUrl('euphausiid_species_coverage.json')).then(r => r.ok ? r.json() : []).catch(() => []),
   // bird_mammal_species_coverage.json: same shape and same role for the
   // Farallon seabird/marine-mammal census — one row per (grid_key,
   // scientific_name) with a `years` histogram, giving per-species station
@@ -718,8 +762,8 @@ Promise.all([
   // already real records in variables.json, so nothing is synthesized here.
   // Optional/additive — absent means those taxa fall back to dataset-wide
   // station coverage, exactly as before.
-  fetch('./data/bird_mammal_species_coverage.json').then(r => r.ok ? r.json() : []).catch(() => [])
-]).then(([st, va, dm, tc, bc, bathy, ec, bm]) => {
+  fetch(dataUrl('bird_mammal_species_coverage.json')).then(r => r.ok ? r.json() : []).catch(() => [])
+])).then(([st, va, dm, tc, bc, bathy, ec, bm]) => {
   STATIONS = st; VARS = va;
   (dm || []).forEach(r => { ((DECADES[r.dataset_key] ||= {})[r.station_id] ||= []).push(r); });
   (tc || []).forEach(r => (TAXON_STATIONS[r.dataset_key + '::' + r.aphia_id] ||= new Set()).add(r.grid_key));
@@ -794,7 +838,7 @@ Promise.all([
 let depthProfilesPromise = null;
 function loadDepthProfiles() {
   if (depthProfilesPromise) return depthProfilesPromise;
-  depthProfilesPromise = fetchGzJson('./data/depth_profiles.json.gz')
+  depthProfilesPromise = fetchGzJson(dataUrl('depth_profiles.json.gz'))
     .catch(() => [])
     .then(dp => {
       (dp || []).forEach(r => {

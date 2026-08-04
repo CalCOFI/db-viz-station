@@ -47,6 +47,15 @@ jobs:
           # raw file rather than committing it.
           duckdb -c ".read scripts/build_depth_profiles.sql"
           gzip -9 -f public/data/depth_profiles.json
+          # Stamp the release these files were built from. app.js reads this and
+          # appends ?v=<release> to every data fetch, because GitHub Pages serves
+          # public/data/ with max-age=600 and no way to set headers — without it a
+          # returning visitor pairs a fresh (cache-busted) app.js with a
+          # stations.json from before a dataset was renamed. Writing it here means
+          # the query string changes whenever the release does, with no counter for
+          # anyone to remember to bump.
+          printf '{"release":"%s","built":"%s"}\n' \
+            "$REL" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > public/data/version.json
           ls -la public/data/
 
       - name: Commit if changed
@@ -59,6 +68,7 @@ jobs:
           # (taxon_coverage.json did exactly that when it was first added).
           git add public/data/stations.json public/data/variables.json public/data/decades.json \
                   public/data/taxon_coverage.json public/data/depth_profiles.json.gz \
+                  public/data/version.json \
                   metadata/crosswalk_variables.csv
           if git diff --cached --quiet; then
             echo "no coverage changes"

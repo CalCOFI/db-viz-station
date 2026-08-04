@@ -211,6 +211,16 @@ a:visited {
   padding: 20px;
   line-height: 1.6;
 }
+/* which release the loaded data came from — deliberately quiet, but present, so
+   a stale cache is something a reader can see rather than infer */
+.about-data-version {
+  margin: 0 0 14px; padding: 8px 12px;
+  background: rgba(77, 171, 247, 0.08);
+  border-left: 3px solid var(--accent, #4dabf7);
+  border-radius: 4px;
+  font-size: 12px; color: var(--muted, #9aa0a6);
+}
+.about-data-version strong { color: var(--accent, #4dabf7); font-weight: 600; }
 
 /* guided tour — a single callout that repositions itself next to whatever
    element the current step targets (see startWalkthroughTour in app.js) */

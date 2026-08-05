@@ -97,7 +97,7 @@
 	{"dataset_key":"cce-lter_zoodb","station_id":"086.7 035.0","decade":"2010-2019","mean_density":93.44,"n_tows":3},
 	{"dataset_key":"cce-lter_zoodb","station_id":"086.7 040.0","decade":"1950-1959","mean_density":146606.31,"n_tows":2},
 	{"dataset_key":"cce-lter_zoodb","station_id":"086.7 040.0","decade":"1960-1969","mean_density":43205.67,"n_tows":1},
-	{"dataset_key":"cce-lter_zoodb","station_id":"086.7 040.0","decade":"1970-1979","mean_density":91839.07,"n_tows":4},
+	{"dataset_key":"cce-lter_zoodb","station_id":"086.7 040.0","decade":"1970-1979","mean_density":91839.08,"n_tows":4},
 	{"dataset_key":"cce-lter_zoodb","station_id":"086.7 040.0","decade":"1980-1989","mean_density":54248.62,"n_tows":2},
 	{"dataset_key":"cce-lter_zoodb","station_id":"086.7 040.0","decade":"1990-1999","mean_density":129020.49,"n_tows":1},
 	{"dataset_key":"cce-lter_zoodb","station_id":"086.7 040.0","decade":"2010-2019","mean_density":4.68,"n_tows":1},

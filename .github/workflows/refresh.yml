@@ -82,6 +82,9 @@ jobs:
             git commit -m "data: refresh station coverage from latest DB release"
             git push
             echo "committed=true" >> "$GITHUB_OUTPUT"
+            # hand the deploy the exact SHA rather than letting it re-resolve
+            # `main`, which can still be the pre-push commit — see pages.yml
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           fi
         id: commit
 
@@ -100,4 +103,7 @@ jobs:
         if: steps.commit.outputs.committed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run pages.yml --ref main -R "$GITHUB_REPOSITORY"
+          SHA: ${{ steps.commit.outputs.sha }}
+        run: |
+          gh workflow run pages.yml --ref main -R "$GITHUB_REPOSITORY" -f sha="$SHA"
+          echo "dispatched pages.yml for $SHA"

@@ -2,14 +2,9 @@ name: Refresh coverage data
 
 # Rebuilds the prebuilt coverage JSON (public/data/{stations,variables}.json +
 # metadata/crosswalk_variables.csv) from the latest CalCOFI integrated-DB ingest
-# parquet on public GCS, then commits any change, which the Deploy to GitHub Pages
-# workflow picks up. Triggered on every DB release via `gh workflow run` from
+# parquet on public GCS, then commits any change (which the Deploy to GitHub Pages
+# workflow picks up). Triggered on every DB release via `gh workflow run` from
 # CalCOFI/workflows (release promotion), plus a weekly fallback + manual run.
-#
-# This job must dispatch the deploy itself (last step). Its own push cannot
-# trigger pages.yml, because a push authenticated with GITHUB_TOKEN never
-# triggers workflows — GitHub's recursion guard. Until 2026-08-04 nothing did,
-# so a refresh updated the repo and never the site.
 
 on:
   workflow_dispatch:
@@ -20,7 +15,6 @@ on:
 
 permissions:
   contents: write
-  actions: write   # to dispatch pages.yml — see the note on the deploy step
 
 concurrency:
   group: refresh-coverage
@@ -42,68 +36,19 @@ jobs:
           REL=$(curl -s https://storage.googleapis.com/calcofi-db/ducklake/releases/latest.txt | tr -d '[:space:]')
           echo "resolved release: $REL"
           duckdb -c ".read scripts/build_crosswalk.sql"
-          # build_stations.sql writes BOTH stations.json and taxon_coverage.json
           sed "s/__RELEASE__/$REL/g" scripts/build_stations.sql | duckdb
           sed "s/__RELEASE__/$REL/g" scripts/build_vars.sql | duckdb
           sed "s/__RELEASE__/$REL/g" scripts/build_decades.sql | duckdb
-          # build_depth_profiles.sql resolves the release itself (from latest.txt)
-          # rather than via __RELEASE__ — see the note in its header — so it needs
-          # no sed. It emits an uncompressed ~76 MB depth_profiles.json; the app
-          # loads only the gzipped copy (fetchGzJson), so compress and drop the
-          # raw file rather than committing it.
-          duckdb -c ".read scripts/build_depth_profiles.sql"
-          gzip -9 -f public/data/depth_profiles.json
-          # Stamp the release these files were built from. app.js reads this and
-          # appends ?v=<release> to every data fetch, because GitHub Pages serves
-          # public/data/ with max-age=600 and no way to set headers — without it a
-          # returning visitor pairs a fresh (cache-busted) app.js with a
-          # stations.json from before a dataset was renamed. Writing it here means
-          # the query string changes whenever the release does, with no counter for
-          # anyone to remember to bump.
-          printf '{"release":"%s","built":"%s"}\n' \
-            "$REL" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > public/data/version.json
-          ls -la public/data/
+          sed "s/__RELEASE__/$REL/g" scripts/build_datasets.sql | duckdb
 
       - name: Commit if changed
         run: |
           git config user.name  "calcofi-bot"
           git config user.email "bot@calcofi.io"
-          # Every generated artifact must be listed here. Anything the build
-          # scripts write but this line omits is regenerated into the runner and
-          # silently discarded, leaving the committed copy to drift from the rest
-          # (taxon_coverage.json did exactly that when it was first added).
-          git add public/data/stations.json public/data/variables.json public/data/decades.json \
-                  public/data/taxon_coverage.json public/data/depth_profiles.json.gz \
-                  public/data/version.json \
-                  metadata/crosswalk_variables.csv
+          git add public/data/stations.json public/data/variables.json public/data/decades.json public/data/datasets_meta.json metadata/crosswalk_variables.csv
           if git diff --cached --quiet; then
             echo "no coverage changes"
           else
-            git commit -m "data: refresh station coverage from latest DB release"
+            git commit -m "data: refresh station coverage from latest DB release [skip ci]"
             git push
-            echo "committed=true" >> "$GITHUB_OUTPUT"
-            # hand the deploy the exact SHA rather than letting it re-resolve
-            # `main`, which can still be the pre-push commit — see pages.yml
-            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           fi
-        id: commit
-
-      # A push made with GITHUB_TOKEN does not trigger workflows. That is a
-      # deliberate GitHub recursion guard, and it silently broke the whole point
-      # of this job: pages.yml only runs `on: push`, so every refresh commit
-      # updated the repo and never the site, and new data reached production
-      # only when a human happened to push something unrelated. Verified
-      # 2026-08-04 — the five most recent refresh commits had zero associated
-      # Pages deploys, and dropping [skip ci] from the commit message (the
-      # obvious first suspect) changed nothing, because the token is the cause.
-      #
-      # So ask for the deploy explicitly. Only when something was actually
-      # committed — an unchanged refresh should not redeploy.
-      - name: Deploy the refreshed data
-        if: steps.commit.outputs.committed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SHA: ${{ steps.commit.outputs.sha }}
-        run: |
-          gh workflow run pages.yml --ref main -R "$GITHUB_REPOSITORY" -f sha="$SHA"
-          echo "dispatched pages.yml for $SHA"

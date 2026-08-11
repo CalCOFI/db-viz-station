@@ -68,17 +68,6 @@ const DATASET_URL_FALLBACK = {
   'farallon_bird-mammal': 'https://portal.edirepository.org/nis/mapbrowse?scope=knb-lter-cce&identifier=255&revision=3',
   'calcofi_bird_mammal_census': 'https://portal.edirepository.org/nis/mapbrowse?scope=knb-lter-cce&identifier=255&revision=3',
 };
-// datasets_meta.json (built by scripts/build_datasets.sql from the release's
-// dataset.parquet — see #11) is the primary source for official name + link,
-// keyed on dataset_key. DATASET_OFFICIAL_NAME / DATASET_URL_FALLBACK above are
-// now fallback-only: used when a key isn't in datasets_meta.json yet (a
-// dataset added between releases) or the file itself is missing (an old
-// deploy, a preview build). Populated once datasets_meta.json loads; empty
-// object until then so lookups before load just fall through to the
-// hardcoded maps.
-let DATASETS_META = {};
-const officialNameFor = dk => (DATASETS_META[dk] && DATASETS_META[dk].dataset_name) || DATASET_OFFICIAL_NAME[dk];
-const datasetUrlFor = dk => (DATASETS_META[dk] && DATASETS_META[dk].url) || DATASET_URL_FALLBACK[dk];
 const CAST_SIDE_BOTTLE_FIELDS = new Set([
   'dry_air_temp', 'wet_air_temp', 'wave_direction', 'wave_height', 'wave_period',
   'wind_direction', 'wind_speed', 'barometric_pressure', 'weather_code',
@@ -447,15 +436,9 @@ Promise.all([
   fetch('./data/bottle_cast_coverage.json').then(r => { bottleCastCovLoaded = r.ok; return r.ok ? r.json() : []; }).catch(() => []),
   fetch('./data/bathymetry.json').then(r => r.ok ? r.json() : []).catch(() => []),
   fetch('./data/euphausiid_species_coverage.json').then(r => r.ok ? r.json() : []).catch(() => []),
-  fetch('./data/bird_mammal_species_coverage.json').then(r => r.ok ? r.json() : []).catch(() => []),
-  // datasets_meta.json: dataset_key -> official name/link/description/etc.,
-  // straight from the release (see #11 / scripts/build_datasets.sql). Optional
-  // and additive, same tolerant pattern as the rest — absent just means every
-  // officialNameFor/datasetUrlFor lookup falls through to the hardcoded maps.
-  fetch('./data/datasets_meta.json').then(r => r.ok ? r.json() : []).catch(() => [])
-]).then(([st, va, dm, tc, bc, bathy, ec, bm, dsMetaRows]) => {
+  fetch('./data/bird_mammal_species_coverage.json').then(r => r.ok ? r.json() : []).catch(() => [])
+]).then(([st, va, dm, tc, bc, bathy, ec, bm]) => {
   STATIONS = st; VARS = va;
-  (dsMetaRows || []).forEach(r => { DATASETS_META[r.dataset_key] = r; });
   (dm || []).forEach(r => { ((DECADES[r.dataset_key] ||= {})[r.station_id] ||= []).push(r); });
   (tc || []).forEach(r => (TAXON_STATIONS[r.dataset_key + '::' + r.aphia_id] ||= new Set()).add(r.grid_key));
   (ec || []).forEach(r => {
@@ -1623,7 +1606,7 @@ const PARAMETER_FAMILIES = [
   },
 ];
 function sourceCardRow(it, showSource) {
-  const official = officialNameFor(it.source.dataset_key) || it.source.source;
+  const official = DATASET_OFFICIAL_NAME[it.source.dataset_key] || it.source.source;
   const title = showSource ? `${official} — ${it.source.source}` : official;
   return `<div class="inventory-source-card" data-vid="${encodeURIComponent(it.v.variable_id)}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
@@ -2716,8 +2699,8 @@ function showVariablePanel(v) {
   const stationCount = stationsForVar(v).size;
   const desc = descriptionFor(v, displayLabel(v)) || v.description || 'No description available.';
   const src = (v.dataset_key === 'swfsc_ichthyo' && ZOOPLANKTON_VOLUME_FIELDS.has(v.name))
-    ? datasetUrlFor('sio_pic-zooplankton')
-    : (v.source && (v.source.access_url || v.source.metadata_url)) || datasetUrlFor(v.dataset_key);
+    ? DATASET_URL_FALLBACK['sio_pic-zooplankton']
+    : (v.source && (v.source.access_url || v.source.metadata_url)) || DATASET_URL_FALLBACK[v.dataset_key];
   document.getElementById('panel-content').innerHTML = `
     <div class="panel-info-block">
       <b>Dataset:</b> ${datasetLabelFor(v)}<br><br>

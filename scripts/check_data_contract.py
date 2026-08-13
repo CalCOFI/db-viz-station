@@ -45,8 +45,10 @@ CONTRACT = {
         "keys": {"dataset_key", "grid_key", "aphia_id", "years"},
         "optional": True,
     },
+    # sample_types drives isRegionPooled() in app.js — without it a region-pooled
+    # dataset silently reverts to advertising "0 stations"
     "datasets_meta.json": {
-        "keys": {"dataset_key", "dataset_name", "url"},
+        "keys": {"dataset_key", "dataset_name", "url", "sample_types"},
         "optional": True,
     },
     "decades.json": {

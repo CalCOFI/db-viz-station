@@ -43,6 +43,24 @@ CREATE TEMP MACRO page_link(u) AS
         AND NOT regexp_matches(lower(u), '\.(zip|gz|tar|csv|tsv|nc|xlsx?)($|\?)')
        THEN u END;
 
+-- Sampling grain, straight from the release's own sample records. The portal is
+-- station-based, and not every dataset is: calcofi_phytoplankton's samples are
+-- `region_pool` — Venrick's counts were pooled across stations into four regions
+-- before anyone looked down a microscope (Hayward & Venrick 1998), so its 409
+-- samples sit at 4 region centroids with no grid_key, no site_key and no
+-- datetime, and all 159,804 of its observations inherit that. There is no
+-- per-station phytoplankton observation to grid, and no upstream fix that could
+-- produce one.
+--
+-- Carried here as data rather than hardcoded in app.js so the portal can say so
+-- honestly wherever it would otherwise print a station count of zero, and so a
+-- second region-pooled dataset labels itself without anyone editing JS.
+CREATE TEMP TABLE grain AS
+SELECT dataset_key, list(DISTINCT sample_type ORDER BY sample_type) AS sample_types
+FROM read_parquet(r('sample.parquet'))
+WHERE sample_type IS NOT NULL
+GROUP BY dataset_key;
+
 COPY (
   WITH d AS (
     SELECT provider || '_' || dataset AS dataset_key,
@@ -84,7 +102,8 @@ COPY (
            page_link(link_others)
          ) AS url,
          link_calcofi_org, link_data_source, link_others,
-         description, citation_main, license, pi_names
-  FROM d
+         description, citation_main, license, pi_names,
+         coalesce(g.sample_types, []) AS sample_types
+  FROM d LEFT JOIN grain g USING (dataset_key)
   ORDER BY dataset_key
 ) TO 'public/data/datasets_meta.json' (FORMAT JSON, ARRAY true);

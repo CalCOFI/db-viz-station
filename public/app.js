@@ -109,6 +109,28 @@ const DATASET_URL_FALLBACK = {
 };
 const officialNameFor = dk => (DATASETS_META[dk] && DATASETS_META[dk].dataset_name) || DATASET_OFFICIAL_NAME[dk];
 const datasetUrlFor   = dk => (DATASETS_META[dk] && DATASETS_META[dk].url)          || DATASET_URL_FALLBACK[dk];
+// True when a dataset has no station resolution to report, because its samples
+// were pooled before they were ever counted. calcofi_phytoplankton is the only
+// one today: Venrick's counts are pooled across stations into four regions
+// (Hayward & Venrick 1998), so its 409 samples sit at 4 region centroids with no
+// grid_key and no datetime, and all 159,804 observations inherit that.
+//
+// This is the dataset's grain, NOT a gap — there is no per-station phytoplankton
+// observation anywhere upstream to grid, and no fix that could produce one. So
+// the portal must not render it as "0 stations", which reads as "we have nothing
+// here" when the truth is "this was never measured per station".
+//
+// Read from the release's own sample_type via datasets_meta.json rather than a
+// hardcoded key, so a second region-pooled dataset labels itself. Region
+// geometry — drawing the four regions and highlighting those — is the better
+// answer and is deliberately not attempted here.
+const REGION_POOLED = 'region_pool';
+const isRegionPooled = dk => {
+  const t = DATASETS_META[dk] && DATASETS_META[dk].sample_types;
+  return Array.isArray(t) && t.length > 0 && t.every(s => s === REGION_POOLED);
+};
+const POOLED_SHORT = 'pooled by region — no per-station coverage';
+const POOLED_WHY = 'Samples were pooled across stations into regions before being counted, so this dataset has no per-station coverage to report. It is not missing data.';
 // A few calcofi_bottle variables (dry_air_temp, wet_air_temp) were actually
 // collected as part of the Hydrographic CAST program, not the Bottle
 // program — they share calcofi_bottle's dataset_key because both portal
@@ -967,11 +989,18 @@ function stationsForVarIsYearAware(v) {
 const DATASET_SPAN_IS_AGGREGATE = new Set(['calcofi_mets']);
 
 function applyStyles() {
-  const selSet = selectedVar ? stationsForVar(selectedVar) : null;
+  // A region-pooled selection highlights nothing, and dimming all 218 markers
+  // would assert "none of these stations have it" — which is not what the data
+  // says. The dataset was never resolved to stations at all, so the map has no
+  // opinion to express: leave it in its neutral, unfiltered state and let the
+  // banner carry the explanation.
+  const pooledSelection = selectedVar && isRegionPooled(selectedVar.dataset_key);
+  const highlighting = selectedVar && !pooledSelection;
+  const selSet = highlighting ? stationsForVar(selectedVar) : null;
   STATIONS.forEach(s => {
     const mk = MARKERS[s.grid_key]; if (!mk) return;
     const active = activeDatasets(s), nd = active.length;
-    if (selectedVar) {
+    if (highlighting) {
       const on = selSet.has(s.grid_key);
       mk.setStyle(on
         ? { ...baseStyle(s), color: '#fff3bf', weight: 2, fillColor: '#ffd84d', fillOpacity: 0.95, opacity: 1 }
@@ -3619,18 +3648,28 @@ function highlight(v) {
           : '')
     : ` <span class="banner-note" title="Per-taxon coverage has no year breakdown yet, so this count spans the full record regardless of the slider.">(all years)</span>`;
   banner.innerHTML = `<b style="color:${datasetColorFor(v)}">${resolvedLabel(v)}</b> — `
-    + `${n} stations with <b>${datasetLabelFor(v)}</b> coverage`
-    + yearNote
-    + fallbackNote;
+    + (isRegionPooled(v.dataset_key)
+        // "0 stations with Phytoplankton coverage" is false: the coverage exists,
+        // it just isn't resolved to stations. Say that instead of the zero, and
+        // drop the year note — the pooled record carries no datetime either.
+        ? `<b>${datasetLabelFor(v)}</b> is <span class="banner-note" title="${POOLED_WHY}">${POOLED_SHORT}</span>`
+        : `${n} station${n === 1 ? '' : 's'} with <b>${datasetLabelFor(v)}</b> coverage` + yearNote + fallbackNote);
   banner.style.display = 'block';
 }
 function showVariablePanel(v) {
   const meta = dsMeta(v.dataset_key);
+  // A region-pooled dataset has no station count to give, and no station to send
+  // anyone clicking to — so it gets the explanation instead of a bare "0", and
+  // every prompt to pick a station off the map is suppressed rather than
+  // pointing at a map with nothing highlighted.
+  const pooled = isRegionPooled(v.dataset_key);
   document.getElementById('panel-empty').style.display = 'none';
   document.getElementById('panel-header').style.display = 'block';
   updateBackButton();
   document.getElementById('panel-station-id').textContent = resolvedPlainLabel(v);
-  document.getElementById('panel-coords').textContent = 'Select a highlighted station';
+  document.getElementById('panel-coords').textContent = pooled
+    ? 'Pooled across stations into 4 regions'
+    : 'Select a highlighted station';
   document.getElementById('panel-depth-summary').innerHTML = '';
   document.getElementById('compare-control').style.display = 'none';
   const stationCount = stationsForVar(v).size;
@@ -3644,9 +3683,12 @@ function showVariablePanel(v) {
       <b>Description:</b> ${desc}<br><br>
       ${v.units ? `<b>Units:</b> ${v.units}<br><br>` : ''}
       ${v.aphia_id ? `<b>WoRMS:</b> <a target="_blank" rel="noopener" href="https://www.marinespecies.org/aphia.php?p=taxdetails&id=${v.aphia_id}">AphiaID ${v.aphia_id}</a><br><br>` : ''}
-      <span class="panel-station-count">Collected at ${stationCount} station${stationCount === 1 ? '' : 's'}</span>
-      ${stationsForVarIsFallback(v) ? `<span class="panel-fallback-note">No per-station breakdown exists yet for this species — this count is every station with any ${datasetLabelFor(v)} data, not confirmed sightings of this species specifically.</span>` : ''}
-      <span class="panel-hint">Click a highlighted station on the map to open its full coverage.</span>
+      ${pooled
+        ? `<span class="panel-station-count">Pooled by region — no per-station coverage</span>
+           <span class="panel-fallback-note">${POOLED_WHY}</span>`
+        : `<span class="panel-station-count">Collected at ${stationCount} station${stationCount === 1 ? '' : 's'}</span>
+           ${stationsForVarIsFallback(v) ? `<span class="panel-fallback-note">No per-station breakdown exists yet for this species — this count is every station with any ${datasetLabelFor(v)} data, not confirmed sightings of this species specifically.</span>` : ''}`}
+      ${pooled ? '' : '<span class="panel-hint">Click a highlighted station on the map to open its full coverage.</span>'}
       ${src ? `<a href="${src}" target="_blank" rel="noopener" class="panel-open-dataset-btn">Open Dataset ↗</a>` : ''}
     </div>`;
 }

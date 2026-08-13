@@ -1,0 +1,60 @@
+name: Check
+
+# Cheap guards that run on every push and PR. Two things this repo had no way to
+# catch before, both of which reached production:
+#
+#  1. Schema drift between a build script and app.js. taxon_coverage.json shipped
+#     without the dataset_key column app.js indexes it by, so every row keyed as
+#     "undefined::<aphia_id>", no lookup matched, and 3.4 MB was fetched on every
+#     page load to do nothing — with no console error and no visual symptom.
+#     check_data_contract.py asserts the columns and the cross-file joins.
+#
+#  2. Whole-file uploads. Six "Add files via upload" commits on 2026-08-11
+#     replaced app.js with an older local copy (3,871 -> 2,934 lines), silently
+#     reverting the data cache-busting and the Pages deploy dispatch. A syntax
+#     check would not have caught that, but a size floor does: any commit that
+#     drops a large chunk of app.js in one go has to be deliberate about it.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Data contract (generated JSON vs what app.js indexes on)
+        run: python3 scripts/check_data_contract.py
+
+      - name: app.js parses
+        run: node --check public/app.js
+
+      # A floor, not a pin — it should rise as the app grows, never silently
+      # collapse. Raise it when app.js legitimately shrinks; the point is that
+      # doing so is a visible, reviewed edit rather than an unnoticed regression.
+      - name: app.js has not been truncated by a whole-file overwrite
+        run: |
+          LINES=$(wc -l < public/app.js)
+          FLOOR=3500
+          echo "app.js: $LINES lines (floor $FLOOR)"
+          if [ "$LINES" -lt "$FLOOR" ]; then
+            echo "::error::app.js dropped to $LINES lines, below the $FLOOR floor."
+            echo "::error::This is what a whole-file upload over a stale local copy looks like."
+            echo "::error::If the shrink is deliberate, lower FLOOR in .github/workflows/check.yml."
+            exit 1
+          fi
+
+      # Both assets must carry the same ?v= counter; index.html referencing a
+      # stale styles.css against a fresh app.js is its own bug.
+      - name: index.html cache-busting counters agree
+        run: |
+          JS=$(grep -o 'app\.js?v=[0-9]*'    public/index.html | grep -o '[0-9]*$')
+          CSS=$(grep -o 'styles\.css?v=[0-9]*' public/index.html | grep -o '[0-9]*$')
+          echo "app.js?v=$JS  styles.css?v=$CSS"
+          [ -n "$JS" ] && [ "$JS" = "$CSS" ] || { echo "::error::?v= counters differ or are missing"; exit 1; }

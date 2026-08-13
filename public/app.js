@@ -734,8 +734,21 @@ function showDataVersion() {
   el.innerHTML = `Showing CalCOFI integrated release <strong>${DATA_VERSION}</strong>${built}.`;
   el.style.display = '';
 }
-const dataUrl = name =>
-  `./data/${name}` + (DATA_VERSION ? `?v=${encodeURIComponent(DATA_VERSION)}` : '');
+// Keyed on the release AND the build timestamp, not the release alone. The data
+// can change without the release changing — a bug fixed in a build script, a
+// hand-committed correction, two refreshes inside one release — and on the
+// release alone every one of those reuses the same query string, so a returning
+// visitor keeps the cached bytes. Reproduced 2026-08-13: after
+// build_vars.sql's fan-out fix, ./data/variables.json?v=v2026.08.11 served the
+// old 2,087-row file while the deployed file had 1,673 rows, same URL.
+// version.json's `built` is rewritten by refresh.yml on every rebuild, so this
+// changes whenever the bytes do. Compacted to keep the URL readable; falls back
+// to the release alone, then to no query string at all.
+const dataUrl = name => {
+  const stamp = [DATA_VERSION, DATA_BUILT && DATA_BUILT.replace(/[-:TZ]/g, '')]
+    .filter(Boolean).join('.');
+  return `./data/${name}` + (stamp ? `?v=${encodeURIComponent(stamp)}` : '');
+};
 // decades.json (per-station decade-means for the plankton datasets) is optional —
 // tolerate its absence so the map still loads before the first refresh builds it.
 loadDataVersion().then(() => Promise.all([
@@ -749,7 +762,13 @@ loadDataVersion().then(() => Promise.all([
   // same "54 stations" regardless of how often that specific taxon was
   // actually recorded — see 2026-07 investigation). When present, per-taxon
   // numbers are used automatically — no other code change needed either way.
-  fetch(dataUrl('taxon_coverage.json')).then(r => r.ok ? r.json() : []).catch(() => []),
+  // gzipped like depth_profiles: the per-year bins that make the slider work on
+  // the taxon path tripled the raw file to 8.3 MB, but it compresses to 0.7 MB —
+  // smaller than the 3.4 MB uncompressed file it replaces, so the slider fix
+  // costs nothing and page weight drops. Same tolerant [] fallback (fetchGzJson
+  // returns [] on a non-ok response), so an old deploy without the .gz simply
+  // falls back to dataset-wide coverage.
+  fetchGzJson(dataUrl('taxon_coverage.json.gz')).catch(() => []),
   // bottle_cast_coverage.json: one row per (grid_key, subset) — real
   // per-subset coverage for the split Hydrographic Bottle/Cast cards.
   // Optional/additive, same tolerant pattern as the rest.
@@ -762,55 +781,37 @@ loadDataVersion().then(() => Promise.all([
   // Optional/additive: absent means depth-profile charts just don't draw a
   // seafloor line, same as before this existed.
   fetch(dataUrl('bathymetry.json')).then(r => r.ok ? r.json() : []).catch(() => []),
-  // euphausiid_species_coverage.json: one row per (grid_key, scientific_name)
-  // — built from the real BTEDB raw export (225 wide Genus_species_stage
-  // columns), matched to the existing 218-station grid by Line/Station.
-  // Rough/demo-quality (only ~44% of historical tows land on a currently
-  // known grid station; life stages summed together per species) — real
-  // per-species coverage doesn't exist in any release yet, this is a
-  // stand-in until CalCOFI/workflows PR #72 actually gets released.
-  fetch(dataUrl('euphausiid_species_coverage.json')).then(r => r.ok ? r.json() : []).catch(() => []),
-  // bird_mammal_species_coverage.json: same shape and same role for the
-  // Farallon seabird/marine-mammal census — one row per (grid_key,
-  // scientific_name) with a `years` histogram, giving per-species station
-  // coverage where taxon_coverage.json only resolves the aphia_id-bearing
-  // taxa. 46 species over 1,657 station-species pairs. Unlike the euphausiid
-  // file this one only feeds coverage lookups: the species themselves are
-  // already real records in variables.json, so nothing is synthesized here.
-  // Optional/additive — absent means those taxa fall back to dataset-wide
-  // station coverage, exactly as before.
-  fetch(dataUrl('bird_mammal_species_coverage.json')).then(r => r.ok ? r.json() : []).catch(() => []),
+  // euphausiid_species_coverage.json / bird_mammal_species_coverage.json:
+  // REMOVED 2026-08-13. Both were frozen, name-keyed stand-ins built by hand
+  // from raw provider exports, with no script in this repo to regenerate them
+  // (issue #3) — so they drifted: the bird/mammal file was still keyed to the
+  // retired `calcofi_bird_mammal_census` dataset_key, and its species names
+  // predated the taxon consolidation, which is what TAXON_NAME_SYNONYMS existed
+  // to paper over. They are now redundant: taxon_coverage.json carries
+  // dataset_key + per-year bins for these datasets, and every one of the 37
+  // euphausiid variables and 124 of the 127 bird/mammal variables resolves
+  // through the aphia_id path, with none left needing the name-keyed index.
+  // Deleting them drops 1 MB of ungenerated data that could only go stale.
   // datasets_meta.json: dataset_key -> official name, "Open Dataset" link,
   // description, citation, licence and PI, straight from the release's
   // dataset.parquet (see #11 / scripts/build_datasets.sql). Optional and
   // additive, same tolerant pattern as the rest — absent just means every
   // officialNameFor/datasetUrlFor lookup falls through to the hardcoded maps.
   fetch(dataUrl('datasets_meta.json')).then(r => r.ok ? r.json() : []).catch(() => [])
-])).then(([st, va, dm, tc, bc, bathy, ec, bm, dsMetaRows]) => {
+])).then(([st, va, dm, tc, bc, bathy, dsMetaRows]) => {
   STATIONS = st; VARS = va;
   // before anything renders — dsMeta()/officialNameFor()/datasetUrlFor() all read it
   (dsMetaRows || []).forEach(r => { DATASETS_META[r.dataset_key] = r; });
   (dm || []).forEach(r => { ((DECADES[r.dataset_key] ||= {})[r.station_id] ||= []).push(r); });
-  (tc || []).forEach(r => (TAXON_STATIONS[r.dataset_key + '::' + r.aphia_id] ||= new Set()).add(r.grid_key));
-  // Keyed by scientific_name as a fallback for the 5 species with no
-  // resolved aphia_id yet (see the Nematoscelis/"Hansarsia" synonym
-  // question) — stationsForVar() checks aphia_id first, name second.
-  (ec || []).forEach(r => {
-    if (r.aphia_id) {
-      (TAXON_STATIONS['cce-lter_euphausiids::' + r.aphia_id] ||= new Set()).add(r.grid_key);
-      ((TAXON_YEARS['cce-lter_euphausiids::' + r.aphia_id] ||= {})[r.grid_key] = r.years);
-    }
-    (TAXON_STATIONS['cce-lter_euphausiids::name::' + normTaxonName(r.scientific_name)] ||= new Set()).add(r.grid_key);
-    ((TAXON_YEARS['cce-lter_euphausiids::name::' + normTaxonName(r.scientific_name)] ||= {})[r.grid_key] = r.years);
-  });
-  // Indexed under both the current dataset_key and the pre-rename one, so this
-  // keeps resolving whichever spelling variables.json happens to carry (see
-  // DATASET_KEY_ALIASES).
-  (bm || []).forEach(r => {
-    ['farallon_bird-mammal', 'calcofi_bird_mammal_census'].forEach(dk => {
-      (TAXON_STATIONS[dk + '::name::' + normTaxonName(r.scientific_name)] ||= new Set()).add(r.grid_key);
-      ((TAXON_YEARS[dk + '::name::' + normTaxonName(r.scientific_name)] ||= {})[r.grid_key] = r.years);
-    });
+  // taxon_coverage.json rows are (dataset_key, grid_key, aphia_id, …, years).
+  // `years` is the {y, n} list the year slider filters on; it is LEFT-JOINed in
+  // the build, so a taxon whose observations all have a null datetime has none
+  // and stays all-time — stationsForVarIsYearAware() reports that rather than
+  // printing a year range next to an unfiltered count.
+  (tc || []).forEach(r => {
+    const k = r.dataset_key + '::' + r.aphia_id;
+    (TAXON_STATIONS[k] ||= new Set()).add(r.grid_key);
+    if (r.years) (TAXON_YEARS[k] ||= {})[r.grid_key] = r.years;
   });
   (bc || []).forEach(r => { BOTTLE_CAST_COV[r.grid_key + '::' + r.subset] = r; });
   const bathyByKey = {};
@@ -2262,6 +2263,11 @@ function setInventoryMode(mode) {
 // Escapes a value for safe embedding inside a double-quoted CSS attribute
 // selector (only backslash and the quote itself can break it).
 function attrEsc(v) { return String(v).replace(/["\\]/g, '\\$&'); }
+// attrEsc above escapes for a CSS SELECTOR string (\" inside querySelector).
+// This one escapes for an HTML ATTRIBUTE VALUE, where a backslash means nothing
+// and a bare " would end the attribute early. Distinct jobs, easy to reach for
+// the wrong one — the names say which is which.
+const htmlAttr = v => String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 // Re-rendering #panel-empty replaces its entire innerHTML, but the
 // container's own scrollTop is untouched — so when a toggle collapses
 // other open sections and the content shrinks, the old scrollTop can end
@@ -2794,13 +2800,35 @@ const pinKeyFor = (stationId, datasetKey, label) => `${stationId}::${datasetKey}
 const isPinned = key => PINNED_CARDS.some(p => p.key === key);
 function togglePin(key) {
   const idx = PINNED_CARDS.findIndex(p => p.key === key);
-  if (idx !== -1) { PINNED_CARDS.splice(idx, 1); renderPinnedTray(); applyStyles(); if(currentStation) openStation(currentStation); return; }
-  const cand = PIN_CANDIDATES[key];
-  if (!cand) return;
-  PINNED_CARDS.push({ key, ...cand });
+  if (idx !== -1) {
+    PINNED_CARDS.splice(idx, 1);
+  } else {
+    const cand = PIN_CANDIDATES[key];
+    if (!cand) return;
+    PINNED_CARDS.push({ key, ...cand });
+  }
   renderPinnedTray();
   applyStyles();
-  if (currentStation) openStation(currentStation);
+  syncPinButtons(key);
+}
+// Flip just this card's button, instead of re-rendering the station panel.
+// Both branches above used to end in openStation(currentStation), called purely
+// to change one icon between 📍 and 📌. That rebuilds the panel's innerHTML,
+// which resets every <details> accordion's open/closed state and the scroll
+// position — so pinning a card you had scrolled down to threw away your place —
+// and it ran applyStyles() a second time over all 218 markers on every toggle.
+//
+// Matched by comparing dataset.pinKey rather than building an attribute
+// selector: a pin key is `${stationId}::${datasetKey}::${label}`, so it carries
+// spaces and colons and would need escaping to be safe inside a selector string.
+function syncPinButtons(key) {
+  const pinned = isPinned(key);
+  document.querySelectorAll('.ds-pin-btn').forEach(b => {
+    if (b.dataset.pinKey !== key) return;
+    b.classList.toggle('ds-pin-btn-active', pinned);
+    b.title = pinned ? 'Unpin' : 'Pin to compare';
+    b.textContent = pinned ? '📌' : '📍';
+  });
 }
 let draggedPinKey = null;
 function renderPinnedTray() {
@@ -2907,8 +2935,11 @@ function datasetCard(d, opts) {
     const key = pinKeyFor(opts.stationId, d.dataset_key, label);
     PIN_CANDIDATES[key] = { station_id: opts.stationId, grid_key: opts.stationGridKey, label, color, d };
     const pinned = isPinned(key);
+    // data-pin-key (not just the inline handler's argument) so togglePin can
+    // find this exact button afterwards and flip it in place — see syncPinButtons.
     pinBtn = `<button class="ds-pin-btn${pinned ? ' ds-pin-btn-active' : ''}" title="${pinned ? 'Unpin' : 'Pin to compare'}"
-        onclick="event.stopPropagation(); togglePin('${key}')">${pinned ? '📌' : '📍'}</button>`;
+        data-pin-key="${htmlAttr(key)}"
+        onclick="event.stopPropagation(); togglePin('${key.replace(/'/g, "\\'")}')">${pinned ? '📌' : '📍'}</button>`;
   }
   let downloadBtn;
   const vars = opts.vars || CANON_VARS.filter(v => v.dataset_key === d.dataset_key);

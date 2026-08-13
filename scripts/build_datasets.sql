@@ -64,7 +64,8 @@ GROUP BY dataset_key;
 COPY (
   WITH d AS (
     SELECT provider || '_' || dataset AS dataset_key,
-           dataset_name, link_calcofi_org, link_data_source, link_others,
+           dataset_name, dataset_name_short, category, color,
+           link_calcofi_org, link_data_source, link_others,
            description, citation_main, license, pi_names
     FROM read_parquet(r('dataset.parquet'))
     -- No exclusions. cdfw_dungeness-crab was filtered out here while it was
@@ -78,6 +79,12 @@ COPY (
   )
   SELECT dataset_key,
          dataset_name,
+         -- the display trio, authored in each ingest's `calcofi.dataset_meta`
+         -- and carried here by calcofi4db >= 3.15.0. These replace app.js's
+         -- hardcoded DATASET_META / DATASET_CATEGORY, which went stale silently
+         -- on every rename. Always present as columns, NULL where a dataset
+         -- declares none, so app.js falls back rather than breaking.
+         dataset_name_short, category, color,
          coalesce(
            -- Three datasets whose release link fields cannot yield a usable
            -- page. Every one is a bug at the source, in the ingest notebook's

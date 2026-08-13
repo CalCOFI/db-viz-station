@@ -76,8 +76,24 @@ let DATASETS_META = {};
 // the DB — but fall back to the release's own dataset_name rather than the raw
 // key, so a dataset renamed since this map was last touched still reads as
 // itself (grey, but named) instead of as `cce-lter_something`.
-const dsMeta = id => DATASET_META[id] ||
-  { label: (DATASETS_META[id] && DATASETS_META[id].dataset_name) || id, realm: 'bio', color: '#adb5bd' };
+// The release is now the primary source for label and colour: each ingest
+// declares `dataset_name_short` / `category` / `color` in its `calcofi:`
+// front-matter (calcofi4db >= 3.15.0), so a rename or a new dataset arrives
+// named and coloured without anyone editing this file. DATASET_META below is
+// fallback-only — for a key the release does not carry (portal-only splits like
+// calcofi_bottle_cast) or before datasets_meta.json loads.
+//
+// `realm` is deliberately NOT taken from the release: stations.json already
+// measures it per dataset from obs, so asking the front-matter to restate it
+// would create a second answer that can disagree with the data.
+const dsMeta = id => {
+  const rel = DATASETS_META[id], loc = DATASET_META[id];
+  const label = (rel && rel.dataset_name_short) || (loc && loc.label) ||
+                (rel && rel.dataset_name) || id;
+  const color = (rel && rel.color) || (loc && loc.color) || '#adb5bd';
+  const realm = (loc && loc.realm) || 'bio';
+  return { label, realm, color };
+};
 // A few calcofi_bottle variables (dry_air_temp, wet_air_temp) were actually
 // collected as part of the Hydrographic CAST program, not the Bottle
 // program — they share calcofi_bottle's dataset_key because both portal
@@ -1926,7 +1942,11 @@ function categoryOf(v) {
   if (kg) return kg;
   const fm = familyMemberFor(v);
   if (fm && FAMILY_CATEGORY[fm.family.name]) return FAMILY_CATEGORY[fm.family.name];
-  return DATASET_CATEGORY[v.dataset_key] || (dsMeta(v.dataset_key).realm === 'env' ? 'Physical Oceanography' : 'Other');
+  // release first (each ingest declares `category`), then the local map for keys
+  // the release does not carry, then the realm default
+  const rel = DATASETS_META[v.dataset_key];
+  return (rel && rel.category) || DATASET_CATEGORY[v.dataset_key] ||
+         (dsMeta(v.dataset_key).realm === 'env' ? 'Physical Oceanography' : 'Other');
 }
 const CATEGORY_ORDER = ['Physical Oceanography', 'Nutrients & Chemistry', 'Productivity & Pigments',
   'Carbonate System', 'Meteorology & Sea State', 'Phytoplankton', 'Picoplankton & Bacteria', 'Zooplankton',

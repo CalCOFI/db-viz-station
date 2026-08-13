@@ -40,6 +40,33 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.sha || github.sha }}
+
+      # Stamp the asset cache-busting query string from the commit being
+      # deployed, so it can never be forgotten. index.html carries a hand-bumped
+      # `?v=NNN` on app.js and styles.css; between 6830408 and 2026-08-13 app.js
+      # changed three times (a 937-line revert and a feature) while the counter
+      # stayed at 106, so returning visitors could pair fresh HTML with a cached
+      # app.js. GitHub Pages serves these with max-age and no header control, and
+      # the counter is exactly the kind of manual step that gets missed in review.
+      #
+      # This rewrites only the deployment artifact, never the repo: the committed
+      # counter stays as the human-readable marker, and the deployed bytes get a
+      # value that changes on its own with every commit. Data files under
+      # public/data/ are unaffected — they carry ?v=<release> from version.json.
+      - name: Stamp asset cache-busting from the deployed commit
+        env:
+          DEPLOY_SHA: ${{ inputs.sha || github.sha }}
+        run: |
+          V="${DEPLOY_SHA:0:7}"
+          # Two plain BRE substitutions rather than one alternation — `\|` is a
+          # GNU extension that no-ops silently under BSD sed, which would leave
+          # the stale counter in place and look like it worked.
+          sed -i -e "s/app\.js?v=[0-9A-Za-z]*/app.js?v=$V/" \
+                 -e "s/styles\.css?v=[0-9A-Za-z]*/styles.css?v=$V/" public/index.html
+          grep -oE '(app\.js|styles\.css)\?v=[^"]*' public/index.html
+          # Fail loudly rather than deploy an unstamped page.
+          grep -q "app.js?v=$V" public/index.html || { echo "::error::stamp failed"; exit 1; }
+
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -122,10 +122,23 @@ COPY (
   ORDER BY g.grid_key
 ) TO 'public/data/stations.json' (FORMAT JSON, ARRAY true);
 
--- per-(station, taxon) coverage — see file header for why this exists and
--- why the join key is aphia_id rather than taxon_key or scientific_name.
+-- per-(dataset, station, taxon) coverage — see file header for why this exists
+-- and why the join key is aphia_id rather than taxon_key or scientific_name.
+--
+-- dataset_key is part of the grain, not decoration: app.js indexes this file as
+-- `dataset_key + '::' + aphia_id` because a taxon can be recorded independently
+-- by more than one collection program (Salpida is in both ZooDB and ZooScan),
+-- and merging them would report one program's coverage under the other's label.
+-- It was omitted here until 2026-08-13, which meant every row keyed as the
+-- literal string `undefined::<aphia_id>`, no lookup ever matched, and 3.4 MB was
+-- fetched on every page load to do nothing while every taxon silently fell back
+-- to dataset-wide counts — precisely the bug this table was added to fix. Adding
+-- a column to the SELECT below without adding it to app.js's loader (or vice
+-- versa) fails exactly this quietly; scripts/check_data_contract.py now asserts
+-- the two agree.
 CREATE TEMP TABLE taxon_cov AS
-SELECT o.grid_key,
+SELECT o.dataset_key,
+       o.grid_key,
        CAST(t.worms_id AS VARCHAR) AS aphia_id,
        min(o.datetime)::DATE AS time_min,
        max(o.datetime)::DATE AS time_max,
@@ -134,10 +147,29 @@ SELECT o.grid_key,
 FROM obs o
 JOIN read_parquet(r('taxon.parquet')) t USING (taxon_key)
 WHERE o.taxon_key IS NOT NULL AND t.worms_id IS NOT NULL
-GROUP BY 1, 2;
+GROUP BY 1, 2, 3;
+
+-- per-year bins on the same grain, so the year-range slider filters the
+-- per-taxon path too. Without these, taxonStationsInRange() has nothing to
+-- filter on and a taxon's station count stays at its all-time value while the
+-- slider moves — a number that reads as filtered and isn't (issue #4). Same
+-- {y, n} struct the dataset-wide `ybin` above uses, so both sides of
+-- stationsForVar() consume one shape.
+CREATE TEMP TABLE taxon_ybin AS
+SELECT dataset_key, grid_key, aphia_id,
+       list(struct_pack(y := yr, n := n) ORDER BY yr) AS years
+FROM (SELECT o.dataset_key, o.grid_key, CAST(t.worms_id AS VARCHAR) AS aphia_id,
+             year(o.datetime) AS yr, count(*) AS n
+      FROM obs o
+      JOIN read_parquet(r('taxon.parquet')) t USING (taxon_key)
+      WHERE o.taxon_key IS NOT NULL AND t.worms_id IS NOT NULL AND o.datetime IS NOT NULL
+      GROUP BY 1, 2, 3, 4)
+GROUP BY 1, 2, 3;
 
 COPY (
-  SELECT grid_key, aphia_id, time_min, time_max, n_obs, n_samples
-  FROM taxon_cov
-  ORDER BY aphia_id, grid_key
+  SELECT c.dataset_key, c.grid_key, c.aphia_id,
+         c.time_min, c.time_max, c.n_obs, c.n_samples, y.years
+  FROM taxon_cov c
+  LEFT JOIN taxon_ybin y USING (dataset_key, grid_key, aphia_id)
+  ORDER BY c.dataset_key, c.aphia_id, c.grid_key
 ) TO 'public/data/taxon_coverage.json' (FORMAT JSON, ARRAY true);

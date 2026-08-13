@@ -57,7 +57,22 @@ const DATASET_META = {
   'ucsd_sio_mesopelagic-fish': { label: 'Mesopelagic Fish',             realm: 'bio', color: '#5c7cfa' },
   'cce-lter_picoplankton-bacteria': { label: 'Picoplankton & Bacteria', realm: 'bio', color: '#94d82d' }
 };
-const dsMeta = id => DATASET_META[id] || { label: id, realm: 'bio', color: '#adb5bd' };
+// datasets_meta.json — dataset_key -> official name + link + citation, built by
+// scripts/build_datasets.sql from the release's own dataset.parquet (see #11).
+// Primary source for the official name and the "Open Dataset ↗" link.
+// DATASET_OFFICIAL_NAME / DATASET_URL_FALLBACK are fallback-only: a key the
+// release does not carry (a portal-only split such as calcofi_bottle_cast, or a
+// dataset added between releases), or the file being absent altogether (an old
+// deploy, a fork, a preview build). Filled once the file loads and empty until
+// then, so a lookup before that falls through to the hardcoded maps rather than
+// throwing.
+let DATASETS_META = {};
+// Label/realm/colour stay local — presentation choices with no counterpart in
+// the DB — but fall back to the release's own dataset_name rather than the raw
+// key, so a dataset renamed since this map was last touched still reads as
+// itself (grey, but named) instead of as `cce-lter_something`.
+const dsMeta = id => DATASET_META[id] ||
+  { label: (DATASETS_META[id] && DATASETS_META[id].dataset_name) || id, realm: 'bio', color: '#adb5bd' };
 // A few calcofi_bottle variables (dry_air_temp, wet_air_temp) were actually
 // collected as part of the Hydrographic CAST program, not the Bottle
 // program — they share calcofi_bottle's dataset_key because both portal
@@ -92,6 +107,8 @@ const DATASET_URL_FALLBACK = {
   'farallon_bird-mammal': 'https://portal.edirepository.org/nis/mapbrowse?scope=knb-lter-cce&identifier=255&revision=3',
   'calcofi_bird_mammal_census': 'https://portal.edirepository.org/nis/mapbrowse?scope=knb-lter-cce&identifier=255&revision=3',
 };
+const officialNameFor = dk => (DATASETS_META[dk] && DATASETS_META[dk].dataset_name) || DATASET_OFFICIAL_NAME[dk];
+const datasetUrlFor   = dk => (DATASETS_META[dk] && DATASETS_META[dk].url)          || DATASET_URL_FALLBACK[dk];
 // A few calcofi_bottle variables (dry_air_temp, wet_air_temp) were actually
 // collected as part of the Hydrographic CAST program, not the Bottle
 // program — they share calcofi_bottle's dataset_key because both portal
@@ -762,9 +779,17 @@ loadDataVersion().then(() => Promise.all([
   // already real records in variables.json, so nothing is synthesized here.
   // Optional/additive — absent means those taxa fall back to dataset-wide
   // station coverage, exactly as before.
-  fetch(dataUrl('bird_mammal_species_coverage.json')).then(r => r.ok ? r.json() : []).catch(() => [])
-])).then(([st, va, dm, tc, bc, bathy, ec, bm]) => {
+  fetch(dataUrl('bird_mammal_species_coverage.json')).then(r => r.ok ? r.json() : []).catch(() => []),
+  // datasets_meta.json: dataset_key -> official name, "Open Dataset" link,
+  // description, citation, licence and PI, straight from the release's
+  // dataset.parquet (see #11 / scripts/build_datasets.sql). Optional and
+  // additive, same tolerant pattern as the rest — absent just means every
+  // officialNameFor/datasetUrlFor lookup falls through to the hardcoded maps.
+  fetch(dataUrl('datasets_meta.json')).then(r => r.ok ? r.json() : []).catch(() => [])
+])).then(([st, va, dm, tc, bc, bathy, ec, bm, dsMetaRows]) => {
   STATIONS = st; VARS = va;
+  // before anything renders — dsMeta()/officialNameFor()/datasetUrlFor() all read it
+  (dsMetaRows || []).forEach(r => { DATASETS_META[r.dataset_key] = r; });
   (dm || []).forEach(r => { ((DECADES[r.dataset_key] ||= {})[r.station_id] ||= []).push(r); });
   (tc || []).forEach(r => (TAXON_STATIONS[r.dataset_key + '::' + r.aphia_id] ||= new Set()).add(r.grid_key));
   // Keyed by scientific_name as a fallback for the 5 species with no
@@ -2191,7 +2216,7 @@ const PARAMETER_FAMILIES = [
 // during the cast and one for the CTD's own sensor) reads as a duplicate,
 // so the source's own distinguishing label gets appended.
 function sourceCardRow(it, showSource) {
-  const official = DATASET_OFFICIAL_NAME[it.source.dataset_key] || it.source.source;
+  const official = officialNameFor(it.source.dataset_key) || it.source.source;
   const title = showSource ? `${official} — ${it.source.source}` : official;
   return `<div class="inventory-source-card" data-vid="${encodeURIComponent(it.v.variable_id)}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
@@ -2637,8 +2662,14 @@ function jumpToLetter(listId, letter) {
 }
 function renderInventoryPanel() {
   const empty = document.getElementById('panel-empty'); if (!empty) return;
+  // Union the hardcoded presentation map with whatever dataset_keys the release
+  // actually carries, so a dataset renamed since DATASET_META was last touched
+  // still lists (named by dsMeta()'s release fallback, in the default grey)
+  // instead of vanishing from this panel entirely. DATASET_VAR_COUNTS still
+  // gates it, so a key with no variables in variables.json never appears.
   const keys = inventoryMode === 'dataset'
-    ? Object.keys(DATASET_META).filter(k => DATASET_VAR_COUNTS[k]).sort((a, b) => dsMeta(a).label.localeCompare(dsMeta(b).label))
+    ? [...new Set([...Object.keys(DATASET_META), ...Object.keys(DATASETS_META)])]
+        .filter(k => DATASET_VAR_COUNTS[k]).sort((a, b) => dsMeta(a).label.localeCompare(dsMeta(b).label))
     : CATEGORY_ORDER.filter(c => CAT_COUNTS[c]);
 
   const rows = keys.map(k => {
@@ -3572,8 +3603,8 @@ function showVariablePanel(v) {
   const stationCount = stationsForVar(v).size;
   const desc = descriptionFor(v, displayLabel(v)) || v.description || 'No description available.';
   const src = (v.dataset_key === 'swfsc_ichthyo' && ZOOPLANKTON_VOLUME_FIELDS.has(v.name))
-    ? DATASET_URL_FALLBACK['sio_pic-zooplankton']
-    : (v.source && (v.source.access_url || v.source.metadata_url)) || DATASET_URL_FALLBACK[v.dataset_key];
+    ? datasetUrlFor('sio_pic-zooplankton')
+    : (v.source && (v.source.access_url || v.source.metadata_url)) || datasetUrlFor(v.dataset_key);
   document.getElementById('panel-content').innerHTML = `
     <div class="panel-info-block">
       <b>Dataset:</b> ${datasetLabelFor(v)}<br><br>

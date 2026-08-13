@@ -46,6 +46,7 @@ jobs:
           sed "s/__RELEASE__/$REL/g" scripts/build_stations.sql | duckdb
           sed "s/__RELEASE__/$REL/g" scripts/build_vars.sql | duckdb
           sed "s/__RELEASE__/$REL/g" scripts/build_decades.sql | duckdb
+          sed "s/__RELEASE__/$REL/g" scripts/build_datasets.sql | duckdb
           # build_depth_profiles.sql resolves the release itself (from latest.txt)
           # rather than via __RELEASE__ — see the note in its header — so it needs
           # no sed. It emits an uncompressed ~76 MB depth_profiles.json; the app
@@ -74,7 +75,7 @@ jobs:
           # (taxon_coverage.json did exactly that when it was first added).
           git add public/data/stations.json public/data/variables.json public/data/decades.json \
                   public/data/taxon_coverage.json public/data/depth_profiles.json.gz \
-                  public/data/version.json \
+                  public/data/datasets_meta.json public/data/version.json \
                   metadata/crosswalk_variables.csv
           if git diff --cached --quiet; then
             echo "no coverage changes"

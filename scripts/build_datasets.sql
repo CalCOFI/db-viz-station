@@ -67,14 +67,14 @@ COPY (
            dataset_name, link_calcofi_org, link_data_source, link_others,
            description, citation_main, license, pi_names
     FROM read_parquet(r('dataset.parquet'))
-    -- cdfw_dungeness-crab is `in_release: false` upstream — permission to
-    -- publish is still open (CalCOFI/workflows ingest_cdfw_dungeness-crab.qmd)
-    -- — yet its row IS present in the release's dataset.parquet. This file is
-    -- committed to a public repo and served from a public Pages site, so
-    -- copying its description and PI name here would publish exactly what the
-    -- flag exists to withhold. Drop the filter once the release stops emitting
-    -- the row, or once the dataset is cleared for release.
-    WHERE provider || '_' || dataset NOT IN ('cdfw_dungeness-crab')
+    -- No exclusions. cdfw_dungeness-crab was filtered out here while it was
+    -- `in_release: false` upstream with permission to publish still open — its
+    -- row was in dataset.parquet anyway, and this file is committed to a public
+    -- repo and served from a public Pages site, so copying it would have
+    -- published exactly what the flag existed to withhold. CDFW cleared it on
+    -- 2026-08-13 (CC BY 4.0), so the filter is gone as its own comment
+    -- instructed. If another dataset is ever held back upstream, re-add a
+    -- filter here rather than trusting the release to omit the row.
   )
   SELECT dataset_key,
          dataset_name,

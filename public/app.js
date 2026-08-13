@@ -55,7 +55,12 @@ const DATASET_META = {
   'calcofi_mets':          { label: 'Underway Meteorological (METS) Data', realm: 'env', color: '#74c0fc' },
   'sio_mesopelagic-fish': { label: 'Mesopelagic Fish',             realm: 'bio', color: '#5c7cfa' },
   'ucsd_sio_mesopelagic-fish': { label: 'Mesopelagic Fish',             realm: 'bio', color: '#5c7cfa' },
-  'cce-lter_picoplankton-bacteria': { label: 'Picoplankton & Bacteria', realm: 'bio', color: '#94d82d' }
+  'cce-lter_picoplankton-bacteria': { label: 'Picoplankton & Bacteria', realm: 'bio', color: '#94d82d' },
+  // entered the release 2026-08-14 (CC BY 4.0). Deliberately a darker, more
+  // saturated orange than swfsc_ichthyo's #ffa94d — the two are both larval
+  // plankton and sit next to each other in the inventory, so a near-shade would
+  // read as the same dataset at a glance.
+  'cdfw_dungeness-crab':   { label: 'Dungeness Crab Megalopae',      realm: 'bio', color: '#f76707' }
 };
 // datasets_meta.json — dataset_key -> official name + link + citation, built by
 // scripts/build_datasets.sql from the release's own dataset.parquet (see #11).
@@ -1903,7 +1908,10 @@ const DATASET_CATEGORY = {
   'cce-lter_euphausiids': 'Euphausiids (Krill)', 'farallon_bird-mammal': 'Seabirds & Marine Mammals',
   'calcofi_bird_mammal_census': 'Seabirds & Marine Mammals',
   'calcofi_phytoplankton': 'Phytoplankton', 'calcofi_mets': 'Meteorology & Sea State',
-  'ucsd_sio_mesopelagic-fish': 'Mesopelagic Fish', 'sio_mesopelagic-fish': 'Mesopelagic Fish', 'cce-lter_picoplankton-bacteria': 'Picoplankton & Bacteria'
+  'ucsd_sio_mesopelagic-fish': 'Mesopelagic Fish', 'sio_mesopelagic-fish': 'Mesopelagic Fish', 'cce-lter_picoplankton-bacteria': 'Picoplankton & Bacteria',
+  // decapod larvae picked from archived CalCOFI plankton tows — meroplankton,
+  // so it belongs with Zooplankton rather than getting its own category of one
+  'cdfw_dungeness-crab': 'Zooplankton'
 };
 const FAMILY_CATEGORY = {
   'Temperature': 'Physical Oceanography', 'Sea Surface Temperature': 'Physical Oceanography',

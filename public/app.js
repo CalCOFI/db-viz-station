@@ -784,10 +784,12 @@ loadDataVersion().then(() => Promise.all([
   // euphausiid_species_coverage.json / bird_mammal_species_coverage.json:
   // REMOVED 2026-08-13. Both were frozen, name-keyed stand-ins built by hand
   // from raw provider exports, with no script in this repo to regenerate them
-  // (issue #3) — so they drifted: the bird/mammal file was still keyed to the
-  // retired `calcofi_bird_mammal_census` dataset_key, and its species names
-  // predated the taxon consolidation, which is what TAXON_NAME_SYNONYMS existed
-  // to paper over. They are now redundant: taxon_coverage.json carries
+  // (issue #3) — so they drifted: the bird/mammal file was still keyed to
+  // `calcofi_bird_mammal_census`, the name this dataset had before it was
+  // renamed to `farallon_bird-mammal` (the DATASET is very much still here — it
+  // is the KEY that was superseded), and its species names predated the taxon
+  // consolidation, which is what TAXON_NAME_SYNONYMS existed to paper over.
+  // They are now redundant: taxon_coverage.json carries
   // dataset_key + per-year bins for these datasets, and every one of the 37
   // euphausiid variables and 124 of the 127 bird/mammal variables resolves
   // through the aphia_id path, with none left needing the name-keyed index.

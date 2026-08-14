@@ -52,6 +52,22 @@ jobs:
           sed "s/__RELEASE__/$REL/g" scripts/build_vars.sql | duckdb
           sed "s/__RELEASE__/$REL/g" scripts/build_decades.sql | duckdb
           sed "s/__RELEASE__/$REL/g" scripts/build_datasets.sql | duckdb
+          # build_regions.sql writes regions.json: the pooled-region polygons for
+          # datasets with no grid_key at all (calcofi_phytoplankton today), which
+          # build_stations.sql necessarily excludes via `WHERE grid_key IS NOT NULL`.
+          #
+          # Guarded: region.parquet only gained a `geom` column in v2026.08.14, and
+          # `latest.txt` can legitimately point at an earlier release (it was rolled
+          # back to v2026.08.11 on 2026-08-14 when a release shipped without its
+          # sidecar JSON). Unguarded, the script fails on the missing column and
+          # aborts the whole refresh, taking stations.json down with it — so check
+          # first and skip loudly, leaving the committed regions.json in place.
+          HAS_GEOM=$(duckdb -noheader -list -c "SELECT count(*) FROM (DESCRIBE SELECT * FROM read_parquet('https://storage.googleapis.com/calcofi-db/ducklake/releases/$REL/parquet/region.parquet')) WHERE column_name = 'geom'" 2>/dev/null || echo 0)
+          if [ "$HAS_GEOM" = "1" ]; then
+            sed "s/__RELEASE__/$REL/g" scripts/build_regions.sql | duckdb
+          else
+            echo "::warning::release $REL has no region.geom — keeping the committed regions.json"
+          fi
           # build_depth_profiles.sql resolves the release itself (from latest.txt)
           # rather than via __RELEASE__ — see the note in its header — so it needs
           # no sed. It emits an uncompressed ~76 MB depth_profiles.json; the app
@@ -80,7 +96,7 @@ jobs:
           # (taxon_coverage.json did exactly that when it was first added).
           git add public/data/stations.json public/data/variables.json public/data/decades.json \
                   public/data/taxon_coverage.json.gz public/data/depth_profiles.json.gz \
-                  public/data/datasets_meta.json public/data/version.json \
+                  public/data/datasets_meta.json public/data/regions.json public/data/version.json \
                   metadata/crosswalk_variables.csv
           if git diff --cached --quiet; then
             echo "no coverage changes"

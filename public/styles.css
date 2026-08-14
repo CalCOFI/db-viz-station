@@ -2286,6 +2286,18 @@ body, .panel, .dd-item, .inventory-label, .inventory-subitem-name,
   line-height: 1.6;
   margin: -14px 0 24px;
 }
+/* per-region observation counts for a region-pooled dataset (regionPanelBreakdown).
+   The regions are a gradient from inshore to Central Pacific, so the numbers are
+   worth comparing side by side rather than summing to one total. */
+.region-breakdown { display: block; margin: -10px 0 22px; }
+.region-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 3px 0; border-bottom: 1px solid var(--border, #2a2f35); font-size: 13px;
+}
+.region-row:last-child { border-bottom: 0; }
+.region-row-off { opacity: 0.4; }
+.region-name { color: var(--text); font-weight: 600; cursor: help; }
+.region-obs { color: var(--muted, #6c757d); font-variant-numeric: tabular-nums; }
 .panel-hint { display: block; color: var(--text); font-size: 13px; line-height: 1.7; margin-bottom: 20px; }
 a.panel-open-dataset-btn {
   display: block;

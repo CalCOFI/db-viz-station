@@ -637,6 +637,14 @@ function buildCanonicalVars() {
 let STATIONS = [], VARS = [];
 const BY_KEY = {}, MARKERS = {}, DS_STATIONS = {};
 const DECADES = {};
+// Pooled-region geometry, for datasets whose samples were pooled across stations
+// before being counted and so have no grid_key at all (see isRegionPooled). These
+// mirror the station structures above one-for-one: REGION_BY_KEY ~ BY_KEY,
+// REGION_LAYERS ~ MARKERS, DS_REGIONS ~ DS_STATIONS, REGION_TAXA ~ TAXON_STATIONS.
+// All empty unless regions.json loaded.
+let REGIONS = [];
+const REGION_BY_KEY = {}, REGION_LAYERS = {}, DS_REGIONS = {};
+const REGION_TAXA = {}, REGION_TAXA_YEARS = {}, REGION_DS_YEARS = {};
 // "dataset_key::aphia_id" -> Set(grid_key) — per-taxon, per-dataset station
 // coverage from the optional
 // taxon_coverage.json (see load block below). Empty until/unless that file
@@ -842,9 +850,33 @@ loadDataVersion().then(() => Promise.all([
   // dataset.parquet (see #11 / scripts/build_datasets.sql). Optional and
   // additive, same tolerant pattern as the rest — absent just means every
   // officialNameFor/datasetUrlFor lookup falls through to the hardcoded maps.
-  fetch(dataUrl('datasets_meta.json')).then(r => r.ok ? r.json() : []).catch(() => [])
-])).then(([st, va, dm, tc, bc, bathy, dsMetaRows]) => {
+  fetch(dataUrl('datasets_meta.json')).then(r => r.ok ? r.json() : []).catch(() => []),
+  // regions.json: the pooled-region polygons a region-pooled dataset was
+  // actually pooled over, with per-dataset and per-taxon coverage inside each
+  // (scripts/build_regions.sql, release v2026.08.14+). Optional and additive
+  // like the rest — absent means pooled datasets fall back to the map staying
+  // neutral, which is what they did before this file existed.
+  fetch(dataUrl('regions.json')).then(r => r.ok ? r.json() : []).catch(() => [])
+])).then(([st, va, dm, tc, bc, bathy, dsMetaRows, rg]) => {
   STATIONS = st; VARS = va;
+  // Regions are indexed exactly like taxon_coverage: `dataset_key::aphia_id`,
+  // because a pooled dataset's variables are taxa and variables.json keys them
+  // by aphia_id. Keeping the two indexes the same shape is what lets
+  // regionsForVar() mirror stationsForVar() instead of inventing a second
+  // resolution order that could drift from it.
+  REGIONS = rg || [];
+  REGIONS.forEach(r => {
+    REGION_BY_KEY[r.region_key] = r;
+    (r.datasets || []).forEach(d => {
+      (DS_REGIONS[d.dataset_key] ||= new Set()).add(r.region_key);
+      if (d.years) (REGION_DS_YEARS[d.dataset_key] ||= {})[r.region_key] = d.years;
+    });
+    (r.taxa || []).forEach(t => {
+      const k = t.dataset_key + '::' + t.aphia_id;
+      (REGION_TAXA[k] ||= new Set()).add(r.region_key);
+      if (t.years) (REGION_TAXA_YEARS[k] ||= {})[r.region_key] = t.years;
+    });
+  });
   // before anything renders — dsMeta()/officialNameFor()/datasetUrlFor() all read it
   (dsMetaRows || []).forEach(r => { DATASETS_META[r.dataset_key] = r; });
   (dm || []).forEach(r => { ((DECADES[r.dataset_key] ||= {})[r.station_id] ||= []).push(r); });
@@ -873,6 +905,8 @@ loadDataVersion().then(() => Promise.all([
     (s.datasets || []).forEach(d => { (DS_STATIONS[d.dataset_key] ||= new Set()).add(s.grid_key); });
   });
   renderStations();
+  // built once, added to the map only while a pooled variable is selected
+  renderRegions();
   wireSearch();
   initYearSlider();
   initChartTooltip();
@@ -1007,17 +1041,106 @@ function stationsForVarIsYearAware(v) {
   if (TAXON_STATIONS[v.dataset_key + '::name::' + normTaxonName(v.name)]) return !!TAXON_YEARS[v.dataset_key + '::name::' + normTaxonName(v.name)];
   return true;
 }
+// ---- pooled regions ----
+// The region equivalents of stationsForVar()/stationsForVarIsYearAware(), and
+// deliberately the same shape: per-taxon coverage first (by aphia_id), then
+// whole-dataset. A pooled dataset has no grid_key, so these are the only
+// coverage it can express — see isRegionPooled() and CalCOFI/workflows#76.
+//
+// Unlike taxon_coverage.json, regions.json DOES carry year bins — but they come
+// from the cruise reference, not from the observations, which carry no datetime
+// at all (the grain is cruise x region). Roughly 40% of phytoplankton rows fall
+// in months with more than one cruise and so resolve no cruise and no year;
+// regionsForVarIsYearAware() reports that, and callers must not print a year
+// range beside a count it returns false for.
+function regionsInRange(regionSet, yearsByRegion) {
+  if (!yearRange || !yearsByRegion) return regionSet;
+  const [a, b] = yearRange;
+  return new Set([...regionSet].filter(rk => {
+    const years = yearsByRegion[rk];
+    return years && years.some(o => o.y >= a && o.y <= b);
+  }));
+}
+function regionsForVar(v) {
+  if (!v) return new Set();
+  if (v.aphia_id) {
+    const key = v.dataset_key + '::' + v.aphia_id;
+    if (REGION_TAXA[key]) return regionsInRange(REGION_TAXA[key], REGION_TAXA_YEARS[key]);
+  }
+  return regionsInRange(DS_REGIONS[v.dataset_key] || new Set(),
+                        REGION_DS_YEARS[v.dataset_key]);
+}
+function regionsForVarIsYearAware(v) {
+  if (!v) return false;
+  if (v.aphia_id && REGION_TAXA[v.dataset_key + '::' + v.aphia_id])
+    return !!REGION_TAXA_YEARS[v.dataset_key + '::' + v.aphia_id];
+  return !!REGION_DS_YEARS[v.dataset_key];
+}
+// Observations that carry no resolvable year, for the selected variable. Shown
+// beside the count so a year-filtered number never silently stands for the whole
+// dataset — the same trap stationsForVarIsYearAware() exists to close.
+function regionUndatedObs(v) {
+  if (!v) return 0;
+  let n = 0;
+  REGIONS.forEach(r => {
+    if (v.aphia_id) {
+      const t = (r.taxa || []).find(x => x.dataset_key === v.dataset_key &&
+                                         x.aphia_id === String(v.aphia_id));
+      if (t) { n += t.n_obs_undated || 0; return; }
+    }
+    const d = (r.datasets || []).find(x => x.dataset_key === v.dataset_key);
+    if (d) n += d.n_obs_undated || 0;
+  });
+  return n;
+}
+// Polygons are created once and left off the map. A pooled dataset is 1 of 16,
+// so showing four large polygons over the station grid at all times would be
+// noise for every other selection; they are added only while a pooled variable
+// is selected (see applyStyles).
+function renderRegions() {
+  REGIONS.forEach(r => {
+    if (!r.geometry) return;
+    const layer = L.geoJSON(r.geometry, {
+      style: { color: '#ffd84d', weight: 2, fillColor: '#ffd84d',
+               fillOpacity: 0.18, opacity: 0.9 }
+    });
+    layer.bindTooltip(
+      `${r.region_key} — ${r.description}<br>${r.n_stations} pooled stations · ` +
+      `${(r.area_km2 || 0).toLocaleString()} km²`,
+      { direction: 'top', sticky: true });
+    REGION_LAYERS[r.region_key] = layer;
+  });
+}
 const DATASET_SPAN_IS_AGGREGATE = new Set(['calcofi_mets']);
 
 function applyStyles() {
-  // A region-pooled selection highlights nothing, and dimming all 218 markers
-  // would assert "none of these stations have it" — which is not what the data
-  // says. The dataset was never resolved to stations at all, so the map has no
-  // opinion to express: leave it in its neutral, unfiltered state and let the
-  // banner carry the explanation.
+  // A region-pooled selection has no station to highlight, and dimming all 218
+  // markers would assert "none of these stations have it" — which is not what the
+  // data says. It was never resolved to stations at all. The markers therefore
+  // stay neutral, and the pooled regions are drawn instead: since v2026.08.14 the
+  // release carries their real geometry, so the map can show the water the
+  // dataset was actually pooled over rather than nothing at all
+  // (CalCOFI/workflows#76). Falls back to the old neutral-map behaviour when
+  // regions.json is absent.
   const pooledSelection = selectedVar && isRegionPooled(selectedVar.dataset_key);
   const highlighting = selectedVar && !pooledSelection;
   const selSet = highlighting ? stationsForVar(selectedVar) : null;
+  const selRegions = pooledSelection ? regionsForVar(selectedVar) : null;
+  REGIONS.forEach(r => {
+    const layer = REGION_LAYERS[r.region_key]; if (!layer) return;
+    const on = selRegions && selRegions.has(r.region_key);
+    if (selRegions) {
+      // A region with no data in the selected year window is dimmed rather than
+      // removed, so the four regions stay legible as a set and the empty one
+      // reads as "nothing here in this window" instead of vanishing.
+      layer.setStyle(on
+        ? { color: '#fff3bf', weight: 2, fillColor: '#ffd84d', fillOpacity: 0.28, opacity: 1 }
+        : { color: '#5a626b', weight: 1, fillColor: '#3a3f44', fillOpacity: 0.10, opacity: 0.35 });
+      if (!map.hasLayer(layer)) layer.addTo(map);
+    } else if (map.hasLayer(layer)) {
+      map.removeLayer(layer);
+    }
+  });
   STATIONS.forEach(s => {
     const mk = MARKERS[s.grid_key]; if (!mk) return;
     const active = activeDatasets(s), nd = active.length;
@@ -1879,6 +2002,16 @@ function datasetYearSpan(datasetKey) {
     if (d.dataset_key !== datasetKey) return;
     (d.years || []).forEach(o => { if (o.y < mn) mn = o.y; if (o.y > mx) mx = o.y; });
   }));
+  // A pooled dataset has no station rows at all, so the loop above finds nothing
+  // and the slider used to stay on the global span while a phytoplankton variable
+  // was selected — showing 1949–2026 for a record that runs 1996–2022. Its years
+  // live on the regions instead; same {y, n} shape, so the rest is unchanged.
+  if (!isFinite(mn)) {
+    REGIONS.forEach(r => (r.datasets || []).forEach(d => {
+      if (d.dataset_key !== datasetKey) return;
+      (d.years || []).forEach(o => { if (o.y < mn) mn = o.y; if (o.y > mx) mx = o.y; });
+    }));
+  }
   return isFinite(mn) ? [mn, mx] : null;
 }
 function resetYearFilter() {
@@ -3652,6 +3785,25 @@ function stationsForVarIsFallback(v) {
   if (TAXON_STATIONS[v.dataset_key + '::name::' + normTaxonName(v.name)]) return false;
   return true;
 }
+// Banner text for a pooled dataset. Falls back to the old explanation-only
+// wording when regions.json is absent, so the page keeps working without it.
+function regionBannerText(v) {
+  const nr = regionsForVar(v).size;
+  if (!nr) return `<b>${datasetLabelFor(v)}</b> is <span class="banner-note" title="${POOLED_WHY}">${POOLED_SHORT}</span>`;
+  const total = (DS_REGIONS[v.dataset_key] || new Set()).size;
+  // Only claim the year window when the count honors it, exactly as the station
+  // path does — and say how many observations carry no resolvable date at all,
+  // because for this dataset that is 40% of them, not a rounding error.
+  const undated = regionUndatedObs(v);
+  const yearNote = (!yearRange || !regionsForVarIsYearAware(v)) ? ''
+    : ` in <b>${yearRange[0]}–${yearRange[1]}</b>`;
+  const undatedNote = undated
+    ? ` <span class="banner-note" title="These observations resolve no cruise, so they carry no date and cannot be filtered by year. They are counted in the region totals regardless of the slider.">(${undated.toLocaleString()} undated)</span>`
+    : '';
+  return `${nr} of ${total} pooled region${total === 1 ? '' : 's'} with `
+    + `<b>${datasetLabelFor(v)}</b> coverage` + yearNote + undatedNote
+    + ` <span class="banner-note" title="${POOLED_WHY}">(pooled, not per-station)</span>`;
+}
 function highlight(v) {
   selectedVar = v;
   document.getElementById('clear-btn').classList.add('visible');
@@ -3678,11 +3830,41 @@ function highlight(v) {
   banner.innerHTML = `<b style="color:${datasetColorFor(v)}">${resolvedLabel(v)}</b> — `
     + (isRegionPooled(v.dataset_key)
         // "0 stations with Phytoplankton coverage" is false: the coverage exists,
-        // it just isn't resolved to stations. Say that instead of the zero, and
-        // drop the year note — the pooled record carries no datetime either.
-        ? `<b>${datasetLabelFor(v)}</b> is <span class="banner-note" title="${POOLED_WHY}">${POOLED_SHORT}</span>`
+        // it just isn't resolved to stations. Since regions.json we can give the
+        // real number — the pooled regions it WAS collected across — instead of
+        // only explaining the absence of a station count.
+        ? regionBannerText(v)
         : `${n} station${n === 1 ? '' : 's'} with <b>${datasetLabelFor(v)}</b> coverage` + yearNote + fallbackNote);
   banner.style.display = 'block';
+}
+// The pooled equivalent of "Collected at N stations". Degrades to the original
+// explanation-only wording when regions.json is absent.
+function regionPanelCount(v) {
+  const n = regionsForVar(v).size;
+  if (!n) return 'Pooled by region — no per-station coverage';
+  const total = (DS_REGIONS[v.dataset_key] || new Set()).size;
+  return `Collected across ${n} of ${total} pooled region${total === 1 ? '' : 's'}`;
+}
+// Per-region observation counts for the selected variable. Worth showing because
+// the regions are not interchangeable — they are the gradient this dataset exists
+// to measure, from the inshore NE to the Central Pacific Offshore.
+function regionPanelBreakdown(v) {
+  const sel = regionsForVar(v);
+  if (!sel.size) return '';
+  const rows = REGIONS.map(r => {
+    const t = v.aphia_id
+      ? (r.taxa || []).find(x => x.dataset_key === v.dataset_key &&
+                                 x.aphia_id === String(v.aphia_id))
+      : null;
+    const d = t || (r.datasets || []).find(x => x.dataset_key === v.dataset_key);
+    if (!d) return '';
+    const on = sel.has(r.region_key);
+    return `<div class="region-row${on ? '' : ' region-row-off'}">`
+      + `<span class="region-name" title="${r.description} — ${r.n_stations} pooled stations, `
+      + `${(r.area_km2 || 0).toLocaleString()} km²">${r.region_key}</span>`
+      + `<span class="region-obs">${(d.n_obs || 0).toLocaleString()}</span></div>`;
+  }).join('');
+  return rows ? `<div class="region-breakdown">${rows}</div>` : '';
 }
 function showVariablePanel(v) {
   const meta = dsMeta(v.dataset_key);
@@ -3712,8 +3894,9 @@ function showVariablePanel(v) {
       ${v.units ? `<b>Units:</b> ${v.units}<br><br>` : ''}
       ${v.aphia_id ? `<b>WoRMS:</b> <a target="_blank" rel="noopener" href="https://www.marinespecies.org/aphia.php?p=taxdetails&id=${v.aphia_id}">AphiaID ${v.aphia_id}</a><br><br>` : ''}
       ${pooled
-        ? `<span class="panel-station-count">Pooled by region — no per-station coverage</span>
-           <span class="panel-fallback-note">${POOLED_WHY}</span>`
+        ? `<span class="panel-station-count">${regionPanelCount(v)}</span>
+           <span class="panel-fallback-note">${POOLED_WHY}</span>
+           ${regionPanelBreakdown(v)}`
         : `<span class="panel-station-count">Collected at ${stationCount} station${stationCount === 1 ? '' : 's'}</span>
            ${stationsForVarIsFallback(v) ? `<span class="panel-fallback-note">No per-station breakdown exists yet for this species — this count is every station with any ${datasetLabelFor(v)} data, not confirmed sightings of this species specifically.</span>` : ''}`}
       ${pooled ? '' : '<span class="panel-hint">Click a highlighted station on the map to open its full coverage.</span>'}

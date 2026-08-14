@@ -63,6 +63,27 @@ CONTRACT = {
         "keys": {"grid_key"},
         "optional": True,
     },
+    # pooled-region polygons + coverage for datasets with no grid_key at all
+    # (build_regions.sql). `geometry` is what L.geoJSON draws; the nested
+    # datasets[]/taxa[] are what regionsForVar() indexes — see NESTED below.
+    "regions.json": {
+        "keys": {"region_key", "description", "n_stations", "lat", "lon",
+                 "geometry", "datasets", "taxa"},
+        "optional": True,
+    },
+}
+
+# Nested-array contracts: a top-level column can be present and correctly shaped
+# while the structs inside it are missing the key the loader indexes on. That is
+# the same class of bug as the taxon_coverage `undefined::` failure, one level
+# down, and column-presence checking alone cannot see it.
+NESTED = {
+    "regions.json": [
+        # app.js: (DS_REGIONS[d.dataset_key] ||= new Set()).add(r.region_key)
+        ("datasets", {"dataset_key", "n_obs", "n_obs_undated", "years"}),
+        # app.js: REGION_TAXA[t.dataset_key + '::' + t.aphia_id]
+        ("taxa", {"dataset_key", "aphia_id", "n_obs", "n_obs_undated", "years"}),
+    ],
 }
 
 # Cross-file referential checks: a key in one file that must resolve in another.
@@ -110,6 +131,48 @@ def main():
         for key in spec["keys"] & present:
             if all(r.get(key) is None for r in rows):
                 errors.append(f"{name}: column '{key}' is null on all {len(rows)} rows")
+
+    for name, specs in NESTED.items():
+        rows = loaded.get(name)
+        if not rows:
+            continue
+        for col, keys in specs:
+            entries = [e for r in rows for e in (r.get(col) or [])]
+            if not entries:
+                # an empty nested array is legitimate (a region with no data yet),
+                # but ALL of them empty means the join in the build script found
+                # nothing — the silent-miss case, not a quiet success
+                errors.append(
+                    f"{name}: '{col}' is empty on all {len(rows)} rows — the "
+                    f"build script's join matched nothing"
+                )
+                continue
+            missing = keys - set(entries[0].keys())
+            if missing:
+                errors.append(
+                    f"{name}.{col}[]: missing {sorted(missing)} — present: "
+                    f"{sorted(entries[0].keys())}"
+                )
+            for key in ("dataset_key", "aphia_id"):
+                if key in keys and any(e.get(key) is None for e in entries):
+                    n = sum(1 for e in entries if e.get(key) is None)
+                    errors.append(
+                        f"{name}.{col}[]: {n} entr(ies) have a null {key}, which "
+                        f"app.js would index as the literal string 'undefined'"
+                    )
+
+    # geometry must be a GeoJSON OBJECT, not the string ST_AsGeoJSON returns.
+    # L.geoJSON() throws on a string, which takes the whole map down rather than
+    # degrading — the one failure here that is not silent, and still worth failing
+    # the build for instead of the page.
+    for r in loaded.get("regions.json") or []:
+        g = r.get("geometry")
+        if not isinstance(g, dict) or "type" not in g or "coordinates" not in g:
+            errors.append(
+                f"regions.json: region '{r.get('region_key')}' geometry is "
+                f"{type(g).__name__}, not a GeoJSON object — L.geoJSON() will throw"
+            )
+            break
 
     for src, src_key, dst, dst_key in JOINS:
         if src not in loaded or dst not in loaded:

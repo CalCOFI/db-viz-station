@@ -4,7 +4,9 @@
 -- Stations ARE the integrated-DB `grid` table (regularized CalCOFI station grid,
 -- derived from calcofi4r::cc_grid). For each grid cell x dataset it summarizes:
 -- time min/max, depth min/max, #observations, #samples, #surveys (distinct
--- cruises), plus per-year (overall) and per-month (seasonal) histograms.
+-- cruises) plus the actual cruises behind that count (cruise_key/date/ship —
+-- see cov_cruises below), and per-year (overall) and per-month (seasonal)
+-- histograms.
 --
 -- Also writes public/data/taxon_coverage.json — per-(station, taxon) coverage,
 -- kept as its own file rather than nested into stations.json (which every page
@@ -62,6 +64,45 @@ SELECT dataset_key, realm, grid_key,
 FROM read_parquet(r('obs/**/*.parquet'), hive_partitioning=true)
 WHERE grid_key IS NOT NULL;
 
+-- cruise/ship reference for the per-dataset "Surveys" list (cov_cruises,
+-- below) — same source + join convention as db-viz-cruise's cruise_summary
+-- (apps/db-viz-cruise/global.R): cruise_key follows the YYYY-MM-NODC
+-- convention, so the trailing NODC code maps straight to ship.ship_nodc.
+-- Built from `obs` itself (already filtered to grid stations) rather than
+-- cruise.parquet, so date_min lines up with the same datetime column
+-- everything else here uses, and so this only carries cruises that actually
+-- appear at a grid station.
+CREATE TEMP TABLE cruise_ref AS
+SELECT o.cruise_key,
+       min(o.datetime)::DATE AS date_min,
+       s.ship_name           AS ship_name
+FROM obs o
+LEFT JOIN read_parquet(r('ship.parquet')) s
+  ON substr(o.cruise_key, 9) = s.ship_nodc
+WHERE o.cruise_key IS NOT NULL
+GROUP BY o.cruise_key, s.ship_name;
+
+-- per (grid_key, dataset_key): the actual cruises behind that dataset's
+-- n_surveys count — "6 surveys" on its own doesn't say which 6. Cross-linking
+-- to db-viz-cruise isn't reliable here: that app's obs table is keyed off raw
+-- sample lat/lon rather than this app's regularized grid, and can be missing
+-- historical/off-grid stations entirely (e.g. line/station 080.0 160.0), so
+-- the list is carried directly in stations.json instead.
+CREATE TEMP TABLE gdc AS
+SELECT DISTINCT grid_key, dataset_key, cruise_key
+FROM obs WHERE cruise_key IS NOT NULL;
+
+CREATE TEMP TABLE cov_cruises AS
+SELECT gdc.grid_key, gdc.dataset_key,
+       list(struct_pack(
+         cruise_key := gdc.cruise_key,
+         date_min   := cr.date_min,
+         ship_name  := cr.ship_name)
+         ORDER BY cr.date_min, gdc.cruise_key) AS cruises
+FROM gdc
+LEFT JOIN cruise_ref cr USING (cruise_key)
+GROUP BY gdc.grid_key, gdc.dataset_key;
+
 -- per (grid_key, dataset_key) coverage; clamp sentinel/absurd depths (e.g. -888)
 CREATE TEMP TABLE cov AS
 SELECT grid_key, dataset_key, any_value(realm) AS realm,
@@ -93,13 +134,15 @@ SELECT c.grid_key,
          time_min := c.time_min, time_max := c.time_max,
          depth_min := c.depth_min, depth_max := c.depth_max,
          n_obs := c.n_obs, n_samples := c.n_samples, n_surveys := c.n_surveys,
-         years := y.years, months := m.months) ORDER BY c.dataset_key) AS datasets,
+         years := y.years, months := m.months,
+         cruises := cc.cruises) ORDER BY c.dataset_key) AS datasets,
        count(*) AS n_datasets,
        min(c.time_min) AS time_min, max(c.time_max) AS time_max,
        sum(c.n_obs) AS n_obs, sum(c.n_samples) AS n_samples
 FROM cov c
 LEFT JOIN ybin y USING (grid_key, dataset_key)
 LEFT JOIN mbin m USING (grid_key, dataset_key)
+LEFT JOIN cov_cruises cc USING (grid_key, dataset_key)
 GROUP BY c.grid_key;
 
 -- distinct cruises per station across all datasets

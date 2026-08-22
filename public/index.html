@@ -32,7 +32,7 @@
 
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CalCOFI Station Portal</title>
+  <title>CalCOFI Data Finder</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link
@@ -49,7 +49,7 @@
        aborts the whole capture. Nothing here renders PDFs either. -->
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=110" />
+  <link rel="stylesheet" href="styles.css?v=113" />
 </head>
 
 <body>
@@ -58,7 +58,7 @@
     <header>
       <div class="logo">
         <span class="logo-title">CalCOFI</span>
-        <span class="logo-sub">Station Data Portal</span>
+        <span class="logo-sub">Data Finder</span>
       </div>
     </header>
 
@@ -97,35 +97,6 @@
     <div class="map-wrapper">
       <div id="map"></div>
       <svg id="lasso-svg" class="lasso-svg"><polygon id="lasso-polygon"></polygon></svg>
-      <div class="compare-control" id="compare-control" style="display:none">
-        <button class="compare-toggle-btn" id="compare-toggle-btn" onclick="toggleCompareMode()"
-          title="Select multiple stations to generate an averaged coverage card per dataset">
-          ⛛ Compare Stations
-        </button>
-        <div class="compare-bar" id="compare-bar" style="display:none">
-          <div class="compare-bar-header">
-            <span id="compare-count">0 Stations Selected</span>
-            <button class="compare-bar-close" onclick="toggleCompareMode()" title="Exit compare mode">✕</button>
-          </div>
-          <div class="compare-bar-body">
-            <button class="compare-bar-lasso" id="lasso-select-btn" onclick="toggleLassoMode()"
-              title="Draw a freehand shape on the map — every station inside it gets selected"><span id="lasso-select-label">✏️ Lasso Select</span></button>
-            <div class="line-select-group" title="Type a CalCOFI line number and press Enter to add every station on it to the selection">
-              <span class="line-select-or">OR</span>
-              <div class="line-select-field">
-                <label for="line-select-input">Line</label>
-                <input type="text" id="line-select-input" placeholder="ex: 83.3" inputmode="decimal"
-                  onkeydown="if(event.key==='Enter') selectByLine()">
-                <button type="button" class="line-select-hint" onclick="selectByLine()">↵ Enter</button>
-              </div>
-            </div>
-            <div class="compare-bar-actions">
-              <button class="compare-bar-btn" onclick="clearCompareSelection()">Clear</button>
-              <button class="compare-bar-btn compare-bar-generate" id="compare-generate-btn" onclick="generateComparisonCards()" disabled>Compare</button>
-            </div>
-          </div>
-        </div>
-      </div>
       <button id="feedback-button" onclick="showFeedbackModal()">
         Send feedback
       </button>
@@ -197,7 +168,7 @@
 
       <div class="about-header">
         <hgroup>
-          <h2>About CalCOFI Data Explorer</h2>
+          <h2>About CalCOFI Data Finder</h2>
           <p style="font-size: 12px;"><i>This app is better suited for viewing on a computer, mobile displays are not
               fully supported.</i></p>
         </hgroup>
@@ -216,7 +187,7 @@
         <p id="about-data-version" class="about-data-version" style="display:none"></p>
 
         <p>
-          CalCOFI Station Data Portal is a data
+          CalCOFI Data Finder is a data
           discovery tool built by <a href="http://linkedin.com/in/ben-best" target="_blank">Ben Best</a> and
           <a href="https://www.linkedin.com/in/betty-huang-0aa57a201/" target="_blank">Betty Huang</a>, under the
           direction of <a href="https://www.linkedin.com/in/erin-satterthwaite-309a79164/" target="_blank">Dr. Erin
@@ -227,7 +198,7 @@
         </p>
 
         <p>
-          The portal aggregates metadata across CalCOFI's integrated
+          The Data Finder aggregates metadata across CalCOFI's integrated
           release database &mdash; 12 datasets spanning physical
           oceanography, nutrients and carbonate chemistry, phytoplankton
           and zooplankton, fish larvae and eggs, and seabirds and marine
@@ -312,7 +283,7 @@
 
   <div id="chart-tooltip"></div>
 
-  <script src="app.js?v=110"></script>
+  <script src="app.js?v=113"></script>
 </body>
 
 </html>

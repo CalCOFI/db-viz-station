@@ -564,36 +564,6 @@ ol {
   white-space: nowrap;
 }
 
-.compare-control {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  z-index: 1500;
-}
-
-.compare-toggle-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 12px 7px 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(0, 194, 255, 0.35);
-  background: var(--panel);
-  color: var(--text);
-  font-family: 'Space Mono', monospace;
-  font-size: 10px;
-  letter-spacing: 1px;
-  cursor: pointer;
-  transition: all 0.2s;
-  white-space: nowrap;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
-}
-
-.compare-toggle-btn:hover {
-  border-color: #00c2ff;
-  background: rgba(0, 194, 255, 0.08);
-}
-
 .download-btn {
   margin-top: 10px;
   padding: 6px 12px;
@@ -633,15 +603,22 @@ ol {
 }
 
 .compare-bar {
-  width: 250px;
+  width: 100%;
   background: var(--panel);
   border: 1px solid #00c2ff;
   border-radius: 8px;
-  z-index: 1500;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
   font-family: 'Space Mono', monospace;
   font-size: 12px;
   color: var(--text);
+}
+
+.compare-bar-desc {
+  font-family: 'Inter', sans-serif;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin: -2px 0 0;
 }
 
 .compare-bar-header {
@@ -880,6 +857,14 @@ ol {
   color: var(--muted, #6c757d);
   border-bottom: 1px dotted currentColor;
   cursor: help;
+}
+/* Species-specific year lock — the one "good news" note among the banner's
+   caveats, so it gets an accent color instead of muted gray. Deliberately
+   plain otherwise (no uppercase, no letter-spacing) — an earlier version of
+   this note lived on the slider in tiny uppercase caps with the same yellow,
+   and that combination read as blurry/hard to read (feedback 2026-08-22). */
+.search-banner .banner-note.species-specific {
+  color: var(--accent2);
 }
 
 /* year-range slider (dual-handle; filters the map to a year window) */
@@ -2275,6 +2260,7 @@ body, .panel, .dd-item, .inventory-label, .inventory-subitem-name,
 .panel-info-block b { color: var(--text); }
 .panel-info-block a { color: var(--accent); }
 .panel-info-block a:hover { text-decoration: underline; }
+.panel-desc-placeholder { color: var(--muted); }
 .panel-highlight { color: var(--accent2); font-size: 15px; }
 .panel-subtext { font-size: 11px; color: var(--text); opacity: 0.75; }
 .panel-subtext-muted { color: var(--muted); }

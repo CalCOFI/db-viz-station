@@ -564,35 +564,109 @@ ol {
   white-space: nowrap;
 }
 
-.compare-control {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  z-index: 1500;
+/* Compare Stations moved off the map and into the station panel header
+   (feedback 2026-08-22: it was stacking with the species popup and eating
+   map space, especially once both were open at the same time). Lives in
+   #panel-header, right after the coords/depth-summary lines, in normal
+   document flow — expanding .compare-bar just pushes the tabs/stat-row/
+   cards below it down, same push-down behavior the dataset accordions
+   already use elsewhere in this panel. */
+/* Species-focused panel content once a specific parameter is selected while
+   a station is open (speciesStationInfoHtml in app.js) — replaces the
+   Overview/Depth Profiles/Compare tab bar and the coverage-card list
+   entirely (feedback 2026-08-22: "do not need overview and depth and
+   coverage"). Went through several rounds before landing here: a floating
+   popup, then a bordered card, then a dataset-colored card, before settling
+   on no box at all — just a short accent rule marking where it starts —
+   with a fixed accent color rather than one tied to the dataset ("the
+   color is all blue dont change it to dataset color") and text sized up a
+   notch from the first pass ("some text slightly bigger font"). */
+/* Horizontal margins below are 4px, not 20px — .panel-content (the parent)
+   already carries 16px of padding, so 4px is what lines these elements'
+   left/right edges up with .panel-header's 20px padding above (16 + 4 =
+   20). They were plain 20px at first, which stacked on top of that 16px
+   and pushed everything in noticeably further than the station id/coords
+   above it — read as an oddly indented, centered-looking cluster instead
+   of continuing the same left margin (feedback 2026-08-22: "why is it
+   centered and clusters... could be further aligned left and right with
+   Station 093.3 090.0"). */
+.spinfo-rule { margin: 18px 4px 0; border-top: 2px solid var(--accent); width: 40px; }
+.spinfo-title {
+  font-family: 'Space Mono', monospace;
+  font-size: 18px;
+  color: var(--accent);
+  line-height: 1.4;
+  margin: 12px 4px 2px;
 }
-
-.compare-toggle-btn {
+.spinfo-body {
+  margin: 12px 4px 0;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--text);
+}
+.spinfo-body b { color: var(--text); }
+.spinfo-body a { color: var(--accent); text-decoration: none; }
+.spinfo-body a:hover { text-decoration: underline; }
+/* Merged "N stations collected" + "observed at this station in: years"
+   into one bordered box (feedback 2026-08-22: option B over option C,
+   "keep the outline" — a full border instead of the old left-accent-bar
+   treatment, and the count folded in rather than sitting as its own plain
+   line above). */
+.spinfo-note {
+  margin: 16px 4px 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(0, 194, 255, 0.3);
+  border-radius: 8px;
+}
+.spinfo-note-count { display: block; color: var(--muted); font-size: 10.5px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; margin-bottom: 6px; }
+.spinfo-note-fallback { display: block; color: var(--muted); font-size: 11.5px; line-height: 1.6; margin-bottom: 6px; }
+.spinfo-note-years-label { display: block; color: var(--text); font-size: 13px; line-height: 1.6; }
+.spinfo-note-years-list { display: block; color: var(--accent2); font-size: 15px; font-weight: 700; margin-top: 2px; }
+/* "Click a highlighted station..." hint in the no-station species panel's
+   note box (showVariablePanel) — same treatment as spinfo-note-years-label
+   since it fills the same slot when there's no station open yet to show
+   observed years for. */
+.spinfo-note-hint { display: block; color: var(--text); font-size: 13px; line-height: 1.7; }
+/* Heavier than before (feedback 2026-08-22: "why is the open dataset so
+   thin") — padding and font size brought up to match the no-station
+   panel's Open Dataset button (.panel-open-dataset-btn) instead of its
+   own smaller sizing. */
+a.spinfo-open-btn {
+  display: block;
+  margin: 16px 4px 0;
+  padding: 14px 16px;
+  text-align: center;
+  background: var(--accent);
+  color: var(--deep) !important;
+  border-radius: 5px;
+  font-family: 'Space Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-decoration: none;
+}
+a.spinfo-open-btn:hover { background: #ffffff; }
+/* Its own distinct row now — bordered pill with room above it — instead
+   of a plain small text link crowded right under the button (feedback
+   2026-08-22: "space out ... better so that it is its own distinct
+   thing"). */
+a.spinfo-full-link {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  padding: 7px 12px 7px 10px;
-  border-radius: 8px;
-  border: 1px solid rgba(0, 194, 255, 0.35);
-  background: var(--panel);
-  color: var(--text);
-  font-family: 'Space Mono', monospace;
-  font-size: 10px;
-  letter-spacing: 1px;
-  cursor: pointer;
-  transition: all 0.2s;
-  white-space: nowrap;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  margin: 14px 4px 20px;
+  padding: 11px 14px;
+  border: 1px solid rgba(0, 194, 255, 0.3);
+  border-radius: 5px;
+  text-align: center;
+  font-family: 'Inter', sans-serif;
+  font-size: 12.5px;
+  color: var(--accent);
+  text-decoration: none;
 }
+a.spinfo-full-link:hover { background: rgba(0, 194, 255, 0.08); }
 
-.compare-toggle-btn:hover {
-  border-color: #00c2ff;
-  background: rgba(0, 194, 255, 0.08);
-}
 
 .download-btn {
   margin-top: 10px;
@@ -632,12 +706,15 @@ ol {
   font-size: 11px;
 }
 
+/* Now lives as the Compare tab's content in the station panel, rather than
+   a fixed-width floating box (feedback 2026-08-22) — stretches to the
+   panel's own width like the dataset accordion cards above it, instead of
+   a hardcoded 250px tuned for floating over the map. */
 .compare-bar {
-  width: 250px;
+  width: 100%;
   background: var(--panel);
   border: 1px solid #00c2ff;
   border-radius: 8px;
-  z-index: 1500;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
   font-family: 'Space Mono', monospace;
   font-size: 12px;
@@ -686,6 +763,13 @@ ol {
   flex-direction: column;
   gap: 10px;
   padding: 12px;
+}
+.compare-bar-desc {
+  font-family: 'Inter', sans-serif;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin: -2px 0 0;
 }
 
 .compare-bar-lasso {
@@ -880,6 +964,14 @@ ol {
   color: var(--muted, #6c757d);
   border-bottom: 1px dotted currentColor;
   cursor: help;
+}
+/* Species-specific year lock — the one "good news" note among the banner's
+   caveats, so it gets an accent color instead of muted gray. Deliberately
+   plain otherwise (no uppercase, no letter-spacing) — an earlier version of
+   this note lived on the slider in tiny uppercase caps with the same yellow,
+   and that combination read as blurry/hard to read (feedback 2026-08-22). */
+.search-banner .banner-note.species-specific {
+  color: var(--accent2);
 }
 
 /* year-range slider (dual-handle; filters the map to a year window) */
@@ -1121,6 +1213,16 @@ ol {
   flex-shrink: 0;
   display: none
 }
+/* No-station species header (showVariablePanel): the short accent rule in
+   panel-depth-summary (.varinfo-rule) is the divider instead of this
+   header's own full-width border, so the border is dropped here — matches
+   the refined mockup where a short cyan rule sits right under the italic
+   sci name (feedback 2026-08-22: "better match image 2"). */
+.panel-header.panel-header-flush {
+  border-bottom: none;
+  padding-bottom: 4px;
+}
+.varinfo-rule { margin: 14px 0 0; border-top: 2px solid var(--accent); width: 40px; }
 
 /* Back button — single slot at top of panel header, shown for
    both "back to station" and "back to all categories" */
@@ -1681,6 +1783,18 @@ select optgroup {
 .cov-empty { color: var(--muted, #9aa0a6);
   font-size: 16px; padding: 24px 8px; text-align: center; }
 
+/* years a selected species/taxon was observed at this station (feedback
+   2026-08-21: species selection highlighted stations but gave no way to see
+   which years without downloading raw data) */
+.cov-selected-years {
+  background: var(--panel, #24272b); border: 1px solid var(--c, #4dabf7);
+  border-radius: 6px; padding: 8px 10px; margin: -6px 0 14px; font-size: 12px;
+}
+.cov-selected-years-label { display: block; color: var(--muted, #9aa0a6);
+  font-size: 10px; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 3px; }
+.cov-selected-years-list { display: block; color: var(--text, #e6e9ed);
+  font-weight: 600; line-height: 1.4; overflow-wrap: break-word; }
+
 /* per-dataset coverage card */
 .ds-card {
   border: 1px solid var(--border, #3a3f44); border-left: 3px solid var(--c);
@@ -2212,6 +2326,68 @@ select optgroup {
 .params-toggle-summary:hover { text-decoration: underline; }
 .params-list { padding-top: 4px; }
 
+/* "Surveys (N)" affordance on a dataset card — the cruises behind that
+   card's n_surveys count. Originally a separate "Surveys (N)" disclosure row
+   between the stats and the year bars, but that read as an orphaned link
+   floating in its own section. Now it's a small "i" chip right after the
+   "N surveys" text inside the Coverage stat (ds-surveys-icon-btn, added from
+   datasetCard's Coverage line in app.js), toggling a plain div underneath
+   the whole stats block (ds-surveys-expand) via a JS class toggle rather
+   than a native <details> — the trigger and the content it controls no
+   longer share a parent element once the trigger moved inline, so <details>
+   stopped being able to express this. */
+.ds-surveys-icon-btn {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1px solid var(--muted, #9aa0a6);
+  background: none;
+  color: var(--muted, #9aa0a6);
+  font-family: 'Space Mono', monospace;
+  font-size: 9px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  margin: 0 1px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.ds-surveys-icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+.ds-surveys-expand {
+  display: none;
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+}
+.ds-surveys-expand.ds-surveys-expand-open { display: block; }
+.ds-surveys-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.ds-survey-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 2px;
+  font-size: 11px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.ds-survey-date { color: var(--muted); flex-shrink: 0; width: 52px; }
+.ds-survey-ship { color: var(--text, #e6e9ed); flex: 1; overflow-wrap: anywhere; }
+.ds-survey-key {
+  font-family: 'Space Mono', monospace;
+  color: var(--muted);
+  flex-shrink: 0;
+  font-size: 10px;
+}
+
 /* ============================================
    FONT UPDATE — Inter for UI, Space Mono for codes
    Ported from Betty's original station-portal build: Space Mono
@@ -2273,8 +2449,16 @@ body, .panel, .dd-item, .inventory-label, .inventory-subitem-name,
    ============================================ */
 .panel-info-block { font-size: 14px; line-height: 1.85; color: var(--text); padding: 4px 0; }
 .panel-info-block b { color: var(--text); }
-.panel-info-block a { color: var(--accent); }
+.panel-info-block a { color: var(--accent); text-decoration: none; }
 .panel-info-block a:hover { text-decoration: underline; }
+/* External-link icon (e.g. before "AphiaID ####" in the WoRMS field) —
+   shared by variableInfoFieldsHtml wherever it's rendered (feedback
+   2026-08-22: "better match image 2" — icon instead of a plain underlined
+   link). */
+.varinfo-ext-icon { vertical-align: -1px; margin-right: 4px; }
+a.varinfo-ext-link { text-decoration: none; }
+a.varinfo-ext-link:hover { text-decoration: underline; }
+.panel-desc-placeholder { color: var(--muted); }
 .panel-highlight { color: var(--accent2); font-size: 15px; }
 .panel-subtext { font-size: 11px; color: var(--text); opacity: 0.75; }
 .panel-subtext-muted { color: var(--muted); }
@@ -2298,7 +2482,18 @@ body, .panel, .dd-item, .inventory-label, .inventory-subitem-name,
 .region-row-off { opacity: 0.4; }
 .region-name { color: var(--text); font-weight: 600; cursor: help; }
 .region-obs { color: var(--muted, #6c757d); font-variant-numeric: tabular-nums; }
-.panel-hint { display: block; color: var(--text); font-size: 13px; line-height: 1.7; margin-bottom: 20px; }
+/* Merged "collected at N stations" + "click a station" note — one soft-
+   filled, borderless card instead of two separate free-floating lines
+   (feedback 2026-08-22: consolidate into a single box, no border). */
+.panel-note {
+  margin: 14px 0 20px;
+  padding: 12px 14px;
+  border-radius: 6px;
+  background: rgba(0, 194, 255, 0.07);
+}
+.panel-note-count { display: block; color: var(--accent); font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+.panel-note-fallback { display: block; color: var(--muted); font-size: 11.5px; line-height: 1.6; margin-bottom: 8px; }
+.panel-note-hint { display: block; color: var(--text); font-size: 13px; line-height: 1.7; }
 a.panel-open-dataset-btn {
   display: block;
   width: 100%;

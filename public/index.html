@@ -2,21 +2,8 @@
 <html lang="en">
 
 <head>
-<!-- Google tag (gtag.js) — CalCOFI site property.
-     GENERATED/COPIED from CalCOFI/analytics → snippets/gtag-site.html.
-     Change only db-viz-station; keep the rest byte-identical across sites so
-     one snippet edit can be rolled out mechanically. `content_group` is what
-     the usage report at calcofi.io/analytics/ joins on. -->
+
 <script>
-  // Two guards, one flag:
-  //  - hostname: keeps local previews and forks out of the property, without
-  //    depending on a build-system flag (these sites are built five ways).
-  //  - navigator.webdriver: set by every WebDriver/CDP-controlled browser, so
-  //    Playwright, Puppeteer, Selenium and our own shot-scraper screenshots
-  //    stop counting. GA4's own bot list is user-agent based and never sees
-  //    them: they render the page and fire gtag exactly like a visitor, one
-  //    cookie-less fetch at a time, which turns a crawl into N one-page
-  //    "users" with no engagement.
   window.__CC_GA = location.hostname.endsWith("calcofi.io")
                    && !navigator.webdriver;
 </script>
@@ -32,7 +19,7 @@
 
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CalCOFI Station Portal</title>
+  <title>CalCOFI Data Finder</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link
@@ -41,15 +28,11 @@
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- JSZip: bundles the multi-card PNG + CSV download into one archive
-       (downloadBundleZip in app.js). This is the only third-party library the
-       download features need — the coverage-card PNGs are drawn directly on a
-       <canvas> by drawCoverageCardCanvas(), NOT screenshotted, so html2canvas
-       is deliberately absent: it throws on this page's color-mix() CSS and
-       aborts the whole capture. Nothing here renders PDFs either. -->
-  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=108" />
+  <link rel="stylesheet" href="styles.css?v=134" />
 </head>
 
 <body>
@@ -58,7 +41,7 @@
     <header>
       <div class="logo">
         <span class="logo-title">CalCOFI</span>
-        <span class="logo-sub">Station Data Portal</span>
+        <span class="logo-sub">Data Finder</span>
       </div>
     </header>
 
@@ -77,8 +60,6 @@
 
     <div class="search-banner" id="search-banner"></div>
 
-    <!-- Year-range slider: filter the map to stations with coverage in a year window
-         (uses the per-dataset `years` bins in stations.json). -->
     <div class="year-slider" id="year-slider" style="display:none">
       <span class="ys-caption">Years</span>
       <span class="ys-label" id="ys-min-label"></span>
@@ -91,41 +72,9 @@
       <button class="ys-reset" id="ys-reset" onclick="resetYearFilter()" title="reset to full range">↺</button>
     </div>
 
-    <!-- Compare mode + lasso live inside .map-wrapper so the SVG overlay can be
-         absolutely positioned over #map; the feedback button is anchored to the
-         same box rather than the viewport so it never floats over the panel. -->
     <div class="map-wrapper">
       <div id="map"></div>
       <svg id="lasso-svg" class="lasso-svg"><polygon id="lasso-polygon"></polygon></svg>
-      <div class="compare-control" id="compare-control" style="display:none">
-        <button class="compare-toggle-btn" id="compare-toggle-btn" onclick="toggleCompareMode()"
-          title="Select multiple stations to generate an averaged coverage card per dataset">
-          ⛛ Compare Stations
-        </button>
-        <div class="compare-bar" id="compare-bar" style="display:none">
-          <div class="compare-bar-header">
-            <span id="compare-count">0 Stations Selected</span>
-            <button class="compare-bar-close" onclick="toggleCompareMode()" title="Exit compare mode">✕</button>
-          </div>
-          <div class="compare-bar-body">
-            <button class="compare-bar-lasso" id="lasso-select-btn" onclick="toggleLassoMode()"
-              title="Draw a freehand shape on the map — every station inside it gets selected"><span id="lasso-select-label">✏️ Lasso Select</span></button>
-            <div class="line-select-group" title="Type a CalCOFI line number and press Enter to add every station on it to the selection">
-              <span class="line-select-or">OR</span>
-              <div class="line-select-field">
-                <label for="line-select-input">Line</label>
-                <input type="text" id="line-select-input" placeholder="ex: 83.3" inputmode="decimal"
-                  onkeydown="if(event.key==='Enter') selectByLine()">
-                <button type="button" class="line-select-hint" onclick="selectByLine()">↵ Enter</button>
-              </div>
-            </div>
-            <div class="compare-bar-actions">
-              <button class="compare-bar-btn" onclick="clearCompareSelection()">Clear</button>
-              <button class="compare-bar-btn compare-bar-generate" id="compare-generate-btn" onclick="generateComparisonCards()" disabled>Compare</button>
-            </div>
-          </div>
-        </div>
-      </div>
       <button id="feedback-button" onclick="showFeedbackModal()">
         Send feedback
       </button>
@@ -173,9 +122,6 @@
     </div>
   </div>
 
-  <!-- Walkthrough tour — a single callout that repositions itself next to
-       whatever UI element the current step is about (see startWalkthroughTour
-       in app.js), rather than a static wall of text in one fixed modal. -->
   <div id="tour-callout" class="tour-callout" style="display:none">
     <div class="tour-callout-title" id="tour-title"></div>
     <div class="tour-callout-body" id="tour-body"></div>
@@ -188,8 +134,6 @@
       </div>
     </div>
   </div>
-
-  <!-- About / Disclaimer -->
 
   <div id="about-backdrop" class="about-backdrop">
 
@@ -210,13 +154,8 @@
 
       <div class="about-content">
 
-        <!-- Which release the loaded data was built from. Filled in by
-             showDataVersion() from data/version.json; hidden if that file is
-             absent, so a preview or fork just doesn't show a release line. -->
-        <p id="about-data-version" class="about-data-version" style="display:none"></p>
-
         <p>
-          CalCOFI Station Data Portal is a data
+          CalCOFI Data Finder is a data
           discovery tool built by <a href="http://linkedin.com/in/ben-best" target="_blank">Ben Best</a> and
           <a href="https://www.linkedin.com/in/betty-huang-0aa57a201/" target="_blank">Betty Huang</a>, under the
           direction of <a href="https://www.linkedin.com/in/erin-satterthwaite-309a79164/" target="_blank">Dr. Erin
@@ -227,7 +166,7 @@
         </p>
 
         <p>
-          The portal aggregates metadata across CalCOFI's integrated
+          The Data Finder aggregates metadata across CalCOFI's integrated
           release database &mdash; 12 datasets spanning physical
           oceanography, nutrients and carbonate chemistry, phytoplankton
           and zooplankton, fish larvae and eggs, and seabirds and marine
@@ -267,8 +206,6 @@
 
   </div>
 
-  <!-- Floating help/info buttons -->
-
   <button id="walkthrough-button" onclick="startWalkthroughTour()">
     ?
   </button>
@@ -277,7 +214,6 @@
     ⓘ
   </button>
 
-  <!-- Feedback modal — posts to a Google Form (see FEEDBACK_ENDPOINT in app.js). -->
   <div id="feedback-backdrop" class="modal-backdrop" onclick="closeFeedbackModal(event)">
     <div class="modal" id="feedback-modal" onclick="event.stopPropagation()">
       <div class="modal-header">
@@ -312,7 +248,7 @@
 
   <div id="chart-tooltip"></div>
 
-  <script src="app.js?v=108"></script>
+  <script src="app.js?v=134"></script>
 </body>
 
 </html>

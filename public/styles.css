@@ -2424,8 +2424,21 @@ a.varinfo-ext-link:hover { text-decoration: underline; }
 }
 .spinfo-note-count { display: block; color: var(--muted); font-size: 10.5px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; margin-bottom: 6px; }
 .spinfo-note-fallback { display: block; color: var(--muted); font-size: 11.5px; line-height: 1.6; margin-bottom: 6px; }
-.spinfo-note-years-label { display: block; color: var(--text); font-size: 13px; line-height: 1.6; }
-.spinfo-note-years-list { display: block; color: var(--accent2); font-size: 15px; font-weight: 700; margin-top: 2px; }
+/* One flowing sentence instead of a label line + a separate years line
+   (feedback 2026-08-22: "instead of separate line"). Extra margin-top gives
+   it room to breathe below the "Collected at N stations" line above
+   (feedback 2026-08-22: "maybe space before"). */
+.spinfo-note-years { display: block; color: var(--text); font-size: 13px; line-height: 1.7; margin-top: 8px; }
+.spinfo-note-years-label { color: var(--text); }
+/* Only the year itself is bold/accent-colored — the comma separators between
+   years are plain text at the parent's normal weight/color, so they read as
+   punctuation rather than competing with the years for attention (feedback
+   2026-08-22: "does orange commas make sense"). */
+.spinfo-note-years-year { color: var(--accent2); font-weight: 700; font-size: 14px; }
+/* De-emphasize the "(×N)" repeat count next to each year — same info, just
+   not competing with the year itself for attention (feedback 2026-08-22:
+   "should be a different styling...gray font not bold"). */
+.spinfo-note-years-count { color: var(--muted); font-size: 11.5px; font-weight: 400; }
 /* "Click a highlighted station..." hint in the no-station species panel's
    note box (showVariablePanel) - same treatment as spinfo-note-years-label
    since it fills the same slot when there's no station open yet to show

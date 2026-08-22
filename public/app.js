@@ -4139,8 +4139,18 @@ function speciesStationNoteHtml(v, s) {
   const stationCount = stationsForVar(v).size;
   const fallbackNote = !stationsForVarIsFallback(v) ? '' : `<span class="spinfo-note-fallback">No per-station breakdown exists yet for this species — this count is every station with any ${datasetLabelFor(v)} data, not confirmed sightings of this species specifically.</span>`;
   const years = selectedTaxonYearsAt(s.grid_key);
-  const yearsBlock = !years ? '' : `<span class="spinfo-note-years-label">${resolvedPlainLabel(v)} observed at this station in:</span>
-      <span class="spinfo-note-years-list">${years.map(o => o.n > 1 ? `${o.y} (×${o.n})` : `${o.y}`).join(', ')}</span>`;
+  // One flowing line/paragraph rather than a label line + a separate years
+  // line — reads as a sentence instead of a label:value pair (feedback
+  // 2026-08-22: "instead of separate line"). Only the year itself is
+  // bold/accent-colored; the "(×N)" repeat count and the comma separators
+  // between years are both muted so they don't compete with the year for
+  // attention (feedback 2026-08-22: "does orange commas make sense").
+  const yearsBlock = !years ? '' : `<span class="spinfo-note-years">
+      <span class="spinfo-note-years-label">${resolvedPlainLabel(v)} observed at this station in: </span>${years.map(o => {
+        const yr = `<span class="spinfo-note-years-year">${o.y}</span>`;
+        return o.n > 1 ? `${yr} <span class="spinfo-note-years-count">(×${o.n})</span>` : yr;
+      }).join(', ')}
+    </span>`;
   return `<div class="spinfo-note">
       <span class="spinfo-note-count">Collected at ${stationCount} station${stationCount === 1 ? '' : 's'}</span>
       ${fallbackNote}

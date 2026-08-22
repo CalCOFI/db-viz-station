@@ -1,5 +1,26 @@
--- build_stations.sql — per-station (grid) coverage summaries from the CalCOFI
--- integrated database, written to public/data/stations.json.
+-- build_stations_local.sql — LOCAL-DEV-ONLY variant of build_stations.sql.
+--
+-- Identical to build_stations.sql except for one thing: it does not load the
+-- `spatial` extension, and instead of deriving station lat/lon from
+-- grid.parquet's geom_ctr (ST_X/ST_Y), it reads them straight out of the
+-- `grid` table already sitting in the existing public/data/stations.json on
+-- disk. Use this only when `LOAD spatial;` is blocked locally (e.g. Windows
+-- Application Control / WDAC refusing to run the downloaded
+-- spatial.duckdb_extension DLL) and there's no time to sort out the OS-level
+-- policy — CI (.github/workflows/refresh.yml) should keep using the real
+-- build_stations.sql, not this file, since CI runners don't hit that block
+-- and the parquet-derived lat/lon is the actual source of truth.
+--
+-- This is safe for local iteration because the grid (CalCOFI's station
+-- line/station layout — lat/lon/pattern/shore/zone/area_km2) essentially
+-- never changes between releases; only the per-dataset coverage below it
+-- does, and that part is unchanged from build_stations.sql. If the grid
+-- itself is ever actually revised upstream, this local variant will keep
+-- serving the previous shape until someone runs the real build_stations.sql
+-- (via CI, or locally with spatial working) at least once to refresh it —
+-- so don't rely on this file to pick up a grid change, only a coverage one.
+--
+-- Everything below is unchanged from build_stations.sql's own header:
 --
 -- Stations ARE the integrated-DB `grid` table (regularized CalCOFI station grid,
 -- derived from calcofi4r::cc_grid). For each grid cell x dataset it summarizes:
@@ -26,16 +47,18 @@
 -- the join key here and in app.js's TAXON_STATIONS lookup — everything else
 -- stays the same.
 --
--- Run from the repo root (needs the `duckdb` CLI + network to public GCS):
---   duckdb -c ".read scripts/build_stations.sql"
+-- Run from the repo root (needs the `duckdb` CLI + network to public GCS;
+-- reads the existing public/data/stations.json, so run this from the repo
+-- root with that file already present):
+--   duckdb -c ".read scripts/build_stations_local.sql"
 --
 -- Data source: the frozen release parquet at
 --   https://storage.googleapis.com/calcofi-db/ducklake/releases/{VERSION}/parquet/
 -- (public); the literal __RELEASE__ below is substituted with the resolved
--- version at build time (see .github/workflows/refresh.yml).
--- Regenerate on every DB release (see .github/workflows).
+-- version at build time (see .github/workflows/refresh.yml) — still needed
+-- here for obs/ship, just not for grid (see above).
 
-INSTALL httpfs; LOAD httpfs; INSTALL spatial; LOAD spatial;
+INSTALL httpfs; LOAD httpfs;
 
 -- frozen-release parquet base; __RELEASE__ is substituted with the resolved
 -- version (e.g. v2026.07.15) at build time. Uses the gs:// scheme (not https://)
@@ -43,11 +66,14 @@ INSTALL httpfs; LOAD httpfs; INSTALL spatial; LOAD spatial;
 -- plain-HTTPS read_parquet cannot do; gs:// reads this public bucket anonymously.
 CREATE TEMP MACRO r(p) AS 'gs://calcofi-db/ducklake/releases/__RELEASE__/parquet/' || p;
 
--- stations = grid cells; lat/lon from the geom_ctr centroid POINT
+-- stations = grid cells; lat/lon read from the CURRENT public/data/stations.json
+-- rather than derived from grid.parquet's geom_ctr — see the file header for
+-- why. read_json_auto() infers the nested `datasets` field's type too even
+-- though it's unused below; harmless, just means this reads the whole file
+-- rather than a projected subset.
 CREATE TEMP TABLE grid AS
-SELECT grid_key, line, station, pattern, shore, zone, area_km2,
-       ST_X(geom_ctr) AS lon, ST_Y(geom_ctr) AS lat
-FROM read_parquet(r('grid.parquet'));
+SELECT grid_key, line, station, pattern, shore, zone, area_km2, lat, lon
+FROM read_json_auto('public/data/stations.json');
 
 -- unified observation stream: the consolidated core `obs` table from the frozen
 -- release (Hive-partitioned by dataset_key), one row per measurement carrying

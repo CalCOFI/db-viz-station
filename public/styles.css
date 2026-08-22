@@ -2477,3 +2477,65 @@ a.spinfo-full-link {
   text-decoration: none;
 }
 a.spinfo-full-link:hover { background: rgba(0, 194, 255, 0.08); }
+
+/* "Surveys (N)" affordance on a dataset card — the cruises behind that
+   card's n_surveys count. Originally a separate "Surveys (N)" disclosure row
+   between the stats and the year bars, but that read as an orphaned link
+   floating in its own section. Now it's a small "i" chip right after the
+   "N surveys" text inside the Coverage stat (ds-surveys-icon-btn, added from
+   datasetCard's Coverage line in app.js), toggling a plain div underneath
+   the whole stats block (ds-surveys-expand) via a JS class toggle rather
+   than a native <details> — the trigger and the content it controls no
+   longer share a parent element once the trigger moved inline, so <details>
+   stopped being able to express this. */
+.ds-surveys-icon-btn {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1px solid var(--muted, #9aa0a6);
+  background: none;
+  color: var(--muted, #9aa0a6);
+  font-family: 'Space Mono', monospace;
+  font-size: 9px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  margin: 0 1px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.ds-surveys-icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+.ds-surveys-expand {
+  display: none;
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+}
+.ds-surveys-expand.ds-surveys-expand-open { display: block; }
+.ds-surveys-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.ds-survey-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 2px;
+  font-size: 11px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.ds-survey-date { color: var(--muted); flex-shrink: 0; width: 52px; }
+.ds-survey-ship { color: var(--text, #e6e9ed); flex: 1; overflow-wrap: anywhere; }
+.ds-survey-key {
+  font-family: 'Space Mono', monospace;
+  color: var(--muted);
+  flex-shrink: 0;
+  font-size: 10px;
+}

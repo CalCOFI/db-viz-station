@@ -2947,6 +2947,7 @@ function renderStations() {
 const yr = d => (d ? String(d).slice(0, 4) : '—');
 const day = d => (d ? String(d).slice(0, 10) : '—');
 const num = n => (n == null ? '0' : n.toLocaleString());
+const ym = d => (d ? String(d).slice(0, 7) : '—');
 
 function yearBars(years, color, large) {
   if (!years || !years.length) return '<div class="bars empty">no dates</div>';
@@ -3122,6 +3123,36 @@ function mixHex(hex, pct, base) {
   const mix = (a, b) => a * p + b * (1 - p);
   return `#${toHex(mix(r1, r2))}${toHex(mix(g1, g2))}${toHex(mix(b1, b2))}`;
 }
+// The "N surveys" figure on a dataset card is a count with nothing behind
+// it — build_stations.sql now also carries the actual cruises (cruise_key +
+// date + ship, via cov_cruises). Rather than a separate disclosure row (which
+// read as an orphaned link floating between Coverage and the year bars), the
+// affordance lives right on the number it explains: a small "i" chip after
+// "N surveys" that toggles a collapsed-by-default list underneath the whole
+// stats block. Toggle + expand area are rendered separately (surveysToggleBtn
+// goes inside the Coverage stat's value; surveysExpandBlock goes after
+// .ds-stats closes) since a <button> can't wrap block content sanely inline
+// in a flex row — the click handler finds its own card's expand block via
+// closest('.ds-card'), so no per-instance id bookkeeping is needed even with
+// many cards on the page. stopPropagation keeps the click from also
+// triggering the card's own onclick when the card is the modal-opening
+// (opts.clickable) variant — same pattern as the pin/download buttons below.
+// Both return '' when a card has no cruise list at all (older cached data,
+// or a dataset whose cruise_key never made it into the release).
+function surveysToggleBtn(cruises) {
+  if (!cruises || !cruises.length) return '';
+  return ` <button type="button" class="ds-surveys-icon-btn" title="Show the ${cruises.length} cruises behind this count"
+      onclick="event.stopPropagation(); this.closest('.ds-card').querySelector('.ds-surveys-expand').classList.toggle('ds-surveys-expand-open')">i</button>`;
+}
+function surveysExpandBlock(cruises) {
+  if (!cruises || !cruises.length) return '';
+  const rows = cruises.map(c => `<li class="ds-survey-row">
+      <span class="ds-survey-date">${ym(c.date_min)}</span>
+      <span class="ds-survey-ship">${c.ship_name || '—'}</span>
+      <span class="ds-survey-key">${c.cruise_key}</span>
+    </li>`).join('');
+  return `<div class="ds-surveys-expand"><ul class="ds-surveys-list">${rows}</ul></div>`;
+}
 function datasetCard(d, opts) {
   opts = opts || {};
   const meta = dsMeta(d.dataset_key);
@@ -3165,14 +3196,17 @@ function datasetCard(d, opts) {
       </span>`;
   }
   const avgBadge = opts.compareContext ? '<span class="ds-avg-badge" title="Values on this card are averaged across the contributing stations">AVG</span>' : '';
+  const surveysToggle = surveysToggleBtn(d.cruises);
+  const surveysExpand = surveysExpandBlock(d.cruises);
   return `<div class="ds-card${opts.clickable ? ' ds-card-clickable' : ''}${opts.large ? ' ds-card-large' : ''}" style="--c:${color};--card-bg:${mixHex(color, 6, '#0f1e35')}"${clickAttrs}>
       <div class="ds-head"><span class="ds-dot"></span><span class="ds-label">${label}</span>
         <div class="ds-head-right">${avgBadge}<span class="ds-realm ${d.realm}">${d.realm}</span></div>${pinBtn}</div>
       <div class="ds-stats">
         <div class="ds-stat"><span class="ds-stat-label">Date Range</span><span class="ds-stat-val">${day(d.time_min)} → ${day(d.time_max)}</span></div>
         <div class="ds-stat"><span class="ds-stat-label">Depth Range</span><span class="ds-stat-val">${depth}</span></div>
-        <div class="ds-stat"><span class="ds-stat-label">Coverage</span><span class="ds-stat-val">${num(d.n_surveys)} surveys · ${num(d.n_obs)} obs</span></div>
+        <div class="ds-stat"><span class="ds-stat-label">Coverage</span><span class="ds-stat-val">${num(d.n_surveys)} surveys${surveysToggle} · ${num(d.n_obs)} obs</span></div>
       </div>
+      ${surveysExpand}
       <div class="bars-label">observations by year</div>${yearBars(d.years, color, opts.large)}
       <div class="bars-label">seasonality (by month)</div>${monthBars(d.months, color)}
       <div class="ds-card-footer">${opts.clickable ? '<span class="ds-card-expand-hint">⤢ click to expand</span>' : '<span></span>'}${downloadBtn}</div>
@@ -3284,7 +3318,7 @@ function stationCardEntries(s) {
     // misleading — it looks like matching real coverage when there isn't
     // any. Show an honest empty state instead (day()/datasetCard already
     // render null/0 as "—"/"0 obs").
-    const EMPTY_COV = { time_min: null, time_max: null, depth_min: null, depth_max: null, n_obs: 0, n_samples: 0, n_surveys: 0, years: null, months: null };
+    const EMPTY_COV = { time_min: null, time_max: null, depth_min: null, depth_max: null, n_obs: 0, n_samples: 0, n_surveys: 0, years: null, months: null, cruises: [] };
     // If the file hasn't loaded (rare/pre-refresh), fall back to the shared
     // whole-dataset record — same graceful degradation as before this fix
     // existed. If it HAS loaded and this station simply has no entry for a

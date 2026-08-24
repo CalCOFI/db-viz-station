@@ -61,7 +61,7 @@ substituted at build time with the version from
 ```bash
 REL=$(curl -s https://storage.googleapis.com/calcofi-db/ducklake/releases/latest.txt | tr -d '[:space:]')
 duckdb -c ".read scripts/build_crosswalk.sql"              # -> metadata/crosswalk_variables.csv
-sed "s/__RELEASE__/$REL/g" scripts/build_stations.sql | duckdb   # -> stations.json AND taxon_coverage.json
+sed "s/__RELEASE__/$REL/g" scripts/build_stations.sql | duckdb   # -> stations.json, cruises.json AND taxon_coverage.json
 sed "s/__RELEASE__/$REL/g" scripts/build_vars.sql     | duckdb   # -> variables.json
 sed "s/__RELEASE__/$REL/g" scripts/build_decades.sql  | duckdb   # -> decades.json
 sed "s/__RELEASE__/$REL/g" scripts/build_datasets.sql | duckdb   # -> datasets_meta.json
@@ -129,8 +129,10 @@ from CDN; DuckDB-WASM is `import()`ed lazily only when someone downloads observa
 - **`grid_key`** is the join key everywhere (`st-20-ln130_hist`); `station_id` is the
   human label (`"130.0 -20.0"`). Stations *are* the integrated DB's `grid` table.
 - **`stations.json`** — one record per grid cell, with a `datasets[]` array carrying
-  per-dataset time/depth spans, counts, and per-year/per-month histograms. Loaded on
-  every page view; keep it lean.
+  per-dataset time/depth spans, counts, per-year/per-month histograms, and bare
+  `cruise_key` lists (date/ship live once per cruise in the companion
+  `cruises.json`, joined at render time — inlining them per station repeated each
+  cruise ~78× and grew this file 7×). Loaded on every page view; keep it lean.
 - **`variables.json`** — ~2100 rows, `variable_type` of `measurement_type` (~200) or
   `taxon` (~1900), keyed by `variable_id` = `dataset_key::name`.
 - **`taxon_coverage.json`** — per-(grid_key, taxon) coverage, split out precisely so the

@@ -491,6 +491,20 @@ function resolvedPlainLabel(v) {
   const fm = familyMemberFor(v);
   return fm ? fm.member.label : displayLabel(v);
 }
+// Splits resolvedLabel(v)'s flowing "Common Name (Sci Name)" HTML into its
+// two parts so callers can stack them on separate lines without parentheses
+// (feedback 2026-08-22: match the refined mockup - name and italic sci name
+// on their own lines, no parens, short accent rule below). Parses the
+// already-resolved label rather than re-deriving name logic, so this can
+// never drift from resolvedLabel/taxonLabel.
+function speciesTitleParts(v) {
+  const label = resolvedLabel(v);
+  let m = label.match(/^(.*?)\s*<i[^>]*>\(([^)]+)\)<\/i>$/);
+  if (m) return { main: m[1], sci: m[2] };
+  m = label.match(/^<i[^>]*>([^<]+)<\/i>$/);
+  if (m) return { main: null, sci: m[1] };
+  return { main: label, sci: null };
+}
 
 // ---- variable de-duplication — one entry per real measurement, not per
 // sensor/correction-stage/unit column. Rules (confirmed with Betty):
@@ -658,6 +672,13 @@ const TAXON_STATIONS = {};
 // same whole-dataset numbers. Empty until/unless that file exists; falls
 // back to the shared coverage record when a station has no entry here.
 const TAXON_YEARS = {};
+// cruise_key -> {cruise_key, date_min, ship_name} from the optional
+// cruises.json — the one-row-per-cruise side of the stations.json cruise
+// lists, which carry bare cruise_key strings so that ~980 cruises are not
+// re-serialized into every one of the ~76,000 (station, dataset, cruise)
+// tuples (see cov_cruises in scripts/build_stations.sql). Empty until/unless
+// that file exists; surveysExpandBlock() renders "—" for date/ship then.
+const CRUISE_REF = {};
 // "grid_key::subset" -> coverage row (subset is 'calcofi_bottle_hydro' or
 // 'calcofi_bottle_cast') from the optional bottle_cast_coverage.json — real
 // per-subset date range/depth/year-month bars for the split Bottle/Cast
@@ -856,8 +877,13 @@ loadDataVersion().then(() => Promise.all([
   // (scripts/build_regions.sql, release v2026.08.14+). Optional and additive
   // like the rest — absent means pooled datasets fall back to the map staying
   // neutral, which is what they did before this file existed.
-  fetch(dataUrl('regions.json')).then(r => r.ok ? r.json() : []).catch(() => [])
-])).then(([st, va, dm, tc, bc, bathy, dsMetaRows, rg]) => {
+  fetch(dataUrl('regions.json')).then(r => r.ok ? r.json() : []).catch(() => []),
+  // cruises.json: one row per cruise (cruise_key, date_min, ship_name) — the
+  // lookup side of the per-dataset cruise_key lists in stations.json (see
+  // CRUISE_REF above). Optional and additive like the rest — absent just
+  // means the surveys expand list shows "—" for each cruise's date/ship.
+  fetch(dataUrl('cruises.json')).then(r => r.ok ? r.json() : []).catch(() => [])
+])).then(([st, va, dm, tc, bc, bathy, dsMetaRows, rg, crz]) => {
   STATIONS = st; VARS = va;
   // Regions are indexed exactly like taxon_coverage: `dataset_key::aphia_id`,
   // because a pooled dataset's variables are taxa and variables.json keys them
@@ -891,6 +917,7 @@ loadDataVersion().then(() => Promise.all([
     if (r.years) (TAXON_YEARS[k] ||= {})[r.grid_key] = r.years;
   });
   (bc || []).forEach(r => { BOTTLE_CAST_COV[r.grid_key + '::' + r.subset] = r; });
+  (crz || []).forEach(r => { CRUISE_REF[r.cruise_key] = r; });
   const bathyByKey = {};
   (bathy || []).forEach(r => { bathyByKey[r.grid_key] = r.bathymetry_depth_m; });
   STATIONS.forEach(s => {
@@ -1021,14 +1048,40 @@ function taxonStationsInRange(stationSet, yearsByStation) {
 // slider — taxon_coverage.json has no per-year breakdown yet, unlike the
 // dataset-wide path via activeDatasets(). Add year bins to that file's
 // build if year-filtered taxon counts are needed later.
-function stationsForVar(v) {
+// Resolves a taxon variable to its TAXON_STATIONS/TAXON_YEARS key, trying the
+// variable's own dataset_key first and falling back to its old/new alias
+// (DATASET_KEY_ALIASES, defined below) when the coverage files filed it under
+// the other spelling — e.g. taxon_coverage.json's bird/mammal rows are keyed
+// 'farallon_bird-mammal' while variables.json still labels those variables
+// 'calcofi_bird_mammal_census'. Without the alias fallback, per-species
+// coverage for bird/mammal and mesopelagic-fish taxa silently undercounts
+// (feedback 2026-08-21/nvpatin: "Striped Dolphin" showed 1 station instead
+// of the real 4). Returns null when there's no per-species data at all.
+function taxonLookupKey(v) {
+  const alias = typeof DATASET_KEY_ALIASES !== 'undefined' ? DATASET_KEY_ALIASES[v.dataset_key] : null;
   if (v.aphia_id) {
     const key = v.dataset_key + '::' + v.aphia_id;
-    if (TAXON_STATIONS[key]) return taxonStationsInRange(TAXON_STATIONS[key], TAXON_YEARS[key]);
+    if (TAXON_STATIONS[key]) return key;
+    if (alias) { const ak = alias + '::' + v.aphia_id; if (TAXON_STATIONS[ak]) return ak; }
   }
   const nameKey = v.dataset_key + '::name::' + normTaxonName(v.name);
-  if (TAXON_STATIONS[nameKey]) return taxonStationsInRange(TAXON_STATIONS[nameKey], TAXON_YEARS[nameKey]);
-  return new Set(STATIONS.filter(s => activeDatasets(s).some(d => d.dataset_key === v.dataset_key)).map(s => s.grid_key));
+  if (TAXON_STATIONS[nameKey]) return nameKey;
+  if (alias) { const ank = alias + '::name::' + normTaxonName(v.name); if (TAXON_STATIONS[ank]) return ank; }
+  return null;
+}
+function stationsForVar(v) {
+  const key = taxonLookupKey(v);
+  if (key) return taxonStationsInRange(TAXON_STATIONS[key], TAXON_YEARS[key]);
+  // Same old/new dataset-key mismatch as taxonLookupKey() — the whole-dataset
+  // fallback below must check the alias too, or a taxon whose per-species
+  // entry is missing (TAXON_STATIONS has nothing for it at all) silently
+  // undercounts to 0 for bird/mammal and mesopelagic-fish variables, since
+  // variables.json and stations.json don't always agree on which spelling
+  // they use (confirmed 2026-08-22: "Striped Dolphin" showed 0 instead of
+  // falling back to the real ~100-station dataset-wide count).
+  const alias = typeof DATASET_KEY_ALIASES !== 'undefined' ? DATASET_KEY_ALIASES[v.dataset_key] : null;
+  const keys = alias ? [v.dataset_key, alias] : [v.dataset_key];
+  return new Set(STATIONS.filter(s => activeDatasets(s).some(d => keys.includes(d.dataset_key))).map(s => s.grid_key));
 }
 // Whether the count stationsForVar() returns for `v` actually honors the year
 // slider. False on the per-taxon path (taxon_coverage.json has no year bins —
@@ -1037,9 +1090,8 @@ function stationsForVar(v) {
 // banner used to read "N stations … in 1950–1980" with an all-time N, which
 // reads as a filtered count and isn't one.
 function stationsForVarIsYearAware(v) {
-  if (v.aphia_id && TAXON_STATIONS[v.dataset_key + '::' + v.aphia_id]) return !!TAXON_YEARS[v.dataset_key + '::' + v.aphia_id];
-  if (TAXON_STATIONS[v.dataset_key + '::name::' + normTaxonName(v.name)]) return !!TAXON_YEARS[v.dataset_key + '::name::' + normTaxonName(v.name)];
-  return true;
+  const key = taxonLookupKey(v);
+  return key ? !!TAXON_YEARS[key] : true;
 }
 // ---- pooled regions ----
 // The region equivalents of stationsForVar()/stationsForVarIsYearAware(), and
@@ -1176,16 +1228,32 @@ function applyStyles() {
   });
 }
 
-function toggleCompareMode() {
-  compareMode = !compareMode;
-  document.getElementById('compare-toggle-btn').style.display = compareMode ? 'none' : 'flex';
-  document.getElementById('compare-bar').style.display = compareMode ? 'block' : 'none';
-  if (!compareMode) {
-    selectedGridKeys.clear();
-    updateCompareBar();
-    if (lassoMode) toggleLassoMode();
-  }
+// Compare mode is now entered/exited by switching the panel's Compare tab
+// in/out of view (see wirePanelTabs below) rather than a standalone toggle
+// button — split into enter/exit instead of one toggle so both the tab
+// click handler and the bar's own "✕ Exit" button can call the right one
+// directly (feedback 2026-08-22: Compare Stations moved into a panel tab).
+function enterCompareMode() {
+  if (compareMode) return;
+  compareMode = true;
+  updateCompareBar();
   applyStyles();
+}
+function exitCompareMode() {
+  if (!compareMode) return;
+  compareMode = false;
+  selectedGridKeys.clear();
+  updateCompareBar();
+  if (lassoMode) toggleLassoMode();
+  applyStyles();
+}
+// The bar's own "✕ Exit compare mode" button — unlike switching to
+// Overview/Depth Profiles directly, there's no other tab click to piggyback
+// on, so this exits compare mode and simulates clicking back to Overview.
+function exitCompareModeAndReturnToOverview() {
+  exitCompareMode();
+  const overviewBtn = document.querySelector('#panel-content .panel-tab[data-tab="overview"]');
+  if (overviewBtn) overviewBtn.click();
 }
 function toggleLassoMode() {
   lassoMode = !lassoMode;
@@ -1277,9 +1345,19 @@ function clearCompareSelection() {
   applyStyles();
 }
 function updateCompareBar() {
+  // Guarded: clearAll() wipes #panel-content — which is where the Compare
+  // tab's markup, and #compare-count/#compare-generate-btn along with it,
+  // now live — before calling exitCompareMode(), so this can run after
+  // those elements are already gone. Not an issue before the Compare tab
+  // moved off the map overlay, since that markup used to be static in
+  // index.html rather than injected per-station. Found and fixed while
+  // testing this port (2026-08-22).
+  const countEl = document.getElementById('compare-count');
+  const genBtn = document.getElementById('compare-generate-btn');
+  if (!countEl || !genBtn) return;
   const n = selectedGridKeys.size;
-  document.getElementById('compare-count').textContent = `${n} Selected`;
-  document.getElementById('compare-generate-btn').disabled = n < 2;
+  countEl.textContent = `${n} Selected`;
+  genBtn.disabled = n < 2;
 }
 function averageHistograms(lists, keyField) {
   const sums = {}, count = lists.length;
@@ -1997,9 +2075,21 @@ function lockYearRange(lo, hi) {
 // dataset's real min/max year across every station, so selecting a
 // variable can snap the slider to where its data actually is.
 function datasetYearSpan(datasetKey) {
+  // Same old/new dataset-key mismatch as taxonLookupKey() above: stations.json
+  // only ever files bird/mammal and mesopelagic-fish stops under the *new*
+  // key (farallon_bird-mammal / sio_mesopelagic-fish), while variables.json
+  // still labels those variables with the *old* key. Without this fallback,
+  // datasetYearSpan() for those species always returned null, so the year
+  // slider silently kept whatever lock the previously-selected species left
+  // it at instead of updating (reported 2026-08-22: selecting "Striped
+  // Dolphin" after "Larvacean" left the slider showing Larvacean's 1951-2015
+  // range even though the dolphin was only ever observed in 1990/2004/2015).
+  const keys = [datasetKey];
+  const alias = typeof DATASET_KEY_ALIASES !== 'undefined' ? DATASET_KEY_ALIASES[datasetKey] : null;
+  if (alias) keys.push(alias);
   let mn = Infinity, mx = -Infinity;
   STATIONS.forEach(s => (s.datasets || []).forEach(d => {
-    if (d.dataset_key !== datasetKey) return;
+    if (!keys.includes(d.dataset_key)) return;
     (d.years || []).forEach(o => { if (o.y < mn) mn = o.y; if (o.y > mx) mx = o.y; });
   }));
   // A pooled dataset has no station rows at all, so the loop above finds nothing
@@ -2008,10 +2098,27 @@ function datasetYearSpan(datasetKey) {
   // live on the regions instead; same {y, n} shape, so the rest is unchanged.
   if (!isFinite(mn)) {
     REGIONS.forEach(r => (r.datasets || []).forEach(d => {
-      if (d.dataset_key !== datasetKey) return;
+      if (!keys.includes(d.dataset_key)) return;
       (d.years || []).forEach(o => { if (o.y < mn) mn = o.y; if (o.y > mx) mx = o.y; });
     }));
   }
+  return isFinite(mn) ? [mn, mx] : null;
+}
+// A taxon's own observation-year span (min/max across every station it was
+// recorded at), distinct from datasetYearSpan()'s whole-dataset span above —
+// lets selectVariable() lock the slider to where THIS species was actually
+// seen rather than the whole dataset's range. Returns null when there's no
+// per-species year breakdown for this taxon (taxonLookupKey() found nothing,
+// or the entry it found has no year bins).
+function taxonYearSpan(v) {
+  const key = taxonLookupKey(v);
+  const byStation = key && TAXON_YEARS[key];
+  if (!byStation) return null;
+  let mn = Infinity, mx = -Infinity;
+  Object.values(byStation).forEach(years => (years || []).forEach(o => {
+    if (o.y < mn) mn = o.y;
+    if (o.y > mx) mx = o.y;
+  }));
   return isFinite(mn) ? [mn, mx] : null;
 }
 function resetYearFilter() {
@@ -2933,6 +3040,7 @@ function renderStations() {
 const yr = d => (d ? String(d).slice(0, 4) : '—');
 const day = d => (d ? String(d).slice(0, 10) : '—');
 const num = n => (n == null ? '0' : n.toLocaleString());
+const ym = d => (d ? String(d).slice(0, 7) : '—');
 
 function yearBars(years, color, large) {
   if (!years || !years.length) return '<div class="bars empty">no dates</div>';
@@ -3108,6 +3216,41 @@ function mixHex(hex, pct, base) {
   const mix = (a, b) => a * p + b * (1 - p);
   return `#${toHex(mix(r1, r2))}${toHex(mix(g1, g2))}${toHex(mix(b1, b2))}`;
 }
+// The "N surveys" figure on a dataset card is a count with nothing behind
+// it — build_stations.sql now also carries the actual cruises (cruise_key +
+// date + ship, via cov_cruises). Rather than a separate disclosure row (which
+// read as an orphaned link floating between Coverage and the year bars), the
+// affordance lives right on the number it explains: a small "i" chip after
+// "N surveys" that toggles a collapsed-by-default list underneath the whole
+// stats block. Toggle + expand area are rendered separately (surveysToggleBtn
+// goes inside the Coverage stat's value; surveysExpandBlock goes after
+// .ds-stats closes) since a <button> can't wrap block content sanely inline
+// in a flex row — the click handler finds its own card's expand block via
+// closest('.ds-card'), so no per-instance id bookkeeping is needed even with
+// many cards on the page. stopPropagation keeps the click from also
+// triggering the card's own onclick when the card is the modal-opening
+// (opts.clickable) variant — same pattern as the pin/download buttons below.
+// Both return '' when a card has no cruise list at all (older cached data,
+// or a dataset whose cruise_key never made it into the release).
+function surveysToggleBtn(cruises) {
+  if (!cruises || !cruises.length) return '';
+  return ` <button type="button" class="ds-surveys-icon-btn" title="Show the ${cruises.length} cruises behind this count"
+      onclick="event.stopPropagation(); this.closest('.ds-card').querySelector('.ds-surveys-expand').classList.toggle('ds-surveys-expand-open')">i</button>`;
+}
+function surveysExpandBlock(cruises) {
+  if (!cruises || !cruises.length) return '';
+  // `cruises` is a list of bare cruise_key strings (stations.json); each
+  // cruise's date/ship comes from CRUISE_REF (cruises.json) at render time.
+  const rows = cruises.map(k => {
+    const c = CRUISE_REF[k] || {};
+    return `<li class="ds-survey-row">
+      <span class="ds-survey-date">${ym(c.date_min)}</span>
+      <span class="ds-survey-ship">${c.ship_name || '—'}</span>
+      <span class="ds-survey-key">${k}</span>
+    </li>`;
+  }).join('');
+  return `<div class="ds-surveys-expand"><ul class="ds-surveys-list">${rows}</ul></div>`;
+}
 function datasetCard(d, opts) {
   opts = opts || {};
   const meta = dsMeta(d.dataset_key);
@@ -3151,14 +3294,17 @@ function datasetCard(d, opts) {
       </span>`;
   }
   const avgBadge = opts.compareContext ? '<span class="ds-avg-badge" title="Values on this card are averaged across the contributing stations">AVG</span>' : '';
+  const surveysToggle = surveysToggleBtn(d.cruises);
+  const surveysExpand = surveysExpandBlock(d.cruises);
   return `<div class="ds-card${opts.clickable ? ' ds-card-clickable' : ''}${opts.large ? ' ds-card-large' : ''}" style="--c:${color};--card-bg:${mixHex(color, 6, '#0f1e35')}"${clickAttrs}>
       <div class="ds-head"><span class="ds-dot"></span><span class="ds-label">${label}</span>
         <div class="ds-head-right">${avgBadge}<span class="ds-realm ${d.realm}">${d.realm}</span></div>${pinBtn}</div>
       <div class="ds-stats">
         <div class="ds-stat"><span class="ds-stat-label">Date Range</span><span class="ds-stat-val">${day(d.time_min)} → ${day(d.time_max)}</span></div>
         <div class="ds-stat"><span class="ds-stat-label">Depth Range</span><span class="ds-stat-val">${depth}</span></div>
-        <div class="ds-stat"><span class="ds-stat-label">Coverage</span><span class="ds-stat-val">${num(d.n_surveys)} surveys · ${num(d.n_obs)} obs</span></div>
+        <div class="ds-stat"><span class="ds-stat-label">Coverage</span><span class="ds-stat-val">${num(d.n_surveys)} surveys${surveysToggle} · ${num(d.n_obs)} obs</span></div>
       </div>
+      ${surveysExpand}
       <div class="bars-label">observations by year</div>${yearBars(d.years, color, opts.large)}
       <div class="bars-label">seasonality (by month)</div>${monthBars(d.months, color)}
       <div class="ds-card-footer">${opts.clickable ? '<span class="ds-card-expand-hint">⤢ click to expand</span>' : '<span></span>'}${downloadBtn}</div>
@@ -3270,7 +3416,7 @@ function stationCardEntries(s) {
     // misleading — it looks like matching real coverage when there isn't
     // any. Show an honest empty state instead (day()/datasetCard already
     // render null/0 as "—"/"0 obs").
-    const EMPTY_COV = { time_min: null, time_max: null, depth_min: null, depth_max: null, n_obs: 0, n_samples: 0, n_surveys: 0, years: null, months: null };
+    const EMPTY_COV = { time_min: null, time_max: null, depth_min: null, depth_max: null, n_obs: 0, n_samples: 0, n_surveys: 0, years: null, months: null, cruises: [] };
     // If the file hasn't loaded (rare/pre-refresh), fall back to the shared
     // whole-dataset record — same graceful degradation as before this fix
     // existed. If it HAS loaded and this station simply has no entry for a
@@ -3285,58 +3431,108 @@ function stationCardEntries(s) {
     ];
   });
 }
+// Compare Stations tab content (feedback 2026-08-22: moved off the map
+// overlay, and then out of the panel header, into its own tab alongside
+// Overview and Depth Profiles — same lasso/line-select UI as before, just
+// relocated to a place that doesn't compete for space with anything else).
+// Static markup — doesn't depend on which station is open — so it's just
+// dropped into the compare tab-content div fresh on every openStation().
+function compareBarHtml() {
+  return `<div class="compare-bar">
+      <div class="compare-bar-header">
+        <span id="compare-count">0 Selected</span>
+        <button class="compare-bar-close" onclick="exitCompareModeAndReturnToOverview()" title="Exit compare mode">✕</button>
+      </div>
+      <div class="compare-bar-body">
+        <p class="compare-bar-desc">Select multiple stations — click them on the map, lasso a group, or enter a line number — to generate one averaged coverage card per shared dataset.</p>
+        <button class="compare-bar-lasso" id="lasso-select-btn" onclick="toggleLassoMode()"
+          title="Draw a freehand shape on the map — every station inside it gets selected"><span id="lasso-select-label">✏️ Lasso Select</span></button>
+        <div class="line-select-group" title="Type a CalCOFI line number and press Enter to add every station on it to the selection">
+          <span class="line-select-or">OR</span>
+          <div class="line-select-field">
+            <label for="line-select-input">Line</label>
+            <input type="text" id="line-select-input" placeholder="ex: 83.3" inputmode="decimal"
+              onkeydown="if(event.key==='Enter') selectByLine()">
+            <button type="button" class="line-select-hint" onclick="selectByLine()">↵ Enter</button>
+          </div>
+        </div>
+        <div class="compare-bar-actions">
+          <button class="compare-bar-btn" onclick="clearCompareSelection()">Clear</button>
+          <button class="compare-bar-btn compare-bar-generate" id="compare-generate-btn" onclick="generateComparisonCards()" disabled>Compare</button>
+        </div>
+      </div>
+    </div>`;
+}
 function openStation(s) {
   currentStation = s;
   applyStyles();
   document.getElementById('panel-empty').style.display = 'none';
   document.getElementById('panel-header').style.display = 'block';
+  document.getElementById('panel-header').classList.remove('panel-header-flush');
   showBackToCategories();
   document.getElementById('panel-station-id').textContent = `Station ${s.station_id}`;
   document.getElementById('panel-coords').textContent =
     `${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}`;
   document.getElementById('panel-depth-summary').innerHTML = '';
-  document.getElementById('compare-control').style.display = 'block';
+  // Map clicks route to toggleStationSelection() instead of openStation()
+  // while compareMode is active (see the marker click handler below), so
+  // this is only ever a safety net — kept because it costs nothing and
+  // documents that a freshly-opened station never starts mid-compare.
+  if (compareMode) exitCompareMode();
   const c = document.getElementById('panel-content');
-  if (!s.n_datasets) {
-    c.innerHTML = `<div class="cov-empty">No integrated-database observations recorded at this grid station.</div>`;
+  // A specific (non-pooled) parameter is selected: skip the Overview/Depth
+  // Profiles/Compare tab bar entirely and show just that parameter's own
+  // info at this station (feedback 2026-08-22: "do not need overview and
+  // depth and coverage"). "View full station coverage" (inside
+  // speciesStationInfoHtml) is the way back to the regular tabbed view
+  // below. Pooled datasets have no station-level affiliation, so they fall
+  // through to the normal view.
+  if (selectedVar && !isRegionPooled(selectedVar.dataset_key)) {
+    c.innerHTML = speciesStationInfoHtml(selectedVar, s);
     return;
   }
-  const cards = stationCardEntries(s).map(({ d, label }) => {
-    if (d.dataset_key !== 'calcofi_bottle') return datasetAccordion(d, s);
-    const all = CANON_VARS.filter(v => v.dataset_key === 'calcofi_bottle');
-    const castVars = all.filter(v => CAST_SIDE_BOTTLE_FIELDS.has(v.name));
-    const bottleVars = all.filter(v => !CAST_SIDE_BOTTLE_FIELDS.has(v.name));
-    return label === 'Hydrographic Bottle'
-      ? datasetAccordion(d, s, { label, vars: bottleVars })
-      : datasetAccordion(d, s, { label, vars: castVars, color: '#be8c63' });
-  }).join('');
   const dpCount = depthProfileCount(s);
-  // Two tabs: Overview (existing dataset/decade content, unchanged) and its
+  // Three tabs: Overview (existing dataset/decade content, unchanged), its
   // own Depth Profiles panel — previously nested at the bottom of Overview
   // inside a details toggle, now a first-class destination instead of one
-  // more thing to scroll past. Depth tab is omitted entirely when a station
-  // has no depth-resolved data, same as the old toggle's behavior.
+  // more thing to scroll past — and Compare, which used to be a floating
+  // map overlay (feedback 2026-08-22: "it was stacking with the species
+  // popup and eating map space"). Depth tab is omitted entirely when a
+  // station has no depth-resolved data, same as the old toggle's behavior;
+  // Compare is always present, even at a station with no observations, so
+  // compare mode stays reachable regardless of what's open.
   // Starts on whichever tab was last viewed (lastStationTab), not always
   // Overview — clicking through several stations while comparing depth
   // profiles shouldn't mean re-clicking "Depth Profiles" every single time.
   // Falls back to Overview if this particular station has no depth tab at
   // all, since there's nothing to land on.
   const startTab = (lastStationTab === 'depth' && dpCount) ? 'depth' : 'overview';
-  const tabs = dpCount ? `<div class="panel-tabs">
+  const tabs = `<div class="panel-tabs">
       <button class="panel-tab${startTab === 'overview' ? ' active' : ''}" data-tab="overview">Overview</button>
-      <button class="panel-tab${startTab === 'depth' ? ' active' : ''}" data-tab="depth">Depth Profiles <span class="panel-tab-count">${dpCount}</span></button>
-    </div>` : '';
-  c.innerHTML = `${tabs}
-    <div class="panel-tab-content" data-tabpanel="overview"${startTab === 'depth' ? ' style="display:none"' : ''}>
-      <div class="cov-summary">
+      ${dpCount ? `<button class="panel-tab${startTab === 'depth' ? ' active' : ''}" data-tab="depth">Depth Profiles <span class="panel-tab-count">${dpCount}</span></button>` : ''}
+      <button class="panel-tab" data-tab="compare">⛛ Compare</button>
+    </div>`;
+  const overviewInner = !s.n_datasets
+    ? `<div class="cov-empty">No integrated-database observations recorded at this grid station.</div>`
+    : `<div class="cov-summary">
         <div><span class="k">datasets</span><span class="v">${s.n_datasets}</span></div>
         <div><span class="k">surveys</span><span class="v">${num(s.n_surveys)}</span></div>
         <div><span class="k">observations</span><span class="v">${num(s.n_obs)}</span></div>
         <div title="This station's own observation date range — may differ from the year slider above, which spans every station site-wide."><span class="k">span</span><span class="v">${yr(s.time_min)}–${yr(s.time_max)}</span></div>
       </div>
-      ${cards}
-    </div>
-    <div class="panel-tab-content" data-tabpanel="depth"${startTab === 'overview' ? ' style="display:none"' : ''}></div>`;
+      ${stationCardEntries(s).map(({ d, label }) => {
+        if (d.dataset_key !== 'calcofi_bottle') return datasetAccordion(d, s);
+        const all = CANON_VARS.filter(v => v.dataset_key === 'calcofi_bottle');
+        const castVars = all.filter(v => CAST_SIDE_BOTTLE_FIELDS.has(v.name));
+        const bottleVars = all.filter(v => !CAST_SIDE_BOTTLE_FIELDS.has(v.name));
+        return label === 'Hydrographic Bottle'
+          ? datasetAccordion(d, s, { label, vars: bottleVars })
+          : datasetAccordion(d, s, { label, vars: castVars, color: '#be8c63' });
+      }).join('')}`;
+  c.innerHTML = `${tabs}
+    <div class="panel-tab-content" data-tabpanel="overview"${startTab === 'overview' ? '' : ' style="display:none"'}>${overviewInner}</div>
+    <div class="panel-tab-content" data-tabpanel="depth"${startTab === 'depth' ? '' : ' style="display:none"'}></div>
+    <div class="panel-tab-content" data-tabpanel="compare" style="display:none">${compareBarHtml()}</div>`;
   c.querySelectorAll('.data-link[data-vid]').forEach(el =>
     el.addEventListener('click', () => selectVariable(decodeURIComponent(el.dataset.vid))));
   wirePanelTabs(c, s);
@@ -3348,19 +3544,32 @@ function openStation(s) {
 // Switches the active tab button/panel, and lazily fills the Depth Profiles
 // panel with its rows (+ each row's own lazy chart) the first time it's
 // switched to — matches the same "don't build it until it's actually looked
-// at" approach the nested per-variable rows already use.
+// at" approach the nested per-variable rows already use. Switching to/from
+// the Compare tab also starts/stops compare mode — there's no separate
+// toggle button anymore (feedback 2026-08-22).
 function wirePanelTabs(c, s) {
   const tabBtns = c.querySelectorAll('.panel-tab');
   tabBtns.forEach(btn => btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
     tabBtns.forEach(b => b.classList.toggle('active', b === btn));
-    lastStationTab = btn.dataset.tab;
     c.querySelectorAll('.panel-tab-content').forEach(p =>
-      p.style.display = (p.dataset.tabpanel === btn.dataset.tab) ? '' : 'none');
+      p.style.display = (p.dataset.tabpanel === tab) ? '' : 'none');
+    if (tab === 'compare') {
+      document.getElementById('panel-depth-summary').innerHTML = '';
+      enterCompareMode();
+      return;
+    }
+    // Leaving the Compare tab for Overview/Depth always exits compare mode
+    // — it has no visible indicator once its tab isn't showing, so leaving
+    // it running silently in the background would make map clicks behave
+    // unexpectedly (selecting for comparison) with no clue why.
+    if (compareMode) exitCompareMode();
+    lastStationTab = tab;
     // Sampled-depth/bathymetry note only means something next to the actual
     // depth profiles — stays out of the Overview tab entirely.
     document.getElementById('panel-depth-summary').innerHTML =
-      btn.dataset.tab === 'depth' ? depthSummaryFor(s) : '';
-    if (btn.dataset.tab === 'depth') renderDepthTab(c, s);
+      tab === 'depth' ? depthSummaryFor(s) : '';
+    if (tab === 'depth') renderDepthTab(c, s);
   }));
 }
 function renderDepthTab(c, s) {
@@ -3774,16 +3983,19 @@ function selectVariable(vid) {
   selectedVar = v;
   dropdown.classList.remove('open');
   searchInput.value = resolvedPlainLabel(v);
-  const span = datasetYearSpan(v.dataset_key);
+  // Prefer this species' own observation-year span over the dataset-wide
+  // one when it exists (see taxonYearSpan() above) — falls back to the old
+  // dataset-wide span for measurement-type variables and taxa with no
+  // per-species year breakdown.
+  const span = (v.variable_type === 'taxon' && taxonYearSpan(v)) || datasetYearSpan(v.dataset_key);
   if (span) { lockYearRange(span[0], span[1]); setYearRange(span[0], span[1]); }
+  else { lockYearRange(null, null); setYearRange(G_MIN, G_MAX); }
   highlight(v);
   showVariablePanel(v);
 }
 function stationsForVarIsFallback(v) {
   if (v.variable_type !== 'taxon') return false;
-  if (v.aphia_id && TAXON_STATIONS[v.dataset_key + '::' + v.aphia_id]) return false;
-  if (TAXON_STATIONS[v.dataset_key + '::name::' + normTaxonName(v.name)]) return false;
-  return true;
+  return !taxonLookupKey(v);
 }
 // Banner text for a pooled dataset. Falls back to the old explanation-only
 // wording when regions.json is absent, so the page keeps working without it.
@@ -3817,9 +4029,9 @@ function highlight(v) {
   const yearAware = stationsForVarIsYearAware(v);
   const isAggregateSpan = DATASET_SPAN_IS_AGGREGATE.has(v.dataset_key);
   const isFallback = stationsForVarIsFallback(v);
-  const fallbackNote = isFallback
-    ? ` <span class="banner-note" title="No per-station breakdown exists yet for this specific species — this is every station with any ${datasetLabelFor(v)} data, not necessarily stations where this species was actually recorded.">(dataset-wide, not species-specific)</span>`
-    : '';
+  // No separate "(dataset-wide, not species-specific)" parenthetical here
+  // anymore — scopeNoteHtml()'s "— Dataset-Wide" tag below says the same
+  // thing, and showing both said it twice (feedback 2026-08-22).
   const yearNote = !yearRange ? ''
     : yearAware
       ? ` in <b>${yearRange[0]}–${yearRange[1]}</b>`
@@ -3834,8 +4046,31 @@ function highlight(v) {
         // real number — the pooled regions it WAS collected across — instead of
         // only explaining the absence of a station count.
         ? regionBannerText(v)
-        : `${n} station${n === 1 ? '' : 's'} with <b>${datasetLabelFor(v)}</b> coverage` + yearNote + fallbackNote);
+        : `${n} station${n === 1 ? '' : 's'} with <b>${datasetLabelFor(v)}</b> coverage` + yearNote
+          + scopeNoteHtml(v, isAggregateSpan, yearAware, isFallback));
   banner.style.display = 'block';
+}
+// The em dash sits outside the underlined <span> on purpose (feedback
+// 2026-08-22: "i dont want the underscore hyerliked") — the dotted
+// underline/hover-help styling is meant to flag the label text as having
+// more detail on hover, not the dash, which is just punctuation joining it
+// to the sentence.
+function scopeNoteHtml(v, isAggregateSpan, yearAware, isFallback) {
+  if (v.variable_type === 'taxon') {
+    const span = taxonYearSpan(v);
+    if (span) {
+      return ` — <span class="banner-note species-specific" title="Locked to ${resolvedPlainLabel(v)}'s own observation years, not the whole dataset's.">Species Range</span>`;
+    }
+    if (isFallback) {
+      return ` — <span class="banner-note" title="No per-station breakdown exists yet for this specific species — this is every station with any ${datasetLabelFor(v)} data, not necessarily stations where this species was actually recorded.">Dataset-Wide</span>`;
+    }
+    return '';
+  }
+  // Measurement-type parameter: skip this note when another note already
+  // covers the same ground — "(dataset span)" for aggregate datasets, or
+  // "(all years)" when there's no year breakdown at all.
+  if (!yearAware || isAggregateSpan) return '';
+  return ` — <span class="banner-note" title="${datasetLabelFor(v)} doesn't track year coverage per individual parameter — this is the whole dataset's operating span.">Dataset-Wide</span>`;
 }
 // The pooled equivalent of "Collected at N stations". Degrades to the original
 // explanation-only wording when regions.json is absent.
@@ -3866,41 +4101,161 @@ function regionPanelBreakdown(v) {
   }).join('');
   return rows ? `<div class="region-breakdown">${rows}</div>` : '';
 }
+// External-link icon (e.g. before "AphiaID ####" in the WoRMS field) -
+// shared wherever variableInfoFieldsHtml is rendered (feedback 2026-08-22:
+// "better match image 2" - icon instead of a plain underlined link).
+const EXTERNAL_LINK_ICON = '<svg class="varinfo-ext-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>';
+// Dataset/Description/Units/WoRMS fields, shared by the no-station side
+// panel (showVariablePanel) and the station-open species view
+// (speciesStationInfoHtml) so the two views never drift out of sync. The
+// station-count/fallback/pooled note is built separately by each caller,
+// since only showVariablePanel needs the pooled-regions branch.
+function variableInfoFieldsHtml(v, opts) {
+  opts = opts || {};
+  const spacer = opts.spacer || '<br>';
+  const countClass = opts.countClass || 'panel-station-count';
+  const fallbackClass = opts.fallbackClass || 'panel-fallback-note';
+  // includeCount: false lets a caller (showVariablePanel) render the count/
+  // fallback lines itself, merged into its own note box alongside the
+  // "click a station" hint, instead of getting them as separate free-
+  // floating lines here (feedback 2026-08-22: station count + hint
+  // consolidated into one box).
+  const includeCount = opts.includeCount !== false;
+  const stationCount = stationsForVar(v).size;
+  const rawDesc = descriptionFor(v, displayLabel(v)) || v.description || 'No description available.';
+  const desc = rawDesc === 'No description available.' ? `<span class="panel-desc-placeholder">${rawDesc}</span>` : rawDesc;
+  const datasetLine = `<b>Dataset:</b> ${datasetLabelFor(v)}${spacer}`;
+  const countLine = `<span class="${countClass}">Collected at ${stationCount} station${stationCount === 1 ? '' : 's'}</span>`;
+  const fallbackLine = !stationsForVarIsFallback(v) ? '' : `<span class="${fallbackClass}">No per-station breakdown exists yet for this species — this count is every station with any ${datasetLabelFor(v)} data, not confirmed sightings of this species specifically.</span>`;
+  return `${datasetLine}
+      <b>Description:</b> ${desc}${spacer}
+      ${v.units ? `<b>Units:</b> ${v.units}${spacer}` : ''}
+      ${v.aphia_id ? `<b>WoRMS:</b> <a target="_blank" rel="noopener" href="https://www.marinespecies.org/aphia.php?p=taxdetails&id=${v.aphia_id}" class="varinfo-ext-link">${EXTERNAL_LINK_ICON}AphiaID ${v.aphia_id}</a>${spacer}` : ''}
+      ${includeCount ? countLine : ''}
+      ${includeCount ? fallbackLine : ''}`;
+}
+function variableSourceUrl(v) {
+  return (v.dataset_key === 'swfsc_ichthyo' && ZOOPLANKTON_VOLUME_FIELDS.has(v.name))
+    ? datasetUrlFor('sio_pic-zooplankton')
+    : (v.source && (v.source.access_url || v.source.metadata_url)) || datasetUrlFor(v.dataset_key);
+}
+// Per-station observation years for the currently-selected taxon, using the
+// same aphia_id-then-name key priority as stationsForVar()/
+// stationsForVarIsYearAware() above, so this can never disagree with the
+// count/highlight logic about which taxon-coverage entry applies.
+function selectedTaxonYearsAt(gridKey) {
+  const v = selectedVar;
+  if (!v || v.variable_type !== 'taxon') return null;
+  const key = taxonLookupKey(v);
+  const years = key && TAXON_YEARS[key] && TAXON_YEARS[key][gridKey];
+  return years && years.length ? years.slice().sort((a, b) => a.y - b.y) : null;
+}
+// Merged "N stations collected" + "observed at this station in: years" note
+// for the station-open species view - one bordered box (feedback
+// 2026-08-22: option B over option C, "keep the outline").
+function speciesStationNoteHtml(v, s) {
+  const stationCount = stationsForVar(v).size;
+  const fallbackNote = !stationsForVarIsFallback(v) ? '' : `<span class="spinfo-note-fallback">No per-station breakdown exists yet for this species — this count is every station with any ${datasetLabelFor(v)} data, not confirmed sightings of this species specifically.</span>`;
+  const years = selectedTaxonYearsAt(s.grid_key);
+  // One flowing line/paragraph rather than a label line + a separate years
+  // line — reads as a sentence instead of a label:value pair (feedback
+  // 2026-08-22: "instead of separate line"). Only the year itself is
+  // bold/accent-colored; the "(×N)" repeat count and the comma separators
+  // between years are both muted so they don't compete with the year for
+  // attention (feedback 2026-08-22: "does orange commas make sense").
+  const yearsBlock = !years ? '' : `<span class="spinfo-note-years">
+      <span class="spinfo-note-years-label">${resolvedPlainLabel(v)} observed at this station in: </span>${years.map(o => {
+        const yr = `<span class="spinfo-note-years-year">${o.y}</span>`;
+        return o.n > 1 ? `${yr} <span class="spinfo-note-years-count">(×${o.n})</span>` : yr;
+      }).join(', ')}
+    </span>`;
+  return `<div class="spinfo-note">
+      <span class="spinfo-note-count">Collected at ${stationCount} station${stationCount === 1 ? '' : 's'}</span>
+      ${fallbackNote}
+      ${yearsBlock}
+    </div>`;
+}
+// Species-focused panel content once a specific (non-pooled) parameter is
+// selected while a station is open - replaces the Overview/Depth Profiles
+// tab bar and the coverage-card list entirely (feedback 2026-08-22: "do not
+// need overview and depth and coverage").
+function speciesStationInfoHtml(v, s) {
+  const src = variableSourceUrl(v);
+  return `<div class="spinfo">
+      <div class="spinfo-rule"></div>
+      <div class="spinfo-title">${resolvedLabel(v)}</div>
+      <div class="spinfo-body">
+        ${variableInfoFieldsHtml(v, { spacer: '<br>', includeCount: false })}
+      </div>
+      ${speciesStationNoteHtml(v, s)}
+      ${src ? `<a href="${src}" target="_blank" rel="noopener" class="spinfo-open-btn">Open Dataset ↗</a>` : ''}
+      <a href="#" onclick="viewFullStationCoverage(); return false;" class="spinfo-full-link">View Full Station Coverage — All Parameters →</a>
+    </div>`;
+}
+// Escape hatch from the species-focused view back to the normal tabbed
+// coverage view for this same station - clears the species selection
+// (search, banner, slider lock) and re-opens the station fresh.
+function viewFullStationCoverage() {
+  selectedVar = null;
+  document.getElementById('clear-btn').classList.remove('visible');
+  document.getElementById('year-slider').classList.remove('var-active');
+  if (G_MIN != null) { lockYearRange(G_MIN, G_MAX); setYearRange(G_MIN, G_MAX); }
+  const banner = document.getElementById('search-banner');
+  banner.style.display = 'none'; banner.innerHTML = '';
+  searchInput.value = '';
+  dropdown.classList.remove('open');
+  applyStyles();
+  openStation(currentStation);
+}
 function showVariablePanel(v) {
-  const meta = dsMeta(v.dataset_key);
+  if (currentStation) {
+    // Reached by clicking a parameter inside an already-open station's list,
+    // or by searching while a station's already open — re-opening the
+    // station re-evaluates selectedVar and switches it to the species-
+    // focused view (see openStation), dropping the tab bar entirely rather
+    // than just swapping the Overview tab's content.
+    openStation(currentStation);
+    return;
+  }
   // A region-pooled dataset has no station count to give, and no station to send
   // anyone clicking to — so it gets the explanation instead of a bare "0", and
   // every prompt to pick a station off the map is suppressed rather than
   // pointing at a map with nothing highlighted.
   const pooled = isRegionPooled(v.dataset_key);
+  // No station open yet — the side panel is free, so species info goes
+  // there in full. Reuses the same name/sci-name/rule header treatment and
+  // spinfo-* body styling as the station-open species view (speciesStationInfoHtml)
+  // so the two never drift apart visually (feedback 2026-08-22: "better
+  // match [the station-open look] instead of [the old plain layout]").
   document.getElementById('panel-empty').style.display = 'none';
   document.getElementById('panel-header').style.display = 'block';
+  document.getElementById('panel-header').classList.add('panel-header-flush');
   updateBackButton();
-  document.getElementById('panel-station-id').textContent = resolvedPlainLabel(v);
-  document.getElementById('panel-coords').textContent = pooled
-    ? 'Pooled across stations into 4 regions'
-    : 'Select a highlighted station';
-  document.getElementById('panel-depth-summary').innerHTML = '';
-  document.getElementById('compare-control').style.display = 'none';
+  const { main, sci } = speciesTitleParts(v);
+  document.getElementById('panel-station-id').innerHTML = main || sci || '';
+  document.getElementById('panel-coords').innerHTML = (main && sci)
+    ? `<i>${sci}</i>`
+    : (pooled ? 'Pooled across stations into 4 regions' : '');
+  document.getElementById('panel-depth-summary').innerHTML = '<div class="varinfo-rule"></div>';
+  const src = variableSourceUrl(v);
   const stationCount = stationsForVar(v).size;
-  const desc = descriptionFor(v, displayLabel(v)) || v.description || 'No description available.';
-  const src = (v.dataset_key === 'swfsc_ichthyo' && ZOOPLANKTON_VOLUME_FIELDS.has(v.name))
-    ? datasetUrlFor('sio_pic-zooplankton')
-    : (v.source && (v.source.access_url || v.source.metadata_url)) || datasetUrlFor(v.dataset_key);
+  const fallbackNote = !stationsForVarIsFallback(v) ? '' : `<span class="spinfo-note-fallback">No per-station breakdown exists yet for this species — this count is every station with any ${datasetLabelFor(v)} data, not confirmed sightings of this species specifically.</span>`;
+  const noteInner = pooled
+    ? `<span class="spinfo-note-count">${regionPanelCount(v)}</span>
+       <span class="spinfo-note-fallback">${POOLED_WHY}</span>
+       ${regionPanelBreakdown(v)}`
+    : `<span class="spinfo-note-count">${stationCount} station${stationCount === 1 ? '' : 's'} collected</span>
+       ${fallbackNote}
+       <span class="spinfo-note-hint">Click a highlighted station on the map to view year(s) this species was observed.</span>`;
   document.getElementById('panel-content').innerHTML = `
     <div class="panel-info-block">
-      <b>Dataset:</b> ${datasetLabelFor(v)}<br><br>
-      <b>Description:</b> ${desc}<br><br>
-      ${v.units ? `<b>Units:</b> ${v.units}<br><br>` : ''}
-      ${v.aphia_id ? `<b>WoRMS:</b> <a target="_blank" rel="noopener" href="https://www.marinespecies.org/aphia.php?p=taxdetails&id=${v.aphia_id}">AphiaID ${v.aphia_id}</a><br><br>` : ''}
-      ${pooled
-        ? `<span class="panel-station-count">${regionPanelCount(v)}</span>
-           <span class="panel-fallback-note">${POOLED_WHY}</span>
-           ${regionPanelBreakdown(v)}`
-        : `<span class="panel-station-count">Collected at ${stationCount} station${stationCount === 1 ? '' : 's'}</span>
-           ${stationsForVarIsFallback(v) ? `<span class="panel-fallback-note">No per-station breakdown exists yet for this species — this count is every station with any ${datasetLabelFor(v)} data, not confirmed sightings of this species specifically.</span>` : ''}`}
-      ${pooled ? '' : '<span class="panel-hint">Click a highlighted station on the map to open its full coverage.</span>'}
-      ${src ? `<a href="${src}" target="_blank" rel="noopener" class="panel-open-dataset-btn">Open Dataset ↗</a>` : ''}
+      <div class="spinfo-body">
+        ${variableInfoFieldsHtml(v, { spacer: '<br>', includeCount: false })}
+      </div>
+      <div class="spinfo-note">
+        ${noteInner}
+      </div>
+      ${src ? `<a href="${src}" target="_blank" rel="noopener" class="spinfo-open-btn">Open Dataset ↗</a>` : ''}
     </div>`;
 }
 
@@ -3918,10 +4273,11 @@ function clearAll() {
   banner.style.display = 'none'; banner.innerHTML = '';
   applyStyles();
   document.getElementById('panel-header').style.display = 'none';
+  document.getElementById('panel-header').classList.remove('panel-header-flush');
   document.getElementById('panel-back-btn').style.display = 'none';
   document.getElementById('panel-content').innerHTML = '';
   document.getElementById('panel-empty').style.display = '';
-  if (compareMode) toggleCompareMode();
+  if (compareMode) exitCompareMode();
 }
 function togglePanel() { document.getElementById('side-panel').classList.toggle('collapsed'); }
 function showAboutModal() { document.getElementById('about-backdrop').classList.add('open'); }
@@ -3992,14 +4348,22 @@ let tourStepIndex = 0;
 // data so the Depth Profiles tab step has something behind it too.
 const WALKTHROUGH_STEPS = [
   { selector: '#search', title: 'Search', body: 'Type a common or scientific name — "chlorophyll", "nitrate", "Sardinops sagax" — results are grouped by category in the search bar dropdown. When a parameter comes from more than one dataset, like Temperature, you\'ll see multiple source options — click one to view its coverage.' },
-  { selector: '.inventory-view-tabs', title: 'By Category vs. By Dataset', body: 'Use By Category when you know what you\'re looking for — if something is measured by more than one instrument, those readings are grouped together in a dropdown. Use By Dataset to see what parameters a specific dataset monitors.', offsetX: -20 },
+  { selector: '.inventory-view-tabs', title: 'By Category vs. By Dataset',
+    // .inventory-view-tabs only exists in the default browse view (no
+    // station/species open) — starting the tour from any other pane meant
+    // renderTourStep() found no target and silently skipped this step
+    // entirely (feedback 2026-08-22: "has nowhere to go"). clearAll() forces
+    // back to that browse view first so the highlight always has something
+    // to point at, no matter which pane the tour was launched from.
+    before: () => clearAll(),
+    body: 'Use By Category when you know what you\'re looking for — if something is measured by more than one instrument, those readings are grouped together in a dropdown. Use By Dataset to see what parameters a specific dataset monitors.', offsetX: -20 },
   { selector: '#map', title: 'Click any station', body: 'Click any station to open its full coverage: every dataset measured there, its date range, and depth profiles for each variable, where available.', placement: 'corner-top-right', offsetY: -50,
     highlightPadTop: 3, highlightPadRight: 0, highlightPadLeft: -4, highlightPadBottom: -3 },
   { selector: '.ds-card', title: 'Station overview', body: "Click any card to enlarge it. Each one shows a dataset's date range, depth range, and the number of surveys and individual measurements across time.",
     before: () => openTourExampleStation(), placement: 'left', highlightOffsetX: 2 },
   { selector: '.ds-download-group', title: 'Download PNG vs. CSV', body: "PNG downloads the card itself as an image, just what you see. CSV downloads the underlying data — broken out by parameter(s), where that's available for the dataset — as a spreadsheet-ready file instead of a picture.",
     before: () => openTourExampleStation(), placement: 'left' },
-  { selector: '#year-slider', title: 'Year slider', body: "Spans CalCOFI's full record by default. Selecting a parameter narrows the slider to when that parameter was actually measured.",
+  { selector: '#year-slider', title: 'Year slider', body: "Spans CalCOFI's full record by default. Selecting a parameter narrows the slider to when that parameter was actually measured. Drag either handle to see how station coverage changes over time for a selected parameter.",
     offsetY: 40, highlightPadX: -17 },
   { selector: '.panel-tab[data-tab="depth"]', title: 'Depth Profiles', body: "Shows how each variable actually changes with depth at this station, plus a seafloor line from GEBCO bathymetry where available — GEBCO is a modeled estimate, not a direct sounding, so small mismatches with the sampled depth are expected.",
     before: () => { openTourExampleStation(); const btn = document.querySelector('.panel-tab[data-tab="depth"]'); if (btn && !btn.classList.contains('active')) btn.click(); },
@@ -4012,7 +4376,7 @@ const WALKTHROUGH_STEPS = [
     // is visible and measurable again.
     before: () => { const btn = document.querySelector('.panel-tab[data-tab="overview"]'); if (btn && !btn.classList.contains('active')) btn.click(); },
     placement: 'corner-top-right', offsetY: -50, calloutAnchorSelector: '#map' },
-  { selector: '#compare-toggle-btn', title: 'Compare Stations', body: 'A different way to compare: click here to start, then select stations three ways — click individual stations directly, draw a freehand lasso around a group, or type a CalCOFI line number to grab every station on that line. Then generate one averaged coverage card per dataset across your whole selection.',
+  { selector: '.panel-tab[data-tab="compare"]', title: 'Compare Stations', body: 'A different way to compare: click this tab to start, then select stations three ways — click individual stations directly, draw a freehand lasso around a group, or type a CalCOFI line number to grab every station on that line. Then generate one averaged coverage card per dataset across your whole selection.',
     before: () => openTourExampleStation(), placement: 'left' },
 ];
 // Whether THIS tour run opened the example station itself. Only then is the

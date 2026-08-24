@@ -86,8 +86,8 @@ COPY (
          -- declares none, so app.js falls back rather than breaking.
          dataset_name_short, category, color,
          coalesce(
-           -- Three datasets whose release link fields cannot yield a usable
-           -- page. Every one is a bug at the source, in the ingest notebook's
+           -- Four datasets whose release link fields cannot yield the page we
+           -- want. Every one is a bug at the source, in the ingest notebook's
            -- `calcofi:` YAML in CalCOFI/workflows; delete the arm as each is
            -- fixed and a release carrying the fix is cut.
            CASE dataset_key
@@ -103,6 +103,16 @@ COPY (
              -- hardcoded map used before this file existed.
              WHEN 'swfsc_ichthyo'
                THEN 'https://oceanview.pfeg.noaa.gov/erddap/tabledap/erdCalCOFItows.html'
+             -- link_data_source is the Datazoo catalog page, which still
+             -- answers 200 but is on its way out — the maintained access point
+             -- is the PFEG ERDDAP table ('CalCOFI Farallon Institute Seabirds:
+             -- Observations'), per the 2026-08 CalCOFI feedback round (PR #15).
+             -- Same dataset is also served at coastwatch.pfeg.noaa.gov, but
+             -- that host was unreachable outright when checked (2026-08-24),
+             -- so this points at oceanview — the host the swfsc_ichthyo arm
+             -- above already relies on.
+             WHEN 'farallon_bird-mammal'
+               THEN 'https://oceanview.pfeg.noaa.gov/erddap/tabledap/CAC_FI_SBAS_obs.html'
            END,
            page_link(link_data_source),
            page_link(link_calcofi_org),

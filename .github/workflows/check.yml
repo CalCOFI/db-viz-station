@@ -32,6 +32,13 @@ jobs:
       - name: Data contract (generated JSON vs what app.js indexes on)
         run: python3 scripts/check_data_contract.py
 
+      # build_stations_local.sql is a deliberate copy of build_stations.sql
+      # (different grid derivation for a WDAC-locked dev machine); everything
+      # from the obs table down must stay identical or the two machines build
+      # different data. Comments may differ; SQL may not.
+      - name: build_stations_local.sql mirrors build_stations.sql
+        run: python3 scripts/check_local_variant.py
+
       - name: app.js parses
         run: node --check public/app.js
 

@@ -105,6 +105,13 @@ cross-file joins. **When you change a build script's SELECT list or an `app.js` 
 change the contract too** — and if a column you add isn't in the contract, it isn't
 protected.
 
+`scripts/check_local_variant.py` (also run by `check.yml`) guards the other
+silent split: `build_stations_local.sql` is a deliberate copy of
+`build_stations.sql` (different `grid` derivation for a WDAC-locked dev
+machine), and everything from the `obs` table down must stay identical or the
+two machines build different data — the check compares the SQL comment-stripped
+and fails on drift, so apply changes below the grid table to both files.
+
 `metadata/crosswalk_report.qmd` renders to `public/data/crosswalk_report.html` via Quarto
 (`quarto::quarto_render()`), reading the two `crosswalk_*.csv` files.
 

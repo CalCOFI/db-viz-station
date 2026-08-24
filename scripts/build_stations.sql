@@ -27,6 +27,12 @@
 -- the join key here and in app.js's TAXON_STATIONS lookup — everything else
 -- stays the same.
 --
+-- build_stations_local.sql is a deliberate copy of this file with a different
+-- `grid` derivation (see its header for why it exists). Everything from the
+-- `obs` table down must stay IDENTICAL between the two, and
+-- scripts/check_local_variant.py (run by check.yml) fails the build when it
+-- is not — a change below the grid table goes in BOTH files.
+--
 -- Run from the repo root (needs the `duckdb` CLI + network to public GCS):
 --   duckdb -c ".read scripts/build_stations.sql"
 --

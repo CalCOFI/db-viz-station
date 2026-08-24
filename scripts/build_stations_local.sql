@@ -20,6 +20,11 @@
 -- (via CI, or locally with spatial working) at least once to refresh it —
 -- so don't rely on this file to pick up a grid change, only a coverage one.
 --
+-- The mirroring is enforced: scripts/check_local_variant.py (run by check.yml)
+-- compares everything from the `obs` table down, comment-stripped, and fails
+-- the build if this file and build_stations.sql disagree — apply any change
+-- below the grid table to both files.
+--
 -- Everything below is unchanged from build_stations.sql's own header:
 --
 -- Stations ARE the integrated-DB `grid` table (regularized CalCOFI station grid,

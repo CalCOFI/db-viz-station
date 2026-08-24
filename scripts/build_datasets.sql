@@ -111,6 +111,10 @@ COPY (
              -- that host was unreachable outright when checked (2026-08-24),
              -- so this points at oceanview — the host the swfsc_ichthyo arm
              -- above already relies on.
+             -- FIXED UPSTREAM 2026-08-24 (CalCOFI/workflows ba482d5: the
+             -- ingest's link_data_source now carries this same URL): delete
+             -- this arm once a release cut after that date ships and
+             -- dataset.parquet's link_data_source shows the ERDDAP URL.
              WHEN 'farallon_bird-mammal'
                THEN 'https://oceanview.pfeg.noaa.gov/erddap/tabledap/CAC_FI_SBAS_obs.html'
            END,

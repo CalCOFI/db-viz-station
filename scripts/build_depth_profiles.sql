@@ -61,6 +61,18 @@ COPY (
     AND o.depth_min_m IS NOT NULL
     AND o.depth_min_m = o.depth_max_m        -- true point depth only, not a tow range
     AND o.measurement_value IS NOT NULL
+    -- QUALITY FLAGS. measurement_qual carries each dataset's own vocabulary
+    -- (bottle/CTD: 8 = suspect/questionable, 9 = missing/bad; DIC WOCE: 3 = questionable,
+    -- 4 = bad, 9 = missing) and this build averaged every flagged value in with the
+    -- rest: the 2.18 ml/L oxygen spike at 1,144 m on station 080.0 160.0 that Ralf
+    -- Goericke reported in Aug 2026 had been O_qual = 8 in the bottle database since
+    -- 1955. NULL-safe (an unflagged row is kept); bottle codes were written "8.0"
+    -- through v2026.08.14. Same predicate as calcofi4r::cc_qual_ok_sql() /
+    -- calcofi4py.qual_ok_sql(); vocabulary in workflows/metadata/measurement_qual.csv.
+    AND COALESCE(NOT (
+          (o.dataset_key IN ('calcofi_bottle', 'calcofi_ctd-cast')
+             AND regexp_replace(o.measurement_qual, '\.0+$', '') IN ('8', '9'))
+       OR (o.dataset_key = 'calcofi_dic' AND o.measurement_qual IN ('3', '4', '9'))), TRUE)
   GROUP BY o.dataset_key, gs.station_id, o.measurement_type, ROUND(o.depth_min_m / 5) * 5
   HAVING COUNT(*) >= 1
   ORDER BY dataset_key, station_id, variable_name, depth_m

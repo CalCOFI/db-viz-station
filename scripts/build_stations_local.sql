@@ -25,8 +25,9 @@
 -- Stations ARE the integrated-DB `grid` table (regularized CalCOFI station grid,
 -- derived from calcofi4r::cc_grid). For each grid cell x dataset it summarizes:
 -- time min/max, depth min/max, #observations, #samples, #surveys (distinct
--- cruises) plus the actual cruises behind that count (cruise_key/date/ship —
--- see cov_cruises below), and per-year (overall) and per-month (seasonal)
+-- cruises) plus the actual cruises behind that count (cruise_key lists — see
+-- cov_cruises below; each cruise's date/ship lives once in the companion
+-- public/data/cruises.json), and per-year (overall) and per-month (seasonal)
 -- histograms.
 --
 -- Also writes public/data/taxon_coverage.json — per-(station, taxon) coverage,
@@ -114,20 +115,27 @@ GROUP BY o.cruise_key, s.ship_name;
 -- sample lat/lon rather than this app's regularized grid, and can be missing
 -- historical/off-grid stations entirely (e.g. line/station 080.0 160.0), so
 -- the list is carried directly in stations.json instead.
+--
+-- Bare cruise_key strings, not structs — date/ship live once per cruise in
+-- cruises.json (COPY of cruise_ref below); see build_stations.sql for the
+-- size numbers behind the split.
 CREATE TEMP TABLE gdc AS
 SELECT DISTINCT grid_key, dataset_key, cruise_key
 FROM obs WHERE cruise_key IS NOT NULL;
 
 CREATE TEMP TABLE cov_cruises AS
 SELECT gdc.grid_key, gdc.dataset_key,
-       list(struct_pack(
-         cruise_key := gdc.cruise_key,
-         date_min   := cr.date_min,
-         ship_name  := cr.ship_name)
-         ORDER BY cr.date_min, gdc.cruise_key) AS cruises
+       list(gdc.cruise_key ORDER BY cr.date_min, gdc.cruise_key) AS cruises
 FROM gdc
 LEFT JOIN cruise_ref cr USING (cruise_key)
 GROUP BY gdc.grid_key, gdc.dataset_key;
+
+-- the one-row-per-cruise side of the split above (see build_stations.sql).
+COPY (
+  SELECT cruise_key, date_min, ship_name
+  FROM cruise_ref
+  ORDER BY date_min, cruise_key
+) TO 'public/data/cruises.json' (FORMAT JSON, ARRAY true);
 
 -- per (grid_key, dataset_key) coverage; clamp sentinel/absurd depths (e.g. -888)
 CREATE TEMP TABLE cov AS

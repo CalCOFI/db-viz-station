@@ -94,7 +94,8 @@ jobs:
           # scripts write but this line omits is regenerated into the runner and
           # silently discarded, leaving the committed copy to drift from the rest
           # (taxon_coverage.json did exactly that when it was first added).
-          git add public/data/stations.json public/data/variables.json public/data/decades.json \
+          git add public/data/stations.json public/data/cruises.json public/data/variables.json \
+                  public/data/decades.json \
                   public/data/taxon_coverage.json.gz public/data/depth_profiles.json.gz \
                   public/data/datasets_meta.json public/data/regions.json public/data/version.json \
                   metadata/crosswalk_variables.csv

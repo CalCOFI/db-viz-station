@@ -55,6 +55,12 @@ CONTRACT = {
         "keys": {"dataset_key", "station_id", "decade"},
         "optional": True,
     },
+    # one row per cruise; the lookup side of the bare cruise_key lists nested in
+    # stations.json datasets[].cruises (surveysExpandBlock joins via CRUISE_REF)
+    "cruises.json": {
+        "keys": {"cruise_key", "date_min", "ship_name"},
+        "optional": True,
+    },
     "bottle_cast_coverage.json": {
         "keys": {"grid_key", "subset"},
         "optional": True,
@@ -173,6 +179,31 @@ def main():
                 f"{type(g).__name__}, not a GeoJSON object — L.geoJSON() will throw"
             )
             break
+
+    # stations.json nests bare cruise_key strings (datasets[].cruises); each must
+    # resolve in cruises.json or surveysExpandBlock renders "—" for its date/ship.
+    # Same silent-miss class as JOINS, but the source key lives two levels down in
+    # a list of scalars, which the row-shaped JOINS loop cannot express.
+    if "stations.json" in loaded and "cruises.json" in loaded:
+        known = {r.get("cruise_key") for r in loaded["cruises.json"]}
+        used = {
+            ck
+            for s in loaded["stations.json"]
+            for d in (s.get("datasets") or [])
+            for ck in (d.get("cruises") or [])
+        }
+        if used and not any(isinstance(ck, str) for ck in used):
+            errors.append(
+                "stations.json: datasets[].cruises[] entries are not strings — "
+                "app.js indexes CRUISE_REF by bare cruise_key"
+            )
+        orphans = used - known
+        if orphans:
+            sample = sorted(str(o) for o in orphans)[:5]
+            errors.append(
+                f"stations.json: {len(orphans)} nested cruise_key(s) absent from "
+                f"cruises.json, e.g. {sample}"
+            )
 
     for src, src_key, dst, dst_key in JOINS:
         if src not in loaded or dst not in loaded:

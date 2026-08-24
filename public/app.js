@@ -672,6 +672,13 @@ const TAXON_STATIONS = {};
 // same whole-dataset numbers. Empty until/unless that file exists; falls
 // back to the shared coverage record when a station has no entry here.
 const TAXON_YEARS = {};
+// cruise_key -> {cruise_key, date_min, ship_name} from the optional
+// cruises.json — the one-row-per-cruise side of the stations.json cruise
+// lists, which carry bare cruise_key strings so that ~980 cruises are not
+// re-serialized into every one of the ~76,000 (station, dataset, cruise)
+// tuples (see cov_cruises in scripts/build_stations.sql). Empty until/unless
+// that file exists; surveysExpandBlock() renders "—" for date/ship then.
+const CRUISE_REF = {};
 // "grid_key::subset" -> coverage row (subset is 'calcofi_bottle_hydro' or
 // 'calcofi_bottle_cast') from the optional bottle_cast_coverage.json — real
 // per-subset date range/depth/year-month bars for the split Bottle/Cast
@@ -870,8 +877,13 @@ loadDataVersion().then(() => Promise.all([
   // (scripts/build_regions.sql, release v2026.08.14+). Optional and additive
   // like the rest — absent means pooled datasets fall back to the map staying
   // neutral, which is what they did before this file existed.
-  fetch(dataUrl('regions.json')).then(r => r.ok ? r.json() : []).catch(() => [])
-])).then(([st, va, dm, tc, bc, bathy, dsMetaRows, rg]) => {
+  fetch(dataUrl('regions.json')).then(r => r.ok ? r.json() : []).catch(() => []),
+  // cruises.json: one row per cruise (cruise_key, date_min, ship_name) — the
+  // lookup side of the per-dataset cruise_key lists in stations.json (see
+  // CRUISE_REF above). Optional and additive like the rest — absent just
+  // means the surveys expand list shows "—" for each cruise's date/ship.
+  fetch(dataUrl('cruises.json')).then(r => r.ok ? r.json() : []).catch(() => [])
+])).then(([st, va, dm, tc, bc, bathy, dsMetaRows, rg, crz]) => {
   STATIONS = st; VARS = va;
   // Regions are indexed exactly like taxon_coverage: `dataset_key::aphia_id`,
   // because a pooled dataset's variables are taxa and variables.json keys them
@@ -905,6 +917,7 @@ loadDataVersion().then(() => Promise.all([
     if (r.years) (TAXON_YEARS[k] ||= {})[r.grid_key] = r.years;
   });
   (bc || []).forEach(r => { BOTTLE_CAST_COV[r.grid_key + '::' + r.subset] = r; });
+  (crz || []).forEach(r => { CRUISE_REF[r.cruise_key] = r; });
   const bathyByKey = {};
   (bathy || []).forEach(r => { bathyByKey[r.grid_key] = r.bathymetry_depth_m; });
   STATIONS.forEach(s => {
@@ -3226,11 +3239,16 @@ function surveysToggleBtn(cruises) {
 }
 function surveysExpandBlock(cruises) {
   if (!cruises || !cruises.length) return '';
-  const rows = cruises.map(c => `<li class="ds-survey-row">
+  // `cruises` is a list of bare cruise_key strings (stations.json); each
+  // cruise's date/ship comes from CRUISE_REF (cruises.json) at render time.
+  const rows = cruises.map(k => {
+    const c = CRUISE_REF[k] || {};
+    return `<li class="ds-survey-row">
       <span class="ds-survey-date">${ym(c.date_min)}</span>
       <span class="ds-survey-ship">${c.ship_name || '—'}</span>
-      <span class="ds-survey-key">${c.cruise_key}</span>
-    </li>`).join('');
+      <span class="ds-survey-key">${k}</span>
+    </li>`;
+  }).join('');
   return `<div class="ds-surveys-expand"><ul class="ds-surveys-list">${rows}</ul></div>`;
 }
 function datasetCard(d, opts) {

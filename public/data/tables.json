@@ -1,22 +1,36 @@
 {
  "version": "v2026.08.25",
- "layout": "legacy",
+ "layout": "canonical",
  "tables": {
   "obs": {
    "urls": [
-    "gs://calcofi-db/ducklake/releases/v2026.08.25/parquet/obs/**/*.parquet"
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_bottle/20548efac1bae8f1e05e7176/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_ctd-cast/289cd370d793e56e0f98ad92/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_dic/556bd7177a22e6b84085283e/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_mets/6c8116516fed4f0059274612/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_phyllosoma/286a2994473f95991f4531a3/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_phytoplankton/7be744606574c69a28ce73ba/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=cce-lter_euphausiids/eb06f688035ebc51fe036938/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=cce-lter_picoplankton-bacteria/bfff0b257acfaa17b604403e/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=cce-lter_zoodb/eea6422d45a7ccd2ebbe37a6/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=cce-lter_zooscan/f6790f71456c169811c2e523/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=cdfw_dungeness-crab/97033b40c8c2a338e2d26c9e/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=farallon_bird-mammal/06e6cf44012587f2a6c04189/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=sio_mesopelagic-fish/91101ef3d3e31a706181e709/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=swfsc_cufes/e9f25ef6cc2cb5b67775932a/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=swfsc_ichthyo/9cb6dccdb09d5779854f6f8e/data_0.parquet"
    ],
    "hive": true,
-   "canonical": false,
-   "partition_by": null,
-   "single_file": "https://storage.googleapis.com/calcofi-db/ducklake/releases/v2026.08.25/parquet/obs.parquet"
+   "canonical": true,
+   "partition_by": "dataset_key",
+   "single_file": "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/cab10a850ca898f3ec386de7/obs.parquet"
   },
   "taxon": {
    "urls": [
-    "https://storage.googleapis.com/calcofi-db/ducklake/releases/v2026.08.25/parquet/taxon.parquet"
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/taxon/45ae7f809e5971112fa7df0c/taxon.parquet"
    ],
    "hive": false,
-   "canonical": false,
+   "canonical": true,
    "partition_by": null,
    "single_file": null
   }

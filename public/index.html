@@ -2,6 +2,24 @@
 <html lang="en">
 
 <head>
+<!-- Canonical home is https://app.calcofi.io/station/ (2026-08-25 naming
+     pass). This same build also reaches browsers from the old GitHub Pages
+     path (calcofi.io/db-viz-station/) and the static mirror
+     (static.calcofi.io/db-viz-station/), and neither host can send a real
+     redirect — Pages has no server config and the mirror shares this file —
+     so the bounce happens here, first thing, before GA or any asset loads.
+     Subpath, query string, and hash all survive. Exact host+path match only:
+     localhost, previews, forks, and the canonical host itself never bounce. -->
+<script>
+  (function () {
+    var m = { "calcofi.io": 1, "static.calcofi.io": 1 };
+    if (m[location.hostname] && location.pathname.indexOf("/db-viz-station") === 0) {
+      location.replace("https://app.calcofi.io/station"
+        + location.pathname.slice("/db-viz-station".length)
+        + location.search + location.hash);
+    }
+  })();
+</script>
 <!-- Google tag (gtag.js) — CalCOFI site property.
      GENERATED/COPIED from CalCOFI/analytics → snippets/gtag-site.html.
      Change only db-viz-station; keep the rest byte-identical across sites so
@@ -32,7 +50,7 @@
 
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CalCOFI Data Finder</title>
+  <title>CalCOFI Station Explorer</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link
@@ -58,7 +76,7 @@
     <header>
       <div class="logo">
         <span class="logo-title">CalCOFI</span>
-        <span class="logo-sub">Data Finder</span>
+        <span class="logo-sub">Station Explorer</span>
       </div>
     </header>
 
@@ -168,7 +186,7 @@
 
       <div class="about-header">
         <hgroup>
-          <h2>About CalCOFI Data Finder</h2>
+          <h2>About CalCOFI Station Explorer</h2>
           <p style="font-size: 12px;"><i>This app is better suited for viewing on a computer, mobile displays are not
               fully supported.</i></p>
         </hgroup>
@@ -187,7 +205,7 @@
         <p id="about-data-version" class="about-data-version" style="display:none"></p>
 
         <p>
-          CalCOFI Data Finder is a data
+          CalCOFI Station Explorer is a data
           discovery tool built by <a href="http://linkedin.com/in/ben-best" target="_blank">Ben Best</a> and
           <a href="https://www.linkedin.com/in/betty-huang-0aa57a201/" target="_blank">Betty Huang</a>, under the
           direction of <a href="https://www.linkedin.com/in/erin-satterthwaite-309a79164/" target="_blank">Dr. Erin
@@ -198,7 +216,7 @@
         </p>
 
         <p>
-          The Data Finder aggregates metadata across CalCOFI's integrated
+          The Station Explorer aggregates metadata across CalCOFI's integrated
           release database &mdash; 12 datasets spanning physical
           oceanography, nutrients and carbonate chemistry, phytoplankton
           and zooplankton, fish larvae and eggs, and seabirds and marine

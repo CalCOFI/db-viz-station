@@ -1,4 +1,4 @@
-# CalCOFI Data Finder
+# CalCOFI Station Explorer
 
 An interactive map-based tool for exploring oceanographic and marine ecosystem data collected at CalCOFI stations along the California coast.
 

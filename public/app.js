@@ -1,8 +1,22 @@
 
-// ---- map (dark basemap, matching calcofi.io/db-schema palette) ----
+// ---- theme (brand/v1/theme.js sets <html data-theme>; dark is the default) ----
+const ccThemeNow = () =>
+  (window.ccTheme ? ccTheme.get() : document.documentElement.dataset.theme) === 'light' ? 'light' : 'dark';
+// a css custom property as currently themed — read at use, never cached
+const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+// ---- map (CARTO basemap in the theme's shade) ----
+const basemapUrl = theme =>
+  `https://{s}.basemaps.cartocdn.com/${theme === 'light' ? 'light_all' : 'dark_all'}/{z}/{x}/{y}{r}.png`;
+const basemap = L.tileLayer(basemapUrl(ccThemeNow()), {
+  attribution: '© OpenStreetMap · © CARTO', subdomains: 'abcd', maxZoom: 19, crossOrigin: true });
 const map = L.map('map', { center: [32.8, -120.2], zoom: 6, worldCopyJump: true })
-  .addLayer(L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution: '© OpenStreetMap · © CARTO', subdomains: 'abcd', maxZoom: 19, crossOrigin: true }));
+  .addLayer(basemap);
+document.addEventListener('cc:theme', e => {
+  basemap.setUrl(basemapUrl(e.detail.theme));
+  // the selected-station ring is drawn in --text, which just changed
+  applyStyles();
+});
 
 // dataset display metadata: label + color + realm (env = cool, bio = warm)
 // Official dataset names — Betty's original app's exact titles where they
@@ -1218,7 +1232,7 @@ function applyStyles() {
       mk.bringToFront();
     }
     if (!compareMode && currentStation && s.grid_key === currentStation.grid_key) {
-      mk.setStyle({ color: '#ffffff', weight: 3 });
+      mk.setStyle({ color: cssVar('--text'), weight: 3 });
       mk.bringToFront();
     }
     if (selectedGridKeys.has(s.grid_key)) {
@@ -3296,7 +3310,7 @@ function datasetCard(d, opts) {
   const avgBadge = opts.compareContext ? '<span class="ds-avg-badge" title="Values on this card are averaged across the contributing stations">AVG</span>' : '';
   const surveysToggle = surveysToggleBtn(d.cruises);
   const surveysExpand = surveysExpandBlock(d.cruises);
-  return `<div class="ds-card${opts.clickable ? ' ds-card-clickable' : ''}${opts.large ? ' ds-card-large' : ''}" style="--c:${color};--card-bg:${mixHex(color, 6, '#0f1e35')}"${clickAttrs}>
+  return `<div class="ds-card${opts.clickable ? ' ds-card-clickable' : ''}${opts.large ? ' ds-card-large' : ''}" style="--c:${color}"${clickAttrs}>
       <div class="ds-head"><span class="ds-dot"></span><span class="ds-label">${label}</span>
         <div class="ds-head-right">${avgBadge}<span class="ds-realm ${d.realm}">${d.realm}</span></div>${pinBtn}</div>
       <div class="ds-stats">

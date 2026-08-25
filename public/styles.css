@@ -10,6 +10,32 @@
   --panel: #0f1e35;
   --border: rgba(0, 194, 255, 0.15);
   --glow: 0 0 20px rgba(0, 194, 255, 0.3);
+  /* the ink behind every translucent overlay (hover tints, hairlines), as an
+     rgb triplet for rgba(var(--ink), a) — white on the dark ocean */
+  --ink: 255, 255, 255;
+  /* brand/v1 tokens (theme.css, linked before this file) aliased onto the
+     app's own so its .cc-header wears the ocean palette; --panel --border
+     --muted --accent share a name with the brand and override it directly */
+  --bg: var(--deep);
+  --panel-2: var(--surface);
+  --fg: var(--text);
+  --accent-d: #00a8e0;
+}
+
+/* a light ocean: brand/v1/theme.js sets data-theme from ?theme= → cookie →
+   localStorage; dark stays the default above */
+:root[data-theme="light"] {
+  --ocean: #f4f8fb;
+  --deep: #e6eef5;
+  --surface: #ffffff;
+  --accent: #0077a8;
+  --text: #14202b;
+  --muted: #5b6b7a;
+  --panel: #ffffff;
+  --border: rgba(0, 80, 120, 0.18);
+  --glow: 0 0 12px rgba(0, 119, 168, 0.18);
+  --ink: 20, 32, 43;
+  --accent-d: #005f88;
 }
 
 * {
@@ -34,37 +60,16 @@ body {
   overflow: hidden;
 }
 
-/* Header */
-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 24px;
+/* Header — the bar is brand/v1's .cc-header; only the ocean ground and the
+   logo font are the app's own */
+.cc-header {
   background: var(--ocean);
-  border-bottom: 1px solid var(--border);
-  z-index: 1000;
   flex-shrink: 0;
-  flex-wrap: wrap;
-  gap: 12px;
 }
 
-.logo {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-}
-
-.logo-title {
-  font-size: 22px;
-  color: var(--accent);
+.cc-header .cc-title {
+  font-family: 'Space Mono', monospace;
   letter-spacing: 0.5px;
-}
-
-.logo-sub {
-  font-size: 10px;
-  color: var(--muted);
-  letter-spacing: 2px;
-  text-transform: uppercase;
 }
 
 .header-stats {
@@ -129,7 +134,7 @@ a:visited {
   transform: translateY(-50%);
   width: 13px;
   height: 13px;
-  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  border: 1.5px solid rgba(var(--ink), 0.85);
   border-radius: 50%;
   z-index: 1;
   pointer-events: none;
@@ -141,7 +146,7 @@ a:visited {
   top: calc(50% + 5px);
   width: 6px;
   height: 1.5px;
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(var(--ink), 0.85);
   transform: rotate(45deg);
   transform-origin: left center;
   z-index: 1;
@@ -150,8 +155,8 @@ a:visited {
 
 .search-input {
   width: 100%;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1.5px solid rgba(255, 255, 255, 0.55);
+  background: rgba(var(--ink), 0.06);
+  border: 1.5px solid rgba(var(--ink), 0.55);
   border-radius: 6px;
   color: var(--text);
   font-family: 'Space Mono', monospace;
@@ -166,9 +171,9 @@ a:visited {
 }
 
 .search-input:focus {
-  border-color: rgba(255, 255, 255, 0.85);
-  background: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.15);
+  border-color: rgba(var(--ink), 0.85);
+  background: rgba(var(--ink), 0.1);
+  box-shadow: 0 0 20px rgba(var(--ink), 0.15);
 }
 
 .about-backdrop {
@@ -243,7 +248,7 @@ a:visited {
 }
 .tour-no-arrow::before { display: none; }
 .tour-callout-title { font-size: 16.5px; font-weight: 700; color: var(--text, #e6e9ed); margin-bottom: 8px; }
-.tour-callout-body { font-size: 14.5px; line-height: 1.55; color: #e2e6ea; margin-bottom: 12px; }
+.tour-callout-body { font-size: 14.5px; line-height: 1.55; color: var(--text); margin-bottom: 12px; }
 .tour-callout-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .tour-skip { background: none; border: none; color: var(--muted, #9aa0a6); font-size: 12px; cursor: pointer; padding: 4px; }
 .tour-skip:hover { color: var(--text, #e6e9ed); }
@@ -365,10 +370,10 @@ ol {
 .feedback-textarea,
 .feedback-input {
   width: 100%;
-  background: rgba(255, 255, 255, 0.09);
-  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  background: rgba(var(--ink), 0.09);
+  border: 1.5px solid rgba(var(--ink), 0.35);
   border-radius: 6px;
-  color: #ffffff;
+  color: var(--text);
   font-family: 'Inter', sans-serif;
   font-size: 14px;
   line-height: 1.5;
@@ -385,14 +390,14 @@ ol {
 
 .feedback-textarea::placeholder,
 .feedback-input::placeholder {
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(var(--ink), 0.55);
 }
 
 .feedback-textarea:focus,
 .feedback-input:focus {
-  border-color: rgba(255, 255, 255, 0.75);
-  background: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 0 16px rgba(255, 255, 255, 0.12);
+  border-color: rgba(var(--ink), 0.75);
+  background: rgba(var(--ink), 0.1);
+  box-shadow: 0 0 16px rgba(var(--ink), 0.12);
 }
 
 .feedback-submit-btn {
@@ -580,7 +585,7 @@ ol {
 }
 
 .download-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(var(--ink), 0.06);
   color: var(--text);
 }
 
@@ -643,7 +648,7 @@ ol {
   height: 18px;
   border-radius: 50%;
   border: none;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(var(--ink), 0.08);
   color: var(--text);
   font-size: 11px;
   line-height: 1;
@@ -655,7 +660,7 @@ ol {
 }
 
 .compare-bar-close:hover {
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(var(--ink), 0.18);
 }
 
 .compare-bar-body {
@@ -767,7 +772,7 @@ ol {
   padding: 12px 10px;
   border-radius: 3px;
   border: 1px solid rgba(0, 194, 255, 0.2);
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(var(--ink), 0.06);
   color: var(--text);
   font-family: 'Space Mono', monospace;
   font-size: 13px;
@@ -801,7 +806,7 @@ ol {
   padding: 7px 8px;
   border-radius: 4px;
   border: 1px solid rgba(0, 194, 255, 0.15);
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(var(--ink), 0.06);
   color: var(--text);
   font-family: 'Inter', sans-serif;
   font-size: 11px;
@@ -810,7 +815,7 @@ ol {
   box-sizing: border-box;
 }
 
-.compare-bar-btn:hover { background: rgba(255, 255, 255, 0.12); }
+.compare-bar-btn:hover { background: rgba(var(--ink), 0.12); }
 
 .compare-bar-generate {
   background: #00e5ff;
@@ -1435,7 +1440,7 @@ select optgroup {
 
 /* Leaflet overrides */
 .leaflet-container {
-  background: #06121f !important;
+  background: var(--deep) !important;
 }
 
 /* Smooth fade for marker opacity/color changes (year-slider filtering,
@@ -1451,7 +1456,7 @@ select optgroup {
 }
 
 .leaflet-control-attribution {
-  background: rgba(6, 16, 32, 0.8) !important;
+  background: color-mix(in srgb, var(--deep) 80%, transparent) !important;
   color: var(--muted) !important;
   font-size: 9px !important;
 }
@@ -1489,12 +1494,8 @@ select optgroup {
     overflow: hidden;
   }
 
-  header {
+  .cc-header {
     padding: 12px;
-  }
-
-  .logo {
-    width: 100%;
   }
 
   .header-stats {
@@ -1670,7 +1671,7 @@ select optgroup {
 .ds-card {
   border: 1px solid var(--border, #3a3f44); border-left: 3px solid var(--c);
   border-radius: 6px; padding: 14px 15px; margin-bottom: 10px;
-  background: var(--card-bg, #17273d);
+  background: color-mix(in srgb, var(--c, var(--accent)) 6%, var(--panel));
   position: relative;
 }
 .ds-pin-btn {
@@ -1725,7 +1726,7 @@ select optgroup {
 .var-pick-row { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
 .var-pick-row-unconfirmed { color: var(--muted, #6c757d); opacity: 0.6; }
 .var-pick-group { display: flex; flex-direction: column; gap: 6px; }
-.var-pick-group + .var-pick-group { margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.var-pick-group + .var-pick-group { margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(var(--ink), 0.08); }
 .var-pick-group-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
 .var-pick-units { color: var(--muted); font-size: 11px; }
 .var-picker-confirm {
@@ -1779,7 +1780,7 @@ select optgroup {
 .pinned-tray-unpin:hover { color: var(--text, #e6e9ed); }
 @keyframes marker-flash-pulse {
   0%, 100% { filter: none; }
-  50% { filter: drop-shadow(0 0 6px #fff) brightness(1.6); }
+  50% { filter: drop-shadow(0 0 6px var(--text)) brightness(1.6); }
 }
 .marker-flash { animation: marker-flash-pulse 0.4s ease-in-out 3; }
 
@@ -1893,7 +1894,7 @@ select optgroup {
   font-size: 12px; color: var(--text); font-weight: 600;
   transition: background 0.15s, color 0.15s;
 }
-.panel-tab:hover { background: rgba(255, 255, 255, .06); }
+.panel-tab:hover { background: rgba(var(--ink), .06); }
 .panel-tab.active { background: var(--accent); color: var(--deep); }
 .panel-tab-count {
   font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted);
@@ -1905,7 +1906,7 @@ select optgroup {
    style matching .data-link rather than a separate boxed-card look. Each row
    is collapsed by default; the chart below only builds on first expand. */
 .depth-profile {
-  border-bottom: 1px solid rgba(255, 255, 255, .04);
+  border-bottom: 1px solid rgba(var(--ink), .04);
 }
 .depth-profile:last-child { border-bottom: none; }
 .depth-profile-row-summary {
@@ -1954,7 +1955,7 @@ select optgroup {
 .dd-group-toggle:hover { background: rgba(77,171,247,.12); }
 .dd-group-toggle .dd-name { display: flex; align-items: center; gap: 6px; }
 .dd-group-caret { color: var(--muted, #9aa0a6); font-size: 10px; }
-.dd-group-sources { background: rgba(255,255,255,.02); }
+.dd-group-sources { background: rgba(var(--ink),.02); }
 .dd-item-nested { padding-left: 26px; }
 .dd-dot-empty { background: #4a4f57; border: none; }
 
@@ -2036,7 +2037,7 @@ select optgroup {
   gap: 4px;
   margin: 0 auto 20px;
   padding: 3px;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(var(--ink), 0.04);
   border-radius: 8px;
   width: fit-content;
 }
@@ -2052,7 +2053,7 @@ select optgroup {
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
 }
-.inventory-view-tab:hover { color: #e4f1f8; }
+.inventory-view-tab:hover { color: var(--text); }
 .inventory-view-tab-active { background: rgba(0, 194, 255, 0.14); color: var(--accent); }
 .inventory-view-tab-active:hover { color: var(--accent); }
 
@@ -2062,7 +2063,7 @@ select optgroup {
   align-items: center;
   gap: 14px;
   padding: 10px 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(var(--ink), 0.06);
   border-radius: 4px;
   cursor: pointer;
   transition: background 0.15s;
@@ -2073,7 +2074,7 @@ select optgroup {
   box-shadow: inset 0 0 0 1px rgba(0, 194, 255, 0.15);
 }
 .inventory-row-open { background: rgba(0, 194, 255, 0.08); }
-.inventory-label { font-size: 12.5px; font-weight: 500; letter-spacing: 0.1px; color: #e4f1f8; flex: 1; }
+.inventory-label { font-size: 12.5px; font-weight: 500; letter-spacing: 0.1px; color: var(--text); flex: 1; }
 .inventory-count {
   font-family: 'Space Mono', monospace;
   font-size: 11px;
@@ -2088,7 +2089,7 @@ select optgroup {
 .inventory-arrow { font-size: 11px; color: var(--muted); transition: color 0.15s, transform 0.15s; }
 .inventory-row:hover .inventory-arrow { color: var(--accent); transform: translateX(3px); }
 
-.inventory-sublist { padding: 2px 8px 10px 30px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+.inventory-sublist { padding: 2px 8px 10px 30px; border-bottom: 1px solid rgba(var(--ink), 0.06); }
 .inventory-subitem {
   padding: 7px 10px;
   border-radius: 4px;
@@ -2099,7 +2100,7 @@ select optgroup {
   gap: 2px;
 }
 .inventory-subitem:hover { background: rgba(0, 194, 255, 0.08); }
-.inventory-subitem-name { font-size: 13px; font-weight: 600; color: #ffffff; }
+.inventory-subitem-name { font-size: 13px; font-weight: 600; color: var(--text); }
 .inventory-subitem-meta { font-size: 11px; color: #9aa7ae; font-weight: 400; }
 
 /* dropdown group header — search results grouped by category */
@@ -2139,7 +2140,7 @@ select optgroup {
   color: var(--accent2);
   padding: 10px 0 4px;
   margin-top: 4px;
-  border-top: 1px solid rgba(255, 255, 255, .06);
+  border-top: 1px solid rgba(var(--ink), .06);
 }
 .inventory-subcategory-header:first-child { margin-top: 0; border-top: none; }
 
@@ -2219,7 +2220,7 @@ body, .panel, .dd-item, .inventory-label, .inventory-subitem-name,
    hints), Space Mono reserved only for the logo and short numeric/code
    badges — never for anything that mixes prose and numbers, since
    switching fonts mid-context is what reads as inconsistent. */
-.logo-title, .logo-sub, .search-input,
+.search-input,
 .inventory-count, .browse-count, .dd-meta {
   font-family: 'Space Mono', monospace;
 }
@@ -2238,7 +2239,7 @@ body, .panel, .dd-item, .inventory-label, .inventory-subitem-name,
 .inventory-sublinks {
   margin: 6px 0 4px;
   padding: 8px 10px;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(var(--ink), 0.03);
   border-radius: 6px;
 }
 .inventory-family-members { display: flex; flex-direction: column; gap: 2px; }
@@ -2303,7 +2304,7 @@ a.panel-open-dataset-btn {
   cursor: pointer;
   transition: all 0.15s;
 }
-a.panel-open-dataset-btn:hover { background: #ffffff; }
+a.panel-open-dataset-btn:hover { background: var(--text); }
 
 /* A-Z jump nav — shown above any long subgroup list (e.g. Ichthyoplankton
    species) so you can jump straight to a letter instead of scrolling
@@ -2348,7 +2349,7 @@ a.panel-open-dataset-btn:hover { background: #ffffff; }
    expand/collapse like the dropdown toggle above it. */
 .inventory-source-card {
   padding: 10px 4px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(var(--ink), 0.08);
   cursor: pointer;
 }
 .inventory-source-card:last-child { border-bottom: none; }
@@ -2458,7 +2459,7 @@ a.spinfo-open-btn {
   letter-spacing: 0.5px;
   text-decoration: none;
 }
-a.spinfo-open-btn:hover { background: #ffffff; }
+a.spinfo-open-btn:hover { background: var(--text); }
 /* Bordered pill row, its own distinct row with room above it. */
 a.spinfo-full-link {
   display: flex;
@@ -2511,7 +2512,7 @@ a.spinfo-full-link:hover { background: rgba(0, 194, 255, 0.08); }
   display: none;
   margin-top: 10px;
   padding: 8px 10px;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(var(--ink), 0.03);
   border-radius: 6px;
 }
 .ds-surveys-expand.ds-surveys-expand-open { display: block; }
@@ -2528,7 +2529,7 @@ a.spinfo-full-link:hover { background: rgba(0, 194, 255, 0.08); }
   gap: 8px;
   padding: 4px 2px;
   font-size: 11px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(var(--ink), 0.04);
 }
 .ds-survey-date { color: var(--muted); flex-shrink: 0; width: 52px; }
 .ds-survey-ship { color: var(--text, #e6e9ed); flex: 1; overflow-wrap: anywhere; }

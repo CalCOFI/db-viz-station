@@ -18,18 +18,19 @@
 -- carries a single Euphausiidae aggregate, so this summarizes the community total.)
 --
 -- Run from repo root (needs the `duckdb` CLI + network to public GCS):
---   sed "s/__RELEASE__/v2026.07.16/g" scripts/build_decades.sql | duckdb
--- __RELEASE__ is substituted with the resolved version at build time (see
--- .github/workflows/refresh.yml). Regenerate on every DB release.
+--   python3 scripts/resolve_release.py          # renders this template -> build/build_decades.sql
+--   duckdb -c ".read build/build_decades.sql"
+-- The `__TBL:obs:dataset_key=<key>__` tokens below are rendered into
+-- read_parquet() over just that partition's release objects — see
+-- build_stations.sql's header for the contract. Regenerate on every DB release
+-- (see .github/workflows/refresh.yml).
 
 INSTALL httpfs; LOAD httpfs; INSTALL spatial; LOAD spatial;
-
-CREATE TEMP MACRO r(p) AS 'gs://calcofi-db/ducklake/releases/__RELEASE__/parquet/' || p;
 
 -- grid_key -> station_id ("LLL.L SSS.S"), identical to stations.json's station_id
 CREATE TEMP TABLE grid AS
 SELECT grid_key, printf('%05.1f %05.1f', line, station) AS station_id
-FROM read_parquet(r('grid.parquet'));
+FROM __TBL:grid__;
 
 -- per-tow community total: sum the headline density across taxa + life stages
 -- within a sampling event (sample_key), per dataset x grid x decade. Decade key
@@ -37,7 +38,7 @@ FROM read_parquet(r('grid.parquet'));
 CREATE TEMP TABLE tow AS
 SELECT dataset_key, grid_key, sample_key, (year(datetime) // 10) * 10 AS dec0,
        sum(measurement_value) AS tow_total
-FROM read_parquet(r('obs/dataset_key=cce-lter_zoodb/*.parquet'))
+FROM __TBL:obs:dataset_key=cce-lter_zoodb__
 WHERE measurement_type = 'zooplankton_abundance'
   AND grid_key IS NOT NULL AND datetime IS NOT NULL
   AND measurement_value IS NOT NULL AND isfinite(measurement_value)
@@ -45,7 +46,7 @@ GROUP BY 1, 2, 3, 4
 UNION ALL
 SELECT dataset_key, grid_key, sample_key, (year(datetime) // 10) * 10 AS dec0,
        sum(measurement_value) AS tow_total
-FROM read_parquet(r('obs/dataset_key=cce-lter_euphausiids/*.parquet'))
+FROM __TBL:obs:dataset_key=cce-lter_euphausiids__
 WHERE measurement_type = 'abundance'
   AND grid_key IS NOT NULL AND datetime IS NOT NULL
   AND measurement_value IS NOT NULL AND isfinite(measurement_value)

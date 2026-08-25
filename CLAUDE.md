@@ -50,24 +50,41 @@ keep the two equal if you touch it; `check.yml` fails when they diverge.
 
 `public/data/*.json` is prebuilt, committed, and read directly by the browser. The
 current pipeline is DuckDB SQL against the frozen CalCOFI integrated-DB release parquet
-on public GCS (`gs://calcofi-db/ducklake/releases/<release>/parquet/`), orchestrated by
+on public GCS, read **through the release's `catalog.json`**, orchestrated by
 `.github/workflows/refresh.yml` (weekly, manual, and `repository_dispatch: db-release`
 from `CalCOFI/workflows` on release promotion).
 
-Run from the repo root, with the `duckdb` CLI and network access. `__RELEASE__` is
-substituted at build time with the version from
-`https://storage.googleapis.com/calcofi-db/ducklake/releases/latest.txt`:
+**The build SQL never names a parquet path.** `scripts/build_*.sql` are templates:
+`scripts/resolve_release.py` (stdlib only — it runs in Actions before anything is
+installed) resolves the version (`--version`, else `latest.txt`), fetches the catalog and
+renders each `__TBL:<table>__` token (or `__TBL:obs:dataset_key=<key>__` for one
+partition) into the `read_parquet()` over that table's objects, writing `build/*.sql`
+(gitignored). Since the v2026.09 releases those objects are content-addressed — one
+immutable file per table or partition under `gs://calcofi-db/ducklake/tables/…`, listed
+in the catalog's `objects[]`, read as an explicit https list with `hive_partitioning`;
+before that it falls back to the legacy `…/releases/<version>/parquet/` path (a `gs://`
+glob for partitioned tables), which is now only guaranteed for the promoted and
+consolidated versions. `__RELEASE__` becomes the version. The rule mirrors
+`calcofi4py.release.release_sources()` / `calcofi4r::cc_release_sources()` — keep the
+three in step — and `scripts/test_resolve_release.py` (run by `check.yml`) pins the exact
+URLs for both catalog shapes. The resolver also writes `public/data/tables.json`
+(`{version, layout, tables: {obs, taxon}}`), which `app.js` reads so its DuckDB-WASM
+queries resolve the same way without fetching the catalog — CI-owned like the rest of
+`public/data/`, and it pins the browser to the release the JSON was built from.
+
+Run from the repo root, with `python3`, the `duckdb` CLI and network access:
 
 ```bash
-REL=$(curl -s https://storage.googleapis.com/calcofi-db/ducklake/releases/latest.txt | tr -d '[:space:]')
-duckdb -c ".read scripts/build_crosswalk.sql"              # -> metadata/crosswalk_variables.csv
-sed "s/__RELEASE__/$REL/g" scripts/build_stations.sql | duckdb   # -> stations.json, cruises.json AND taxon_coverage.json
-sed "s/__RELEASE__/$REL/g" scripts/build_vars.sql     | duckdb   # -> variables.json
-sed "s/__RELEASE__/$REL/g" scripts/build_decades.sql  | duckdb   # -> decades.json
-sed "s/__RELEASE__/$REL/g" scripts/build_datasets.sql | duckdb   # -> datasets_meta.json
-duckdb -c ".read scripts/build_depth_profiles.sql"        # resolves the release itself, no sed
-gzip -9 -f public/data/depth_profiles.json                # ~76 MB raw; only the .gz is committed/loaded
-gzip -9 -f public/data/taxon_coverage.json                # ~8 MB raw -> 0.7 MB; likewise .gz-only
+python3 scripts/resolve_release.py --tables-json public/data/tables.json --tables obs,taxon   # latest.txt -> build/*.sql (+ --version vYYYY.MM.DD to pin)
+duckdb -c ".read scripts/build_crosswalk.sql"          # -> metadata/crosswalk_variables.csv (ingest parquet; no release token)
+duckdb -c ".read build/build_stations.sql"             # -> stations.json, cruises.json AND taxon_coverage.json
+duckdb -c ".read build/build_vars.sql"                 # -> variables.json
+duckdb -c ".read build/build_decades.sql"              # -> decades.json
+duckdb -c ".read build/build_datasets.sql"             # -> datasets_meta.json
+duckdb -c ".read build/build_regions.sql"              # -> regions.json (needs region.geom, v2026.08.14+; refresh.yml guards it)
+duckdb -c ".read build/build_depth_profiles.sql"       # -> depth_profiles.json
+gzip -9 -f public/data/depth_profiles.json             # ~76 MB raw; only the .gz is committed/loaded
+gzip -9 -f public/data/taxon_coverage.json             # ~8 MB raw -> 0.7 MB; likewise .gz-only
 ```
 
 Three rules the workflow encodes, each learned from a real failure — preserve them when
@@ -76,6 +93,7 @@ adding a build script:
 1. **Every generated artifact must be named in refresh.yml's `git add` line.** Anything
    the scripts write but that line omits is regenerated into the runner and silently
    discarded, leaving the committed copy to drift (`taxon_coverage.json` did exactly this).
+   `tables.json` is on that list too.
 2. **`version.json` is written by the same step** and stamps the release + build time.
    `app.js` reads it and appends `?v=<release>` to every data fetch via `dataUrl()`,
    because Pages serves `public/data/` with `max-age=600` and no header control. It also

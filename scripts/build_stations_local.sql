@@ -56,21 +56,16 @@
 -- Run from the repo root (needs the `duckdb` CLI + network to public GCS;
 -- reads the existing public/data/stations.json, so run this from the repo
 -- root with that file already present):
---   duckdb -c ".read scripts/build_stations_local.sql"
+--   python3 scripts/resolve_release.py scripts/build_stations_local.sql
+--   duckdb -c ".read build/build_stations_local.sql"
 --
--- Data source: the frozen release parquet at
---   https://storage.googleapis.com/calcofi-db/ducklake/releases/{VERSION}/parquet/
--- (public); the literal __RELEASE__ below is substituted with the resolved
--- version at build time (see .github/workflows/refresh.yml) — still needed
--- here for obs/ship, just not for grid (see above).
+-- Data source: the frozen release, read through its catalog — this file is a
+-- template whose `__TBL:<table>__` tokens scripts/resolve_release.py renders
+-- into the read_parquet() over each table's parquet objects (see
+-- build_stations.sql's header). Still needed here for obs/ship/taxon, just not
+-- for grid (see above).
 
 INSTALL httpfs; LOAD httpfs;
-
--- frozen-release parquet base; __RELEASE__ is substituted with the resolved
--- version (e.g. v2026.07.15) at build time. Uses the gs:// scheme (not https://)
--- because reading the Hive-partitioned obs/ requires GCS object listing, which
--- plain-HTTPS read_parquet cannot do; gs:// reads this public bucket anonymously.
-CREATE TEMP MACRO r(p) AS 'gs://calcofi-db/ducklake/releases/__RELEASE__/parquet/' || p;
 
 -- stations = grid cells; lat/lon read from the CURRENT public/data/stations.json
 -- rather than derived from grid.parquet's geom_ctr — see the file header for
@@ -93,7 +88,7 @@ SELECT dataset_key, realm, grid_key,
        CAST(cruise_key AS VARCHAR) AS cruise_key,
        datetime, depth_min_m AS depth_min, depth_max_m AS depth_max, sample_key,
        taxon_key
-FROM read_parquet(r('obs/**/*.parquet'), hive_partitioning=true)
+FROM __TBL:obs__
 WHERE grid_key IS NOT NULL;
 
 -- cruise/ship reference for the per-dataset "Surveys" list (cov_cruises,
@@ -109,7 +104,7 @@ SELECT o.cruise_key,
        min(o.datetime)::DATE AS date_min,
        s.ship_name           AS ship_name
 FROM obs o
-LEFT JOIN read_parquet(r('ship.parquet')) s
+LEFT JOIN __TBL:ship__ s
   ON substr(o.cruise_key, 9) = s.ship_nodc
 WHERE o.cruise_key IS NOT NULL
 GROUP BY o.cruise_key, s.ship_name;
@@ -227,7 +222,7 @@ SELECT o.dataset_key,
        count(*) AS n_obs,
        count(DISTINCT o.sample_key) AS n_samples
 FROM obs o
-JOIN read_parquet(r('taxon.parquet')) t USING (taxon_key)
+JOIN __TBL:taxon__ t USING (taxon_key)
 WHERE o.taxon_key IS NOT NULL AND t.worms_id IS NOT NULL
 GROUP BY 1, 2, 3;
 
@@ -243,7 +238,7 @@ SELECT dataset_key, grid_key, aphia_id,
 FROM (SELECT o.dataset_key, o.grid_key, CAST(t.worms_id AS VARCHAR) AS aphia_id,
              year(o.datetime) AS yr, count(*) AS n
       FROM obs o
-      JOIN read_parquet(r('taxon.parquet')) t USING (taxon_key)
+      JOIN __TBL:taxon__ t USING (taxon_key)
       WHERE o.taxon_key IS NOT NULL AND t.worms_id IS NOT NULL AND o.datetime IS NOT NULL
       GROUP BY 1, 2, 3, 4)
 GROUP BY 1, 2, 3;

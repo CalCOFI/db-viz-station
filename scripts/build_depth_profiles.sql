@@ -20,24 +20,17 @@
 -- Output shape matches what app.js's DEPTH_PROFILES loader expects:
 --   {dataset_key, station_id, variable_name, depth_m, value}
 --
---   duckdb -c ".read build_depth_profiles.sql"   (needs duckdb CLI + network)
+--   python3 scripts/resolve_release.py            # renders this template -> build/build_depth_profiles.sql
+--   duckdb -c ".read build/build_depth_profiles.sql"   (needs duckdb CLI + network)
+--
+-- The release is resolved by scripts/resolve_release.py (latest.txt, or the
+-- version refresh.yml hands it) and read through its catalog: the
+-- `__TBL:<table>__` tokens below become read_parquet() over each table's
+-- release objects. This file used to resolve latest.txt itself in SQL; that
+-- built a releases/<version>/parquet/ path by hand, which the content-addressed
+-- releases (v2026.09+) no longer guarantee — see build_stations.sql's header.
 
 INSTALL httpfs; LOAD httpfs;
-
--- resolve the current release version dynamically from the same latest.txt
--- every other consumer (build_workflows_index.R, publish-template.md) reads —
--- never hardcode a release tag here. Resolved into a session variable (not
--- referenced as a subquery inside the macro below) because DuckDB table
--- functions like read_parquet() can't accept a macro whose argument itself
--- contains a subquery ("Table function cannot contain subqueries").
-CREATE TEMP TABLE _release AS
-  SELECT regexp_replace(content, '\s+$', '') AS version
-  FROM read_text('https://storage.googleapis.com/calcofi-db/ducklake/releases/latest.txt');
-SET VARIABLE release_version = (SELECT version FROM _release);
-
-CREATE TEMP MACRO r(p) AS
-  'https://storage.googleapis.com/calcofi-db/ducklake/releases/'
-  || getvariable('release_version') || '/parquet/' || p;
 
 -- station_id resolution: grid.parquet carries line/station, not a combined
 -- station_id column — derive it the same way every other consumer does
@@ -45,7 +38,7 @@ CREATE TEMP MACRO r(p) AS
 -- "LLL.L SSS.S", e.g. "090.0 090.0".
 CREATE TEMP TABLE grid_station AS
 SELECT grid_key, printf('%05.1f %05.1f', line, station) AS station_id
-FROM read_parquet(r('grid.parquet'))
+FROM __TBL:grid__
 WHERE line IS NOT NULL AND station IS NOT NULL;
 
 COPY (
@@ -55,7 +48,7 @@ COPY (
     o.measurement_type AS variable_name,
     ROUND(o.depth_min_m / 5) * 5 AS depth_m,        -- bin to nearest 5m
     ROUND(AVG(o.measurement_value), 4) AS value
-  FROM read_parquet(r('obs.parquet')) o
+  FROM __TBL:obs__ o
   JOIN grid_station gs USING (grid_key)
   WHERE o.dataset_key IN ('calcofi_bottle', 'calcofi_ctd-cast', 'calcofi_dic')
     AND o.depth_min_m IS NOT NULL

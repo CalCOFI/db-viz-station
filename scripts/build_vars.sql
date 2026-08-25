@@ -8,7 +8,8 @@
 -- Station highlighting is derived client-side from stations.json + dataset_key,
 -- so no per-variable station list is baked in here.
 --
---   duckdb -c ".read scripts/build_vars.sql"   (needs duckdb CLI + network)
+--   python3 scripts/resolve_release.py      # renders this template -> build/build_vars.sql
+--   duckdb -c ".read build/build_vars.sql"  (needs duckdb CLI + network)
 
 INSTALL httpfs; LOAD httpfs;
 CREATE TEMP MACRO u(p) AS 'https://storage.googleapis.com/calcofi-db/ingest/' || p;
@@ -37,12 +38,11 @@ FROM split;
 
 -- authoritative taxa spine — the unified `taxon` (one deduped row per taxon)
 -- joined to the `dataset_taxon` crosswalk (dataset_key) from the LATEST frozen
--- release. `__RELEASE__` is substituted by refresh.yml (curl latest.txt), the
--- same mechanism build_stations.sql uses. Supersedes the per-dataset ingest
--- parquet UNION (species/zoodb_taxon/zooscan_taxon/phyto_taxon); now also covers
--- seabirds/mammals + resolves coarse taxa to real WoRMS/ITIS.
-CREATE TEMP MACRO r(p) AS
-  'https://storage.googleapis.com/calcofi-db/ducklake/releases/__RELEASE__/parquet/' || p;
+-- release, read through its catalog: the `__TBL:<table>__` tokens are rendered
+-- by scripts/resolve_release.py, the same mechanism build_stations.sql uses.
+-- Supersedes the per-dataset ingest parquet UNION (species/zoodb_taxon/
+-- zooscan_taxon/phyto_taxon); now also covers seabirds/mammals + resolves
+-- coarse taxa to real WoRMS/ITIS.
 -- DISTINCT is load-bearing. dataset_taxon is grained by `ds_taxon_key` — the
 -- PROVIDER's own taxon record, carrying its spelling, common name and taxa code
 -- — and many of those resolve to one consolidated taxon_key, so the join fans
@@ -61,8 +61,8 @@ CREATE TEMP MACRO r(p) AS
 CREATE TEMP TABLE tx AS
 SELECT DISTINCT dt.dataset_key, t.scientific_name,
        CAST(t.worms_id AS VARCHAR) AS aphia_id, t.rank, t.common_name
-FROM read_parquet(r('dataset_taxon.parquet')) dt
-JOIN read_parquet(r('taxon.parquet')) t USING (taxon_key)
+FROM __TBL:dataset_taxon__ dt
+JOIN __TBL:taxon__ t USING (taxon_key)
 WHERE t.scientific_name IS NOT NULL;
 
 -- harvested catalog (extras source) + crosswalks

@@ -1,1 +1,6 @@
 .DS_Store
+__pycache__/
+
+# rendered build SQL + the catalog it was rendered against, written by
+# scripts/resolve_release.py on every build (scripts/build_*.sql are the templates)
+build/

@@ -43,39 +43,53 @@ jobs:
         run: |
           REL=$(curl -s https://storage.googleapis.com/calcofi-db/ducklake/releases/latest.txt | tr -d '[:space:]')
           echo "resolved release: $REL"
+          # The build SQL never names a parquet path. scripts/build_*.sql are
+          # templates whose __TBL:<table>__ tokens resolve_release.py renders
+          # (into build/) from the release's catalog.json — one immutable,
+          # content-addressed object per table or partition since the v2026.09
+          # releases, the legacy releases/<v>/parquet/ path before that, which is
+          # now only guaranteed for promoted and consolidated versions. The same
+          # resolution is written to public/data/tables.json so app.js's
+          # DuckDB-WASM queries read the same bytes the committed JSON was built
+          # from. build_crosswalk.sql reads the ingest parquet, not a release, so
+          # it carries no token and runs from scripts/ as before.
+          python3 scripts/resolve_release.py --version "$REL" \
+            --tables-json public/data/tables.json --tables obs,taxon
           duckdb -c ".read scripts/build_crosswalk.sql"
           # build_stations.sql writes BOTH stations.json and taxon_coverage.json.
           # The latter carries per-year bins (so the year slider filters the
           # per-taxon path too), which puts it at ~8 MB raw but 0.7 MB gzipped —
           # app.js loads only the gzipped copy (fetchGzJson), same as
           # depth_profiles, so compress and drop the raw file.
-          sed "s/__RELEASE__/$REL/g" scripts/build_stations.sql | duckdb
+          duckdb -c ".read build/build_stations.sql"
           gzip -9 -f public/data/taxon_coverage.json
-          sed "s/__RELEASE__/$REL/g" scripts/build_vars.sql | duckdb
-          sed "s/__RELEASE__/$REL/g" scripts/build_decades.sql | duckdb
-          sed "s/__RELEASE__/$REL/g" scripts/build_datasets.sql | duckdb
+          duckdb -c ".read build/build_vars.sql"
+          duckdb -c ".read build/build_decades.sql"
+          duckdb -c ".read build/build_datasets.sql"
           # build_regions.sql writes regions.json: the pooled-region polygons for
           # datasets with no grid_key at all (calcofi_phytoplankton today), which
           # build_stations.sql necessarily excludes via `WHERE grid_key IS NOT NULL`.
           #
-          # Guarded: region.parquet only gained a `geom` column in v2026.08.14, and
+          # Guarded: `region` only gained a `geom` column in v2026.08.14, and
           # `latest.txt` can legitimately point at an earlier release (it was rolled
           # back to v2026.08.11 on 2026-08-14 when a release shipped without its
           # sidecar JSON). Unguarded, the script fails on the missing column and
           # aborts the whole refresh, taking stations.json down with it — so check
           # first and skip loudly, leaving the committed regions.json in place.
-          HAS_GEOM=$(duckdb -noheader -list -c "SELECT count(*) FROM (DESCRIBE SELECT * FROM read_parquet('https://storage.googleapis.com/calcofi-db/ducklake/releases/$REL/parquet/region.parquet')) WHERE column_name = 'geom'" 2>/dev/null || echo 0)
+          # The table is resolved through the catalog the SQL was rendered
+          # against (build/catalog.json), not a hand-built path.
+          REGION=$(python3 scripts/resolve_release.py --catalog build/catalog.json --expr region)
+          HAS_GEOM=$(duckdb -noheader -list -c "SELECT count(*) FROM (DESCRIBE SELECT * FROM $REGION) WHERE column_name = 'geom'" 2>/dev/null || echo 0)
           if [ "$HAS_GEOM" = "1" ]; then
-            sed "s/__RELEASE__/$REL/g" scripts/build_regions.sql | duckdb
+            duckdb -c ".read build/build_regions.sql"
           else
             echo "::warning::release $REL has no region.geom — keeping the committed regions.json"
           fi
-          # build_depth_profiles.sql resolves the release itself (from latest.txt)
-          # rather than via __RELEASE__ — see the note in its header — so it needs
-          # no sed. It emits an uncompressed ~76 MB depth_profiles.json; the app
-          # loads only the gzipped copy (fetchGzJson), so compress and drop the
-          # raw file rather than committing it.
-          duckdb -c ".read scripts/build_depth_profiles.sql"
+          # build_depth_profiles.sql emits an uncompressed ~76 MB
+          # depth_profiles.json; the app loads only the gzipped copy
+          # (fetchGzJson), so compress and drop the raw file rather than
+          # committing it.
+          duckdb -c ".read build/build_depth_profiles.sql"
           gzip -9 -f public/data/depth_profiles.json
           # Stamp the release these files were built from. app.js reads this and
           # appends ?v=<release> to every data fetch, because GitHub Pages serves
@@ -100,6 +114,7 @@ jobs:
                   public/data/decades.json \
                   public/data/taxon_coverage.json.gz public/data/depth_profiles.json.gz \
                   public/data/datasets_meta.json public/data/regions.json public/data/version.json \
+                  public/data/tables.json \
                   metadata/crosswalk_variables.csv
           if git diff --cached --quiet; then
             echo "no coverage changes"

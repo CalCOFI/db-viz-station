@@ -39,6 +39,13 @@ jobs:
       - name: build_stations_local.sql mirrors build_stations.sql
         run: python3 scripts/check_local_variant.py
 
+      # resolve_release.py is how every build script (and, via tables.json,
+      # app.js) finds the release parquet. It pins exact URLs for both catalog
+      # shapes — content-addressed objects[] and the legacy per-release path —
+      # so a change that would send the build at the wrong bytes fails here.
+      - name: release resolver resolves both catalog shapes
+        run: python3 scripts/test_resolve_release.py
+
       - name: app.js parses
         run: node --check public/app.js
 

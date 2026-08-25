@@ -27,7 +27,10 @@
 --     unambiguous for every observation.
 --
 -- Run from the repo root (needs the `duckdb` CLI + network to public GCS):
---   sed "s/__RELEASE__/$REL/g" scripts/build_regions.sql | duckdb
+--   python3 scripts/resolve_release.py          # renders this template -> build/build_regions.sql
+--   duckdb -c ".read build/build_regions.sql"
+-- The `__TBL:<table>__` tokens below are rendered into read_parquet() over each
+-- table's release objects — see build_stations.sql's header for the contract.
 --
 -- Regenerate on every DB release (see .github/workflows/refresh.yml).
 
@@ -36,12 +39,10 @@ INSTALL httpfs; LOAD httpfs; INSTALL spatial; LOAD spatial;
 -- return NaN / a transposed area for these lon/lat polygons
 SET geometry_always_xy = true;
 
-CREATE TEMP MACRO r(p) AS 'gs://calcofi-db/ducklake/releases/__RELEASE__/parquet/' || p;
-
 -- the pooled datasets, discovered rather than named
 CREATE TEMP TABLE rp_ds AS
 SELECT DISTINCT dataset_key
-FROM read_parquet(r('sample.parquet'))
+FROM __TBL:sample__
 WHERE sample_type = 'region_pool' AND dataset_key IS NOT NULL;
 
 CREATE TEMP TABLE reg AS
@@ -50,7 +51,7 @@ SELECT region_key, description, n_stations, station_codes,
        ST_Y(ST_Point(longitude, latitude)) AS lat,
        round(ST_Area_Spheroid(geom) / 1e6) AS area_km2,
        CAST(ST_AsGeoJSON(geom) AS JSON) AS geometry
-FROM read_parquet(r('region.parquet'));
+FROM __TBL:region__;
 
 -- observations of a pooled dataset, assigned to the region containing them.
 -- The dataset_key filter prunes Hive partitions, so this reads only the pooled
@@ -66,10 +67,10 @@ SELECT o.dataset_key, o.realm, o.sample_key, o.taxon_key, o.cruise_key,
        -- as `year` so the slider can filter what IS dated, alongside n_obs_undated
        -- so the UI can say what it cannot filter rather than implying it did.
        year(c.date_ym) AS yr
-FROM read_parquet(r('obs/**/*.parquet'), hive_partitioning = true) o
-JOIN read_parquet(r('region.parquet')) g
+FROM __TBL:obs__ o
+JOIN __TBL:region__ g
   ON ST_Within(ST_Point(o.longitude, o.latitude), g.geom)
-LEFT JOIN read_parquet(r('cruise.parquet')) c USING (cruise_key)
+LEFT JOIN __TBL:cruise__ c USING (cruise_key)
 WHERE o.dataset_key IN (SELECT dataset_key FROM rp_ds);
 
 -- per (region, dataset)
@@ -101,7 +102,7 @@ SELECT o.region_key, o.dataset_key,
        count(DISTINCT o.sample_key) AS n_samples,
        min(o.yr) AS year_min, max(o.yr) AS year_max
 FROM robs o
-JOIN read_parquet(r('taxon.parquet')) t USING (taxon_key)
+JOIN __TBL:taxon__ t USING (taxon_key)
 WHERE o.taxon_key IS NOT NULL AND t.worms_id IS NOT NULL
 GROUP BY 1, 2, 3;
 
@@ -111,7 +112,7 @@ SELECT region_key, dataset_key, aphia_id,
 FROM (SELECT o.region_key, o.dataset_key, CAST(t.worms_id AS VARCHAR) AS aphia_id,
              o.yr, count(*) AS n
       FROM robs o
-      JOIN read_parquet(r('taxon.parquet')) t USING (taxon_key)
+      JOIN __TBL:taxon__ t USING (taxon_key)
       WHERE o.taxon_key IS NOT NULL AND t.worms_id IS NOT NULL AND o.yr IS NOT NULL
       GROUP BY 1, 2, 3, 4)
 GROUP BY 1, 2, 3;

@@ -16,17 +16,13 @@
 -- page_link() for why that test is not simply "is it non-empty".
 --
 -- Run from repo root (needs the `duckdb` CLI + network to public GCS):
---   sed "s/__RELEASE__/v2026.08.11/g" scripts/build_datasets.sql | duckdb
--- __RELEASE__ is substituted with the resolved version at build time (see
--- .github/workflows/refresh.yml). Regenerate on every DB release.
+--   python3 scripts/resolve_release.py          # renders this template -> build/build_datasets.sql
+--   duckdb -c ".read build/build_datasets.sql"
+-- The `__TBL:<table>__` tokens below are rendered into read_parquet() over each
+-- table's release objects — see build_stations.sql's header for the contract.
+-- Regenerate on every DB release (see .github/workflows/refresh.yml).
 
 INSTALL httpfs; LOAD httpfs;
-
--- frozen-release parquet base; __RELEASE__ is substituted at build time. Plain
--- https:// is enough here (unlike build_stations.sql, which needs gs:// to list
--- the Hive-partitioned obs/) because dataset.parquet is a single named object.
-CREATE TEMP MACRO r(p) AS
-  'https://storage.googleapis.com/calcofi-db/ducklake/releases/__RELEASE__/parquet/' || p;
 
 -- A link fit to be the target of app.js's "Open Dataset ↗" button, else NULL.
 -- Two things disqualify a value, and both are in the release today:
@@ -57,7 +53,7 @@ CREATE TEMP MACRO page_link(u) AS
 -- second region-pooled dataset labels itself without anyone editing JS.
 CREATE TEMP TABLE grain AS
 SELECT dataset_key, list(DISTINCT sample_type ORDER BY sample_type) AS sample_types
-FROM read_parquet(r('sample.parquet'))
+FROM __TBL:sample__
 WHERE sample_type IS NOT NULL
 GROUP BY dataset_key;
 
@@ -67,7 +63,7 @@ COPY (
            dataset_name, dataset_name_short, category, color,
            link_calcofi_org, link_data_source, link_others,
            description, citation_main, license, pi_names
-    FROM read_parquet(r('dataset.parquet'))
+    FROM __TBL:dataset__
     -- No exclusions. cdfw_dungeness-crab was filtered out here while it was
     -- `in_release: false` upstream with permission to publish still open — its
     -- row was in dataset.parquet anyway, and this file is committed to a public

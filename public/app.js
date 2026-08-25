@@ -1713,13 +1713,64 @@ async function getDuckDBConnection() {
   })();
   return DUCKDB_CONN_PROMISE;
 }
-let OBS_BASE_URL_PROMISE = null;
-async function obsParquetBase() {
-  if (OBS_BASE_URL_PROMISE) return OBS_BASE_URL_PROMISE;
-  OBS_BASE_URL_PROMISE = fetch('https://storage.googleapis.com/calcofi-db/ducklake/releases/latest.txt')
-    .then(r => r.text())
-    .then(v => `https://storage.googleapis.com/calcofi-db/ducklake/releases/${v.trim()}/parquet`);
-  return OBS_BASE_URL_PROMISE;
+// ---- where the release parquet lives ---------------------------------------
+// Decided by the release's catalog, not by this file. scripts/resolve_release.py
+// writes data/tables.json — {version, layout, tables: {obs, taxon: {urls, hive,
+// canonical, partition_by, single_file}}} — from the same catalog.json the build SQL was
+// rendered against, so the browser queries the same bytes the committed JSON
+// was built from (and stays pinned to that release rather than re-reading
+// latest.txt, which can move between a refresh and a page load). Since the
+// v2026.09 releases the parquet is content-addressed: one immutable object per
+// table or partition under ducklake/tables/…, listed per table in the catalog,
+// and a releases/<v>/parquet/… path is only guaranteed for the promoted and
+// consolidated versions. So nothing here builds that path unless tables.json
+// is missing (a preview, a fork, a deploy from before it existed) or says the
+// release is still in the legacy layout.
+const RELEASES_URL = 'https://storage.googleapis.com/calcofi-db/ducklake/releases';
+let RELEASE_TABLES_PROMISE = null;
+async function releaseTables() {
+  if (RELEASE_TABLES_PROMISE) return RELEASE_TABLES_PROMISE;
+  RELEASE_TABLES_PROMISE = (async () => {
+    try {
+      const r = await fetch(dataUrl('tables.json'));
+      if (r.ok) return await r.json();
+    } catch (e) { /* fall through to latest.txt */ }
+    console.warn('no data/tables.json — resolving release parquet from latest.txt (legacy layout)');
+    const v = await fetch(`${RELEASES_URL}/latest.txt`).then(r => r.text());
+    return { version: v.trim(), layout: 'legacy', tables: {} };
+  })();
+  return RELEASE_TABLES_PROMISE;
+}
+// read_parquet() over a URL list. hive_partitioning=true makes DuckDB recover
+// the partition column from the key=value segment each partition URL carries;
+// an explicit list also reads over plain https, where a ** glob cannot (object
+// storage offers no LIST to an anonymous browser).
+const readParquetSql = (urls, hive) => {
+  const list = urls.length === 1 ? `'${urls[0]}'` : `[${urls.map(u => `'${u}'`).join(', ')}]`;
+  return hive ? `read_parquet(${list}, hive_partitioning = true)` : `read_parquet(${list})`;
+};
+// The read_parquet() source for a release table, or for ONE partition of it.
+// A partition: the catalog's own object list filtered to it — null when the
+// catalog has no such partition (a renamed dataset_key; the caller tries its
+// alias) — or, in the legacy layout, obs/dataset_key=<key>/data_0.parquet.
+// The whole table: the single-file twin a partitioned table publishes for
+// https-only readers like this one (`single_file`; obs has one in both
+// layouts), else its object list. Never both — that would double every row.
+function parquetSource(rel, table, partitionValue) {
+  const t = rel.tables && rel.tables[table];
+  const legacyBase = `${RELEASES_URL}/${rel.version}/parquet`;
+  if (partitionValue == null) {
+    if (t && t.single_file) return readParquetSql([t.single_file], false);
+    // a legacy partitioned table's urls are a gs:// glob a browser cannot read
+    if (t && (t.canonical || !t.hive)) return readParquetSql(t.urls, t.hive);
+    return readParquetSql([`${legacyBase}/${table}.parquet`], false);
+  }
+  if (t && t.canonical) {
+    const urls = t.urls.filter(u => u.includes(`/${t.partition_by}=${partitionValue}/`));
+    return urls.length ? readParquetSql(urls, t.hive) : null;
+  }
+  return readParquetSql(
+    [`${legacyBase}/${table}/dataset_key=${encodeURIComponent(partitionValue)}/data_0.parquet`], true);
 }
 // Station match is an exact grid_key equality, not a bbox around the station's
 // nominal position. grid_key is denormalized onto every obs row precisely so
@@ -1751,24 +1802,21 @@ const DATASET_KEY_ALIASES = {
 // measurements of the same thing at the same time and depth. measurement_qual
 // travels for the same reason it does everywhere else in the release — a value
 // without its flag is not the value.
-// The release publishes obs BOTH as one 155 MB obs.parquet and as
-// obs/dataset_key=<key>/data_0.parquet, Hive-partitioned. Every query here
-// filters to exactly one dataset, so the partition is always the right source
-// and it is dramatically smaller — swfsc_ichthyo is 3.9 MB against the
-// monolith's 155 MB, farallon_bird-mammal 1.0 MB, cce-lter_zoodb 0.1 MB.
+// `obs` is Hive-partitioned by dataset_key, and every query here filters to
+// exactly one dataset, so the partition is always the right source and it is
+// dramatically smaller than the whole table — swfsc_ichthyo is 3.9 MB against
+// 155 MB for all of obs, farallon_bird-mammal 1.0 MB, cce-lter_zoodb 0.1 MB.
 //
-// This is not a micro-optimization. Row-group statistics on obs.parquet barely
-// prune: taxon_key has 6 distinct row-group minimums across 164 groups and
-// grid_key 93, so a filter on either still streams most of the file, and
+// This is not a micro-optimization. Row-group statistics on the whole table
+// barely prune: taxon_key has 6 distinct row-group minimums across 164 groups
+// and grid_key 93, so a filter on either still streams most of the bytes, and
 // DuckDB-WASM took over 3 minutes for two species at one station. Reading the
 // partition instead makes the same query a few seconds.
 //
-// The explicit data_0.parquet filename is deliberate — globs need a LIST that
-// plain HTTP object storage does not offer, so '.../*.parquet' 404s. If a
-// partition is ever written as more than one file the read fails and the caller
-// falls back to the monolith, which is slow but complete.
-const obsPartitionUrl = (base, datasetKey) =>
-  `${base}/obs/dataset_key=${encodeURIComponent(datasetKey)}/data_0.parquet`;
+// Which file(s) the partition is comes from parquetSource() — the catalog's
+// object list, or the legacy single data_0.parquet — never a glob: globs need
+// a LIST that plain HTTP object storage does not offer, so '.../*.parquet' 404s.
+// `src` is the full read_parquet(...) expression.
 function buildObsSql(src, datasetKey, chosenVars, taxonKeys, stationPred, commonCols, esc) {
   const otherVars = chosenVars.filter(v => v.variable_type !== 'taxon');
   const parts = [];
@@ -1776,14 +1824,14 @@ function buildObsSql(src, datasetKey, chosenVars, taxonKeys, stationPred, common
     const list = otherVars.map(v => `'${esc(v.name)}'`).join(', ');
     parts.push(`SELECT o.measurement_type AS variable, o.measurement_type, o.life_stage,
         o.measurement_value AS value, o.measurement_qual, ${commonCols}
-      FROM read_parquet('${src}') o
+      FROM ${src} o
       WHERE o.dataset_key = '${esc(datasetKey)}' AND o.measurement_type IN (${list}) AND ${stationPred}`);
   }
   if (taxonKeys.length) {
     const keys = taxonKeys.map(k => `'${esc(k)}'`).join(', ');
     parts.push(`SELECT o.taxon_key AS variable, o.measurement_type, o.life_stage,
         o.measurement_value AS value, o.measurement_qual, ${commonCols}
-      FROM read_parquet('${src}') o
+      FROM ${src} o
       WHERE o.dataset_key = '${esc(datasetKey)}' AND o.taxon_key IN (${keys}) AND ${stationPred}`);
   }
   return parts.length
@@ -1806,9 +1854,9 @@ async function taxonKeyMap() {
   if (TAXON_KEY_MAP_PROMISE) return TAXON_KEY_MAP_PROMISE;
   TAXON_KEY_MAP_PROMISE = (async () => {
     const conn = await getDuckDBConnection();
-    const base = await obsParquetBase();
+    const rel = await releaseTables();
     const res = await conn.query(
-      `SELECT taxon_key, scientific_name FROM read_parquet('${base}/taxon.parquet')`);
+      `SELECT taxon_key, scientific_name FROM ${parquetSource(rel, 'taxon')}`);
     const byName = new Map(), byKey = new Map();
     res.toArray().map(r => (r.toJSON ? r.toJSON() : r)).forEach(r => {
       if (!r.scientific_name) return;
@@ -1831,7 +1879,7 @@ const obsCsvRow = (stationId, label, vars, r) => [
   r.year, r.month, r.datetime, r.depth_min_m, r.obs_lat, r.obs_lon];
 async function fetchRealObservations({ gridKey, datasetKey, chosenVars }) {
   const conn = await getDuckDBConnection();
-  const base = await obsParquetBase();
+  const rel = await releaseTables();
   const { byName, byKey } = await taxonKeyMap();
   const esc = s => (s || '').replace(/'/g, "''");
   const stationPred = `o.grid_key = '${esc(gridKey)}'`;
@@ -1850,13 +1898,20 @@ async function fetchRealObservations({ gridKey, datasetKey, chosenVars }) {
       .map(r => byKey.has(r.variable) ? { ...r, variable: byKey.get(r.variable) } : r);
   };
   const run = async dk => {
+    const src = parquetSource(rel, 'obs', dk);
+    if (!src) return [];   // no such partition in the catalog — the caller tries the alias
     try {
-      return await runAgainst(dk, obsPartitionUrl(base, dk));
+      return await runAgainst(dk, src);
     } catch (err) {
-      // Missing partition, or one written as more than one file — fall back to
-      // the whole-table copy so a layout change degrades to slow, not broken.
-      console.warn('obs partition unavailable for', dk, '— falling back to obs.parquet', err);
-      return runAgainst(dk, `${base}/obs.parquet`);
+      // Fall back to the whole-table twin the catalog publishes for https-only
+      // readers, so a partition read that fails degrades to slow, not broken.
+      // A canonical catalog without a twin has given its only answer, and a
+      // failure there is a real error — the list of all partitions would fail
+      // the same way.
+      const t = rel.tables && rel.tables.obs;
+      if (t && t.canonical && !t.single_file) throw err;
+      console.warn('obs partition unavailable for', dk, '— falling back to the whole obs table', err);
+      return runAgainst(dk, parquetSource(rel, 'obs'));
     }
   };
   let rows = await run(datasetKey);

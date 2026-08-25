@@ -1,0 +1,24 @@
+{
+ "version": "v2026.08.25",
+ "layout": "legacy",
+ "tables": {
+  "obs": {
+   "urls": [
+    "gs://calcofi-db/ducklake/releases/v2026.08.25/parquet/obs/**/*.parquet"
+   ],
+   "hive": true,
+   "canonical": false,
+   "partition_by": null,
+   "single_file": "https://storage.googleapis.com/calcofi-db/ducklake/releases/v2026.08.25/parquet/obs.parquet"
+  },
+  "taxon": {
+   "urls": [
+    "https://storage.googleapis.com/calcofi-db/ducklake/releases/v2026.08.25/parquet/taxon.parquet"
+   ],
+   "hive": false,
+   "canonical": false,
+   "partition_by": null,
+   "single_file": null
+  }
+ }
+}

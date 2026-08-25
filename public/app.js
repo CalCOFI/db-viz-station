@@ -4555,7 +4555,16 @@ function positionTourCallout(target, callout, step) {
   callout.classList.add(arrowSide === 'top' ? 'tour-arrow-top' : 'tour-arrow-bottom');
   callout.style.setProperty('--arrow-x', Math.min(Math.max(20, r.left + r.width / 2 - left), cw - 20) + 'px');
 }
+// brand/v1 contract item 5: `?tour=off` (also false/0/no) suppresses the
+// walkthrough for this visit so a screenshot shows the interface. it is a
+// per-visit suppression, not a dismissal — the dismiss key is never written
+// here, so the tour still greets the next plain visit.
+function tourSuppressedByUrl() {
+  const v = (new URLSearchParams(location.search).get('tour') || '').toLowerCase();
+  return ['off', 'false', '0', 'no'].includes(v);
+}
 function maybeAutoShowWalkthrough() {
+  if (tourSuppressedByUrl()) return;
   if (!localStorage.getItem(WALKTHROUGH_DISMISS_KEY)) startWalkthroughTour();
 }
 function closeModal(e) {

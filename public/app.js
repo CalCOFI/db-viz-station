@@ -814,8 +814,16 @@ async function loadDataVersion() {
 // which snapshot of the database is on screen, so a stale load is invisible to
 // the person looking at it and to whoever they report it to.
 function showDataVersion() {
+  if (!DATA_VERSION) return;
+  // the header chip (brand contract: right after the title, links to the schema)
+  const chip = document.getElementById('release-chip');
+  if (chip) {
+    chip.querySelector('b').textContent = DATA_VERSION;
+    chip.href = 'https://calcofi.io/db-schema/#erd?v=' + encodeURIComponent(DATA_VERSION);
+    chip.hidden = false;
+  }
   const el = document.getElementById('about-data-version');
-  if (!el || !DATA_VERSION) return;
+  if (!el) return;
   const built = DATA_BUILT ? ` · rebuilt ${DATA_BUILT.slice(0, 10)}` : '';
   el.innerHTML = `Showing CalCOFI integrated release <strong>${DATA_VERSION}</strong>${built}.`;
   el.style.display = '';

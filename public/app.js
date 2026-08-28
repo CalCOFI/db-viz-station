@@ -7,7 +7,7 @@ const cssVar = name => getComputedStyle(document.documentElement).getPropertyVal
 
 // ---- map (CARTO basemap in the theme's shade) ----
 const basemapUrl = theme =>
-  `https://{s}.basemaps.cartocdn.com/${theme === 'light' ? 'light_all' : 'dark_all'}/{z}/{x}/{y}{r}.png`;
+  `https://{s}.basemaps.cartocdn.com/${theme === 'light' ? 'light_all' : 'dark_all'}/{z}/{x}/{y}{r}.png?key=cb1_2exm_1_dcedec936b7a69c909965eaa`;
 const basemap = L.tileLayer(basemapUrl(ccThemeNow()), {
   attribution: '© OpenStreetMap · © CARTO', subdomains: 'abcd', maxZoom: 19, crossOrigin: true });
 const map = L.map('map', { center: [32.8, -120.2], zoom: 6, worldCopyJump: true })

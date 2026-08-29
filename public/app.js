@@ -2268,21 +2268,23 @@ function categoryOf(v) {
 const CATEGORY_ORDER = ['Physical Oceanography', 'Nutrients & Chemistry', 'Productivity & Pigments',
   'Carbonate System', 'Meteorology & Sea State', 'Phytoplankton', 'Picoplankton & Bacteria', 'Zooplankton',
   'Euphausiids (Krill)', 'Seabirds & Marine Mammals', 'Mesopelagic Fish', 'Fish Eggs & Larvae'];
+// the brand's category glyphs (calcofi.io/brand/v1/icons.css masks, ids from metadata/category.csv) — the same
+// set the explorer draws, so the two apps match; was one emoji per category, which rendered differently per OS
 const CATEGORY_ICON = {
-  'Physical Oceanography': '🌊',
-  'Nutrients & Chemistry': '🧪',
-  'Productivity & Pigments': '🌱',
-  'Carbonate System': '🪸',
-  'Meteorology & Sea State': '☁️',
-  'Phytoplankton': '🔬',
-  'Picoplankton & Bacteria': '🦠',
-  'Zooplankton': '🦠',
-  'Euphausiids (Krill)': '🦐',
-  'Fish Eggs & Larvae': '🐟',
-  'Mesopelagic Fish': '🐡',
-  'Seabirds & Marine Mammals': '🐋',
+  'Physical Oceanography': 'cat-physical',
+  'Nutrients & Chemistry': 'cat-nutrients',
+  'Productivity & Pigments': 'cat-productivity',
+  'Carbonate System': 'cat-carbonate',
+  'Meteorology & Sea State': 'cat-meteorology',
+  'Phytoplankton': 'cat-phytoplankton',
+  'Picoplankton & Bacteria': 'cat-picoplankton',
+  'Zooplankton': 'cat-zooplankton',
+  'Euphausiids (Krill)': 'cat-krill',
+  'Fish Eggs & Larvae': 'cat-ichthyo',
+  'Mesopelagic Fish': 'cat-fish',
+  'Seabirds & Marine Mammals': 'cat-birds-mammals',
 };
-function catLabel(c) { return CATEGORY_ICON[c] ? `${CATEGORY_ICON[c]} ${c}` : c; }
+function catLabel(c) { return CATEGORY_ICON[c] ? `<i class="cc-i cc-i-${CATEGORY_ICON[c]} cat-icon" aria-hidden="true"></i> ${c}` : c; }
 
 function buildCategories() {
   CANON_VARS.forEach(v => {

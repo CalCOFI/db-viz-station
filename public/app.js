@@ -1,5 +1,5 @@
 
-// ---- theme (brand/v1/theme.js sets <html data-theme>; dark is the default) ----
+// ---- theme (brand/v2/theme.js sets <html data-theme>; light is the default since brand v2) ----
 const ccThemeNow = () =>
   (window.ccTheme ? ccTheme.get() : document.documentElement.dataset.theme) === 'light' ? 'light' : 'dark';
 // a css custom property as currently themed — read at use, never cached
@@ -2268,7 +2268,7 @@ function categoryOf(v) {
 const CATEGORY_ORDER = ['Physical Oceanography', 'Nutrients & Chemistry', 'Productivity & Pigments',
   'Carbonate System', 'Meteorology & Sea State', 'Phytoplankton', 'Picoplankton & Bacteria', 'Zooplankton',
   'Euphausiids (Krill)', 'Seabirds & Marine Mammals', 'Mesopelagic Fish', 'Fish Eggs & Larvae'];
-// the brand's category glyphs (calcofi.io/brand/v1/icons.css masks, ids from metadata/category.csv) — the same
+// the brand's category glyphs (calcofi.io/brand/v2/icons.css masks, ids from metadata/category.csv) — the same
 // set the explorer draws, so the two apps match; was one emoji per category, which rendered differently per OS
 const CATEGORY_ICON = {
   'Physical Oceanography': 'cat-physical',
@@ -4620,7 +4620,7 @@ function positionTourCallout(target, callout, step) {
   callout.classList.add(arrowSide === 'top' ? 'tour-arrow-top' : 'tour-arrow-bottom');
   callout.style.setProperty('--arrow-x', Math.min(Math.max(20, r.left + r.width / 2 - left), cw - 20) + 'px');
 }
-// brand/v1 contract item 5: `?tour=off` (also false/0/no) suppresses the
+// brand/v2 contract item 5: `?tour=off` (also false/0/no) suppresses the
 // walkthrough for this visit so a screenshot shows the interface. it is a
 // per-visit suppression, not a dismissal — the dismiss key is never written
 // here, so the tour still greets the next plain visit.

@@ -13,7 +13,7 @@
   /* the ink behind every translucent overlay (hover tints, hairlines), as an
      rgb triplet for rgba(var(--ink), a) — white on the dark ocean */
   --ink: 255, 255, 255;
-  /* brand/v1 tokens (theme.css, linked before this file) aliased onto the
+  /* brand/v2 tokens (theme.css, linked before this file) aliased onto the
      app's own so its .cc-header wears the ocean palette; --panel --border
      --muted --accent share a name with the brand and override it directly */
   --bg: var(--deep);
@@ -22,7 +22,7 @@
   --accent-d: #00a8e0;
 }
 
-/* a light ocean: brand/v1/theme.js sets data-theme from ?theme= → cookie →
+/* a light ocean: brand/v2/theme.js sets data-theme from ?theme= → cookie →
    localStorage; dark stays the default above */
 :root[data-theme="light"] {
   --ocean: #f4f8fb;
@@ -60,7 +60,7 @@ body {
   overflow: hidden;
 }
 
-/* Header — the bar is brand/v1's .cc-header; only the ocean ground and the
+/* Header — the bar is brand/v2's .cc-header; only the ocean ground and the
    logo font are the app's own */
 .cc-header {
   background: var(--ocean);

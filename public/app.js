@@ -144,6 +144,17 @@ const DATASET_URL_FALLBACK = {
 };
 const officialNameFor = dk => (DATASETS_META[dk] && DATASETS_META[dk].dataset_name) || DATASET_OFFICIAL_NAME[dk];
 const datasetUrlFor   = dk => (DATASETS_META[dk] && DATASETS_META[dk].url)          || DATASET_URL_FALLBACK[dk];
+// The calcofi.io dataset-catalog page (plan 2026-09-05 D-4) — built from the key alone,
+// never a hard-coded per-dataset URL list. Two things this panel's `dataset_key` is NOT,
+// though, are a real `datasets.json` key: the synthetic portal-split keys
+// (calcofi_bottle_hydro/_cast, see DATASET_META above) share calcofi_bottle's table and
+// page, and the legacy synonyms in DATASET_KEY_ALIASES resolve to the release's real key.
+const DATASET_PAGE_KEY_CANONICAL = {
+  'calcofi_bottle_hydro': 'calcofi_bottle', 'calcofi_bottle_cast': 'calcofi_bottle',
+  'pic_zooplankton': 'sio_pic-zooplankton', 'calcofi_bird_mammal_census': 'farallon_bird-mammal',
+  'ucsd_sio_mesopelagic-fish': 'sio_mesopelagic-fish',
+};
+const datasetPageUrlFor = dk => `https://calcofi.io/datasets/${DATASET_PAGE_KEY_CANONICAL[dk] || dk}/`;
 // True when a dataset has no station resolution to report, because its samples
 // were pooled before they were ever counted. calcofi_phytoplankton is the only
 // one today: Venrick's counts are pooled across stations into four regions
@@ -4268,6 +4279,7 @@ function speciesStationInfoHtml(v, s) {
       </div>
       ${speciesStationNoteHtml(v, s)}
       ${src ? `<a href="${src}" target="_blank" rel="noopener" class="spinfo-open-btn">Open Dataset ↗</a>` : ''}
+      <a href="${datasetPageUrlFor(v.dataset_key)}" target="_blank" rel="noopener" class="spinfo-open-btn">dataset page ↗</a>
       <a href="#" onclick="viewFullStationCoverage(); return false;" class="spinfo-full-link">View Full Station Coverage — All Parameters →</a>
     </div>`;
 }
@@ -4335,6 +4347,7 @@ function showVariablePanel(v) {
         ${noteInner}
       </div>
       ${src ? `<a href="${src}" target="_blank" rel="noopener" class="spinfo-open-btn">Open Dataset ↗</a>` : ''}
+      <a href="${datasetPageUrlFor(v.dataset_key)}" target="_blank" rel="noopener" class="spinfo-open-btn">dataset page ↗</a>
     </div>`;
 }
 

@@ -21,6 +21,28 @@ Project Advisor: Dr. Tony Coburn
 
 The application is fully static and deployable on Vercel, GitHub Pages, Netlify, or any static web host.
 
+### URL parameters
+
+| parameter | what it does |
+|---|---|
+| `?dataset=<dataset_key>` | opens on one dataset: the inventory panel in **By Dataset** mode with that dataset's group open and its first variable selected, which is what draws its stations on the map. Exactly the state a person reaches by opening the group and clicking the top row. |
+| `?theme=dark` / `?theme=light` | brand v2 contract; `theme.js` owns it |
+| `?tour=off` (also `false`, `0`, `no`) | suppresses the walkthrough for this visit, so a screenshot shows the interface |
+
+`?dataset=` takes the **release's** `dataset_key`. Legacy keys still resolve through
+`DATASET_KEY_ALIASES` (`calcofi_bird_mammal_census` → `farallon_bird-mammal`), and an unknown key
+is ignored with a console note — a stale link opens the app rather than an error.
+`calcofi_bottle` is one release table shown as two rows in this panel (chemistry vs cast
+metadata), so it lands on the chemistry side, which is what the dataset page is about.
+
+Every dataset page on calcofi.io builds one of these links from a `dataset_url:` template in
+`CalCOFI.github.io/_data/products.yml` — the one place a product-to-dataset link is written
+(UI plan D-6, Decision 10):
+
+```
+https://app.calcofi.io/station/?dataset=calcofi_ctd-cast
+```
+
 ---
 
 ## Project Structure

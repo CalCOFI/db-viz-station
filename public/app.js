@@ -976,6 +976,7 @@ loadDataVersion().then(() => Promise.all([
   buildCanonicalVars();
   buildCategories();
   renderInventoryPanel();
+  applyDatasetFromUrl();
   // Deferred, non-blocking (see below). The first-visit auto-tour waits on it
   // rather than firing immediately: its Depth Profiles step needs a station
   // that actually has depth data, and depthProfileCount() reads 0 for every
@@ -4633,6 +4634,49 @@ function positionTourCallout(target, callout, step) {
   callout.classList.add(arrowSide === 'top' ? 'tour-arrow-top' : 'tour-arrow-bottom');
   callout.style.setProperty('--arrow-x', Math.min(Math.max(20, r.left + r.width / 2 - left), cw - 20) + 'px');
 }
+// ---- ?dataset= : open on one dataset ---------------------------------------
+// A calcofi.io dataset page links here, and until now the link could only open
+// the app at its own start — the row said "the app", not "this dataset" (UI
+// plan D-6, Decision 10). `?dataset=<dataset_key>` now reproduces exactly the
+// state a person reaches by hand: the inventory panel in By Dataset mode with
+// that dataset's group open, and its first variable selected, which is what
+// draws its stations on the map.
+//
+// The key is the RELEASE's key. Old keys still resolve through
+// DATASET_KEY_ALIASES (the same canonicalisation every other lookup here uses),
+// and an unknown key is ignored — a stale link opens the app rather than an
+// error.
+//
+// calcofi_bottle is one release table split into two rows in this panel
+// (chemistry vs cast metadata, see inventoryVarsFor), so the record's single
+// key lands on the chemistry side, which is what the dataset page is about.
+const DATASET_PARAM_PANEL_KEY = { calcofi_bottle: 'calcofi_bottle_hydro' };
+
+function resolveDatasetParam(key) {
+  if (!key) return null;
+  const known = (k) => k && DATASET_VAR_COUNTS[DATASET_PARAM_PANEL_KEY[k] || k] ? k : null;
+  return known(key) || known(DATASET_KEY_ALIASES[key]) || null;
+}
+
+function applyDatasetFromUrl() {
+  const raw = (new URLSearchParams(location.search).get('dataset') || '').trim();
+  const key = resolveDatasetParam(raw);
+  if (!key) {
+    if (raw) console.warn(`?dataset=${raw} is not a dataset in this release — opening the app instead`);
+    return;
+  }
+  const panelKey = DATASET_PARAM_PANEL_KEY[key] || key;
+  inventoryMode = 'dataset';
+  expandedInventoryGroup = panelKey;
+  renderInventoryPanel();
+  document.querySelector(`.inventory-row[data-key="${attrEsc(panelKey)}"]`)
+    ?.scrollIntoView({ block: 'nearest' });
+  // the panel's own first row for this dataset — the same variable a person
+  // lands on when they open the group and click the top entry
+  const first = inventoryVarsFor(panelKey)[0];
+  if (first) selectVariable(first.variable_id);
+}
+
 // brand/v2 contract item 5: `?tour=off` (also false/0/no) suppresses the
 // walkthrough for this visit so a screenshot shows the interface. it is a
 // per-visit suppression, not a dismissal — the dismiss key is never written

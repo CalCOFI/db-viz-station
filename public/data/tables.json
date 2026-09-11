@@ -1,33 +1,33 @@
 {
- "version": "v2026.09.10",
+ "version": "v2026.09.11",
  "layout": "canonical",
  "tables": {
   "obs": {
    "urls": [
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_bottle/8e3729a81f94a336b9d682f2/data_0.parquet",
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_ctd-cast/df38809eac8ce84444c810f5/data_0.parquet",
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_dic/2603937b5b19662089d762da/data_0.parquet",
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_mets/b0f2b4921c78585aa777f9ed/data_0.parquet",
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_phyllosoma/67c55726937d053b262e3cb8/data_0.parquet",
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_phytoplankton/1b88b5e74d11e4a57a48cb66/data_0.parquet",
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=cce-lter_euphausiids/40bdfe313003c72ada5ea676/data_0.parquet",
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=cce-lter_picoplankton-bacteria/0a07816958448d8f44ecf23c/data_0.parquet",
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=cce-lter_zoodb/9f7d1dc10ff0a1436d5e75e0/data_0.parquet",
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=cce-lter_zooscan/1aca3f557652941e9348d3ba/data_0.parquet",
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=cdfw_dungeness-crab/1e3d4a09c0274164d5094252/data_0.parquet",
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=farallon_bird-mammal/3336caea0087176bce47b458/data_0.parquet",
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=sio_mesopelagic-fish/df768a7f46b715c37e3b36f3/data_0.parquet",
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=swfsc_cufes/c8016da1ccdc97d403034d3b/data_0.parquet",
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=swfsc_ichthyo/d2af5655cb11f86c25e2c86d/data_0.parquet"
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_bottle/67fbe04bd3f7f169c142fd3b/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_ctd-cast/14f55db21599862db4a1823e/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_dic/6e68482fd769f490f969da1f/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_mets/c97c1263d39b25a2c0f7b823/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_phyllosoma/f3d06ff344e45b32bbfc3ed4/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_phytoplankton/4867e58b3ae6a03aa8b0868c/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=cce-lter_euphausiids/c1ccfefb961d834ba80f7d37/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=cce-lter_picoplankton-bacteria/8164970a18e65412da071804/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=cce-lter_zoodb/3787e0b7d0e8af7647e689c8/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=cce-lter_zooscan/7c267d71fd766fe760a7db73/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=cdfw_dungeness-crab/efb75142e86d561ad19f9ca4/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=farallon_bird-mammal/d5fa2d44270b749e3ffe0ac6/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=sio_mesopelagic-fish/1c212b67f8191efba5152565/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=swfsc_cufes/3fbe917b17c671176b3e1292/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=swfsc_ichthyo/8d9fb2f6ebc78db50d46338d/data_0.parquet"
    ],
    "hive": true,
    "canonical": true,
    "partition_by": "dataset_key",
-   "single_file": "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/ec7a037e63490d84c7db30bc/obs.parquet"
+   "single_file": "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/8636ac9ca5d5ecb9a6b63233/obs.parquet"
   },
   "taxon": {
    "urls": [
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/taxon/3108619d3d2dd2bef876cc78/taxon.parquet"
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/taxon/f5ee16470126f3fed91e4a21/taxon.parquet"
    ],
    "hive": false,
    "canonical": true,

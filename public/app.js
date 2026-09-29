@@ -6,14 +6,20 @@ const ccThemeNow = () =>
 const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
 // ---- map (CARTO basemap in the theme's shade) ----
+// Light is Voyager, the basemap the Hexagon Explorer uses (its voyager-gl-style,
+// here as raster tiles). Positron (light_all) drew the ocean and the land in two
+// near-identical greys, so the coastline and the pale markers washed out
+// (Betty, 2026-09-28). Dark stays Dark Matter.
 const basemapUrl = theme =>
-  `https://{s}.basemaps.cartocdn.com/${theme === 'light' ? 'light_all' : 'dark_all'}/{z}/{x}/{y}{r}.png?key=cb1_2exm_1_dcedec936b7a69c909965eaa`;
+  `https://{s}.basemaps.cartocdn.com/${theme === 'light' ? 'rastertiles/voyager' : 'dark_all'}/{z}/{x}/{y}{r}.png?key=cb1_2exm_1_dcedec936b7a69c909965eaa`;
 const basemap = L.tileLayer(basemapUrl(ccThemeNow()), {
   attribution: '© OpenStreetMap · © CARTO', subdomains: 'abcd', maxZoom: 19, crossOrigin: true });
 const map = L.map('map', { center: [32.8, -120.2], zoom: 6, worldCopyJump: true })
   .addLayer(basemap);
 document.addEventListener('cc:theme', e => {
   basemap.setUrl(basemapUrl(e.detail.theme));
+  // light mode frames the map as a card (styles.css), so its box changes size
+  map.invalidateSize();
   // the selected-station ring is drawn in --text, which just changed
   applyStyles();
 });
@@ -405,7 +411,10 @@ function fixDisplayName(name) {
   if (isReported) resolved = 'Reported ' + resolved;
   return resolved;
 }
-const displayLabel = v => fixDisplayName(v.display_name || v.name);
+// A functional-group total (regionGroupVars) carries a finished label; the
+// field-name cleanup below would title-case its "(sum)".
+const displayLabel = v => v.variable_type === 'taxon_group' ? v.display_name
+  : fixDisplayName(v.display_name || v.name);
 // Groups a station's depth-resolved variables by base name (rep1/rep2/mean/
 // dark/ave all collapse to the same group, same base-stripping fixDisplayName()
 // uses) and keeps exactly one representative per group — preferring the mean,
@@ -456,9 +465,80 @@ function dedupeDepthVars(byVar) {
 // name — matches Betty's original taxonDisplayLabel pattern. Skipped when
 // there's no separate common name (the label already IS the scientific
 // name, e.g. class-level entries like "Bacillariophyceae").
+// "spp." after a genus-level taxon (Pooh's review via Erin, 2026-09-28): in
+// Venrick's species list a bare genus is the source's "<Genus>, uncertain
+// species." — cells of that genus not identified to species — and printing it as
+// "Actinocyclus" beside "Actinocyclus octanarius" reads as the whole genus.
+// Scoped to the phytoplankton for now; other datasets' genus rows mostly carry
+// common names ("Rockfishes") that already say what they are.
+const SPP_DATASETS = new Set(['calcofi_phytoplankton']);
+const isSppTaxon = v => v.variable_type === 'taxon' && v.rank === 'Genus' && SPP_DATASETS.has(v.dataset_key)
+  && !(v.name || '').trim().includes(' ');
+// Checked against the Species Codes sheet (EDI knb-lter-cce.254.4
+// definitions.xlsx): 39 of the 40 phytoplankton genus rows are the source's
+// "<Genus>, uncertain species." or "<Genus> spp."; the 40th is "Liriogramma
+// complex" (notes: "includes Asteromphalus sarcophagus") — a named group, not
+// unidentified cells of one genus — so it keeps the source's own word.
+const GENUS_QUALIFIER = { 'calcofi_phytoplankton::Liriogramma': 'complex' };
+const genusQualifier = v => GENUS_QUALIFIER[v.variable_id] || 'spp.';
+// The source's functional-group labels ("diatom, centric") in reading order,
+// singular for a taxon's subtitle and plural for the browse-list headers. The
+// coarse "diatom" / "dinoflagellate" belong to the two catch-all classes
+// (Bacillariophyceae, Dinophyceae) that the release keys to both halves of the
+// pair — see build_vars.sql.
+//
+// Wording follows the source's own groups — the seven sections its abundance
+// workbooks sum (centric diatoms ... "MISC. TAXA") — written out plainly, with
+// no shorthand (2026-09-28: "clean and readable, no shorthand or +"). The two
+// catch-all classes hold the source's "indistinguished ..." rows and "pennate
+// sp. 1"-style unknowns, hence "Unidentified".
+const TAXON_GROUP_NAMES = {
+  'diatom, centric': ['centric diatom', 'Centric diatoms'],
+  'diatom, pennate': ['pennate diatom', 'Pennate diatoms'],
+  'diatom': ['unidentified diatom', 'Unidentified diatoms'],
+  'dinoflagellate, thecate': ['thecate dinoflagellate', 'Thecate dinoflagellates'],
+  'dinoflagellate, athecate': ['athecate dinoflagellate', 'Athecate dinoflagellates'],
+  'dinoflagellate': ['unidentified dinoflagellate', 'Unidentified dinoflagellates'],
+  'coccolithophore': ['coccolithophore', 'Coccolithophores'],
+  'silicoflagellate': ['silicoflagellate', 'Silicoflagellates'],
+  'other': ['miscellaneous taxon', 'Miscellaneous taxa'],
+};
+// English common names the release does not carry yet (Betty, 2026-09-28:
+// "find common names anywhere; if they exist, add"). Every phytoplankton taxon
+// was looked up in WoRMS, GBIF, ITIS and NCBI Taxonomy. Beyond the four classes
+// (named already: the release's "diatoms" and "dinoflagellates", and
+// DISPLAY_NAME_FIXES), these two species are the only ones any of them names.
+// Keyed by AphiaID, and only filled where the release has no common_name, so the
+// release's name wins once it lands (the same rows go into the workflows
+// registry, metadata/taxon_common.csv).
+const COMMON_NAME_ADDS = {
+  '109921': 'sea sparkle',        // Noctiluca scintillans: WoRMS, GBIF, NCBI
+  '110328': 'ocean night light',  // Pyrocystis fusiformis: WoRMS
+};
+function addCommonName(v) {
+  if (v.variable_type === 'taxon' && !v.common_name && COMMON_NAME_ADDS[v.aphia_id])
+    v.common_name = COMMON_NAME_ADDS[v.aphia_id];
+}
+// The source's own name(s) for a species when the release shows another — the
+// WoRMS name Venrick's name now goes by (Ceratium fusus -> Tripos fusus). From
+// variables.json source_names (build_vars.sql); searched by varMatch too, so
+// either name finds the item. Species-level only: a genus or class item's
+// source entries are its "uncertain species" / "sp. 1" rows, not other names.
+const normName = n => (n || '').toLowerCase().replace(/\s+/g, ' ').trim();
+function sourceNamesDiffering(v) {
+  if (v.variable_type !== 'taxon' || !v.source_names || isSppTaxon(v) || v.rank === 'Class') return [];
+  return v.source_names.filter(n => normName(n) !== normName(v.name));
+}
+function groupCommonName(v) {
+  if (v.variable_type === 'taxon_group') return 'functional-group total';
+  const g = v.taxon_group;
+  if (!g) return '';
+  return (TAXON_GROUP_NAMES[g] || [g])[0];
+}
 function taxonLabel(v) {
   if (v.variable_type !== 'taxon') return displayLabel(v);
   const sci = (v.name || '').trim();
+  if (isSppTaxon(v)) return `<i>${sci}</i> ${genusQualifier(v)}`;
   const MINOR_WORDS = new Set(['of', 'and', 'the', 'a', 'an', 'in', 'on', 'at', 'for', 'to', 'from', 'with']);
   const titleCaseCommonName = str => {
     let firstWord = true;
@@ -514,7 +594,13 @@ const sortNameFor = v => (v.variable_type === 'taxon' ? (v.common_name || v.name
 // differs from resolvedLabel by skipping taxonLabel's italic sci-name span.
 function resolvedPlainLabel(v) {
   const fm = familyMemberFor(v);
-  return fm ? fm.member.label : displayLabel(v);
+  if (fm) return fm.member.label;
+  if (isSppTaxon(v)) return `${(v.name || '').trim()} ${genusQualifier(v)}`;
+  // a phytoplankton taxon: taxonLabel without its markup, so a species reads
+  // "Sea Sparkle (Noctiluca scintillans)" or "Chaetoceros affinis", not
+  // fixDisplayName's "Noctiluca Scintillans" (a capitalized species epithet)
+  if (v.variable_type === 'taxon' && SPP_DATASETS.has(v.dataset_key)) return taxonLabel(v).replace(/<[^>]+>/g, '');
+  return displayLabel(v);
 }
 // Splits resolvedLabel(v)'s flowing "Common Name (Sci Name)" HTML into its
 // two parts so callers can stack them on separate lines without parentheses
@@ -644,7 +730,9 @@ function buildCanonicalVars() {
   // doesn't get swept in by accident.
   const KEEP_MEASUREMENT_TYPE = new Set([
     'swfsc_ichthyo::small_plankton_biomass', 'swfsc_ichthyo::total_plankton_biomass', 'swfsc_ichthyo::abundance',
-    'calcofi_phytoplankton::phytoplankton_abundance',
+    // (calcofi_phytoplankton::phytoplankton_abundance was here until 2026-09-28. It is
+    // the measurement every taxon row carries, not a community total, so as its own
+    // entry it only repeated where the dataset sampled; the group sums are the totals.)
     'cce-lter_zoodb::zooplankton_abundance', 'cce-lter_zoodb::zooplankton_abundance_areal', 'cce-lter_zoodb::zooplankton_biomass_carbon',
     'cce-lter_zooscan::zooscan_abundance', 'cce-lter_zooscan::zooscan_biomass_carbon',
     'cce-lter_zooscan::zooscan_carbon_individual', 'cce-lter_zooscan::zooscan_feret_diameter',
@@ -676,6 +764,93 @@ function buildCanonicalVars() {
 let STATIONS = [], VARS = [];
 const BY_KEY = {}, MARKERS = {}, DS_STATIONS = {};
 const DECADES = {};
+// ---- where a station marker sits ----------------------------------------------
+// Pooh's review (via Erin, 2026-09-28): "all [stations] in a line should be in a
+// row", especially inshore. They were not, because stations.json carries each
+// grid CELL's centroid (build_stations.sql: ST_X/ST_Y of grid.geom_ctr), and a
+// coastal cell is clipped to its water — so its centroid slides along the coast,
+// off its own line. 83.3 35 sat 40 km from its station, at line ~84.9, between
+// lines 83.3 and 86.7; 86.7 30 sat 33 km off, at line ~88.1. Median offset over
+// all 218 cells is 0.5 km, so this is a coastal problem, plus the station-60
+// row, which every cell shifts ~9 km offshore (the Voronoi cell straddles the
+// 20 nm -> 40 nm spacing change).
+//
+// So the marker goes where the label says: the station's nominal CalCOFI
+// position, from line/station through the CalCOFI projection (Eber & Hewitt
+// 1979) — the same transform the release builds its region polygons from
+// (+proj=calcofi in calcofi4db::cc_calcofi_to_lonlat). This port matches PROJ to
+// 1e-13 degrees on every one of the 218 stations.
+const CC_ECC = Math.sqrt(1 - (6356583.8 / 6378206.4) ** 2);   // Clarke 1866, as PROJ's calcofi
+function ccTsfn(phi) {
+  const s = Math.sin(phi);
+  return Math.tan(0.5 * (Math.PI / 2 - phi)) / Math.pow((1 - s * CC_ECC) / (1 + s * CC_ECC), 0.5 * CC_ECC);
+}
+function calcofiToLatLon(line, sta) {
+  const ROT = Math.PI / 6, O_PHI = 0.59602993955606354, O_LAM = -2.1144663887911301;   // line 80 sta 60
+  const ry = O_PHI - 0.0034906585039886592 * (line - 80) * Math.cos(ROT);
+  const phi = ry - 0.0011635528346628863 * (sta - 60) * Math.sin(ROT);
+  const oy = -Math.log(ccTsfn(O_PHI)), rym = -Math.log(ccTsfn(ry)), xym = -Math.log(ccTsfn(phi));
+  const lam = O_LAM - ((xym - oy) * Math.tan(ROT) + (rym - xym) / (Math.cos(ROT) * Math.sin(ROT)));
+  return [phi * 180 / Math.PI, lam * 180 / Math.PI];
+}
+// The one exception: 20 cells whose nominal station falls ON LAND (a
+// regularized-grid cell reaching into the coast). Checked against Natural Earth
+// 10m land. Each is placed one of three ways:
+//
+//  - {sampled: [line, station]}: the official station where most of the cell's
+//    samples were taken, read from the release's own station IDs
+//    (sample.site_key, v2026.09.11, checked 2026-09-28). 80.0 50 -> 80.0 51
+//    (5,156 samples at 080.0 051.0), 93.3 25 -> 93.3 26.7 (4,447), 70.0 50 ->
+//    70.0 51 (1,359), 86.7 30 -> 86.8 32.5 (235, plus 82 at 086.7 032.5),
+//    66.7 45 -> 66.7 47.3 (18). The marker's data is unchanged: everything is
+//    keyed by grid_key / station_id, never by where the marker is drawn.
+//  - a number: no one station to go by, so the marker slides out along its own
+//    line to the first water, still in the row. 76.7 45 and 40.0 20 have no
+//    samples at all; the historical cells' samples spread over several
+//    stations and lines.
+//  - null: the samples sit off to the side of the line, over several stations,
+//    so the cell's centroid (the middle of its water) is the truest place:
+//    90.0 25 (samples on line 91, stations 26.6-27.2), 83.3 35 (line 85 off
+//    Point Mugu), 80.0 45 (lines 80.8-82), 60.0 45 (underway data only).
+const STATION_ON_LAND = {
+  'st50-ln80': { sampled: [80, 51] }, 'st25-ln93.3': { sampled: [93.3, 26.7] },
+  'st50-ln70': { sampled: [70, 51] }, 'st30-ln86.7': { sampled: [86.8, 32.5] },
+  'st45-ln66.7': { sampled: [66.7, 47.3] },
+  'st45-ln76.7': 47.3,
+  'st-20-ln130_hist': -12.6, 'st-40-ln160_hist': -31.7, 'st20-ln100_hist': 27.8,
+  'st20-ln120_hist': 22.3, 'st20-ln130_hist': 23.9, 'st20-ln140_hist': 24.9,
+  'st25-ln90': null, 'st35-ln83.3': null, 'st45-ln60': null, 'st45-ln80': null,
+  'st0-ln30_hist': null, 'st20-ln40_hist': null, 'st20-ln110_hist': null, 'st40-ln55_hist': null,
+  // not on land, but a historical cell with the same line/station as a standard
+  // one (90.0 120.0): both at the nominal point would draw one marker over the other
+  'st120-ln90_hist': null,
+};
+const fmtLineSta = (line, sta) => `${Number(line).toFixed(1)} ${Number(sta).toFixed(1).replace(/\.0$/, '')}`;
+function placeStation(s) {
+  s.lat_cell = s.lat; s.lon_cell = s.lon;       // the cell centroid, kept for reference
+  if (s.line == null || s.station == null) return;
+  const ex = STATION_ON_LAND[s.grid_key];
+  if (ex === undefined) { [s.lat, s.lon] = calcofiToLatLon(s.line, s.station); return; }
+  if (ex === null) { s.place_note = 'centroid'; return; }
+  if (typeof ex === 'object') {
+    [s.lat, s.lon] = calcofiToLatLon(...ex.sampled);
+    s.place_note = 'sampled'; s.sampled_at = fmtLineSta(...ex.sampled);
+    return;
+  }
+  [s.lat, s.lon] = calcofiToLatLon(s.line, ex);
+  s.place_note = 'slid';
+}
+function placeNoteText(s) {
+  const pos = fmtLineSta(s.line, s.station);
+  if (s.grid_key === 'st120-ln90_hist')
+    return `A standard station has the same number (${pos}), so this marker sits in the middle of this cell to keep the two apart.`;
+  if (s.place_note === 'sampled')
+    return `Grid position ${pos} is on land. The marker is at station ${s.sampled_at}, where most samples here were taken.`;
+  if (s.place_note === 'slid')
+    return `Grid position ${pos} is on land. The marker sits on line ${Number(s.line).toFixed(1)} at the nearest water.`;
+  return `Grid position ${pos} is on land. The marker sits in the middle of this cell's water.`;
+}
+
 // Pooled-region geometry, for datasets whose samples were pooled across stations
 // before being counted and so have no grid_key at all (see isRegionPooled). These
 // mirror the station structures above one-for-one: REGION_BY_KEY ~ BY_KEY,
@@ -683,7 +858,18 @@ const DECADES = {};
 // All empty unless regions.json loaded.
 let REGIONS = [];
 const REGION_BY_KEY = {}, REGION_LAYERS = {}, DS_REGIONS = {};
+// light theme only: a darker outline drawn under each region, so the white
+// stroke on top reads as a separator between neighbouring regions (renderRegions)
+const REGION_CASING = {};
+// the region whose panel is open — drawn as the focus (showRegionPanel)
+let SELECTED_REGION = null;
 const REGION_TAXA = {}, REGION_TAXA_YEARS = {}, REGION_DS_YEARS = {};
+// dataset_key -> Set(functional group) with region totals; datasets whose
+// regions.json taxa carry presence counts (sum_value, 2026-09-28 build) rather
+// than the older row counts — see regionsForVar() for why that matters
+const REGION_GROUPS = {}, DS_REGION_PRESENCE = new Set();
+// grid_key -> [{region, code}] for the stations each pooled region was pooled over
+const REGION_OF_STATION = {};
 // "dataset_key::aphia_id" -> Set(grid_key) — per-taxon, per-dataset station
 // coverage from the optional
 // taxon_coverage.json (see load block below). Empty until/unless that file
@@ -918,6 +1104,7 @@ loadDataVersion().then(() => Promise.all([
   fetch(dataUrl('cruises.json')).then(r => r.ok ? r.json() : []).catch(() => [])
 ])).then(([st, va, dm, tc, bc, bathy, dsMetaRows, rg, crz]) => {
   STATIONS = st; VARS = va;
+  VARS.forEach(addCommonName);
   // Regions are indexed exactly like taxon_coverage: `dataset_key::aphia_id`,
   // because a pooled dataset's variables are taxa and variables.json keys them
   // by aphia_id. Keeping the two indexes the same shape is what lets
@@ -934,8 +1121,18 @@ loadDataVersion().then(() => Promise.all([
       const k = t.dataset_key + '::' + t.aphia_id;
       (REGION_TAXA[k] ||= new Set()).add(r.region_key);
       if (t.years) (REGION_TAXA_YEARS[k] ||= {})[r.region_key] = t.years;
+      if (t.sum_value != null) DS_REGION_PRESENCE.add(t.dataset_key);
+    });
+    // functional-group totals ("diatom sum"), keyed like the taxa but by group
+    (r.groups || []).forEach(g => {
+      const k = g.dataset_key + '::group:' + g.taxon_group;
+      if (g.n_obs > 0) (REGION_TAXA[k] ||= new Set()).add(r.region_key);
+      if (g.years) (REGION_TAXA_YEARS[k] ||= {})[r.region_key] = g.years.filter(o => o.n > 0);
+      (REGION_GROUPS[g.dataset_key] ||= new Set()).add(g.taxon_group);
     });
   });
+  indexRegionStations();
+  VARS = VARS.concat(regionGroupVars());
   // before anything renders — dsMeta()/officialNameFor()/datasetUrlFor() all read it
   (dsMetaRows || []).forEach(r => { DATASETS_META[r.dataset_key] = r; });
   (dm || []).forEach(r => { ((DECADES[r.dataset_key] ||= {})[r.station_id] ||= []).push(r); });
@@ -954,6 +1151,7 @@ loadDataVersion().then(() => Promise.all([
   const bathyByKey = {};
   (bathy || []).forEach(r => { bathyByKey[r.grid_key] = r.bathymetry_depth_m; });
   STATIONS.forEach(s => {
+    placeStation(s);
     BY_KEY[s.grid_key] = s;
     // > 0, not just != null: st45-ln60 carries a bathymetry_depth_m of 0, which
     // is a nodata sentinel from the GEBCO sampling rather than a real sounding
@@ -1147,54 +1345,226 @@ function regionsInRange(regionSet, yearsByRegion) {
     return years && years.some(o => o.y >= a && o.y <= b);
   }));
 }
+// The REGION_TAXA key a variable resolves through: a taxon by aphia_id, a
+// functional-group total by its group (see regionGroupVars), else null for a
+// dataset-level measurement, which falls through to whole-dataset coverage.
+function regionKeyFor(v) {
+  if (!v) return null;
+  if (v.variable_type === 'taxon_group') return v.dataset_key + '::group:' + v.taxon_group;
+  return v.aphia_id ? v.dataset_key + '::' + v.aphia_id : null;
+}
 function regionsForVar(v) {
   if (!v) return new Set();
-  if (v.aphia_id) {
-    const key = v.dataset_key + '::' + v.aphia_id;
-    if (REGION_TAXA[key]) return regionsInRange(REGION_TAXA[key], REGION_TAXA_YEARS[key]);
-  }
+  const key = regionKeyFor(v);
+  // With the slider spanning the whole record, a region counts even when its
+  // only samples with cells are undated (Actinocyclus in SE: 1 sample, no
+  // cruise match) — the same rule regionStats() uses, so the highlight, the
+  // banner and the card cannot disagree.
+  if (key && REGION_TAXA[key]) return yearWindowIsFull(v) ? REGION_TAXA[key]
+    : regionsInRange(REGION_TAXA[key], REGION_TAXA_YEARS[key]);
+  // Since regions.json counts presence (cells > 0) rather than rows, a taxon
+  // with no entry was never counted anywhere — it must not fall back to "every
+  // region the dataset sampled", which is the very overstatement the presence
+  // counts exist to remove. Older files (row counts) keep the old fallback.
+  if (key && DS_REGION_PRESENCE.has(v.dataset_key)) return new Set();
   return regionsInRange(DS_REGIONS[v.dataset_key] || new Set(),
                         REGION_DS_YEARS[v.dataset_key]);
 }
 function regionsForVarIsYearAware(v) {
   if (!v) return false;
-  if (v.aphia_id && REGION_TAXA[v.dataset_key + '::' + v.aphia_id])
-    return !!REGION_TAXA_YEARS[v.dataset_key + '::' + v.aphia_id];
+  const key = regionKeyFor(v);
+  if (key && REGION_TAXA[key]) return !!REGION_TAXA_YEARS[key];
   return !!REGION_DS_YEARS[v.dataset_key];
+}
+// The regions in the order the source lists them — definitions.xlsx sheet
+// "Regions" and every abundance sheet's column order: NE, SE, Alley, Offshore.
+// regions.json arrives A-Z (build_regions.sql sorts by region_key), which put
+// Alley first; Pooh asked for the original order (2026-09-28). Unknown keys
+// follow, A-Z, so a future pooled dataset's regions still list.
+const REGION_ORDER = ['NE', 'SE', 'Alley', 'Offshore'];
+function orderedRegions() {
+  const rank = k => { const i = REGION_ORDER.indexOf(k); return i === -1 ? REGION_ORDER.length : i; };
+  return REGIONS.slice().sort((a, b) => rank(a.region_key) - rank(b.region_key) ||
+                                        a.region_key.localeCompare(b.region_key));
+}
+// "Northern Inshore" and "Southern inshore" arrive in mixed case from the source
+const regionDesc = r => (r.description || '').replace(/^./, c => c.toUpperCase());
+// the region's own coverage entry for this variable: its taxon row, its group
+// row, or (dataset-level measurement) the dataset row
+function regionEntryFor(r, v) {
+  if (v.variable_type === 'taxon_group')
+    return (r.groups || []).find(g => g.dataset_key === v.dataset_key && g.taxon_group === v.taxon_group) || null;
+  if (v.aphia_id)
+    return (r.taxa || []).find(t => t.dataset_key === v.dataset_key && t.aphia_id === String(v.aphia_id)) || null;
+  return null;
+}
+// True when the year slider covers the variable's whole record, so undated
+// samples belong in the totals. They cannot be placed in a year (their month
+// had more than one cruise; workflows phytoplankton Q06), so a narrower window
+// can only speak for the dated ones — and says so wherever it is shown.
+function yearWindowIsFull(v) {
+  if (!yearRange) return true;
+  const span = datasetYearSpan(v.dataset_key);
+  return !span || (yearRange[0] <= span[0] && yearRange[1] >= span[1]);
+}
+// What the region card shows, per region: in how many of the region's samples
+// cells were counted (n of N), and the mean cells/L over ALL of its samples,
+// zeros included — the region's average, not the average when present.
+// Replaces the bare row count (e.g. "105" for Actinocyclus in Alley, which was
+// the number of sample rows including every zero; cells were counted in 1).
+function regionStats(r, v) {
+  const d = (r.datasets || []).find(x => x.dataset_key === v.dataset_key);
+  if (!d) return null;
+  const isMeasure = v.variable_type !== 'taxon' && v.variable_type !== 'taxon_group';
+  const e = isMeasure ? null : regionEntryFor(r, v);
+  const full = yearWindowIsFull(v);
+  const inWin = o => o.y >= yearRange[0] && o.y <= yearRange[1];
+  const N = full ? (d.n_samples || 0)
+    : (d.sample_years || []).filter(inWin).reduce((a, o) => a + o.n, 0);
+  if (isMeasure) return { N, n: null, mean: null, full };
+  const n = !e ? 0 : full ? (e.n_obs || 0) : (e.years || []).filter(inWin).reduce((a, o) => a + (o.n || 0), 0);
+  const sum = !e ? 0 : full ? (e.sum_value || 0) : (e.years || []).filter(inWin).reduce((a, o) => a + (o.s || 0), 0);
+  // an older regions.json (row counts, no sum_value) cannot say any of this
+  const hasPresence = DS_REGION_PRESENCE.has(v.dataset_key);
+  return { N, n: hasPresence ? n : null, mean: hasPresence && N ? sum / N : null, full };
 }
 // Observations that carry no resolvable year, for the selected variable. Shown
 // beside the count so a year-filtered number never silently stands for the whole
-// dataset — the same trap stationsForVarIsYearAware() exists to close.
+// dataset — the same trap stationsForVarIsYearAware() exists to close. With the
+// presence build these are SAMPLES with cells, not rows.
+// The years a pooled item was actually counted (cells > 0), from the per-year
+// bins in regions.json — across every region, or just one. Every pooled banner
+// used to say "in 1996–2022", the dataset's span, whatever the item (Betty,
+// 2026-09-28: "add year somehow so not all read 1996-2022"); Actinoptychus spp.
+// was counted in two of those years. The slider is NOT narrowed to these years:
+// ~40% of samples carry no date (Q06), and a narrowed window has to leave them
+// out, so the counts would change on selection. Undated counts are reported
+// beside the years instead. Inside a narrowed window only its years are listed.
+function pooledItemYears(v, onlyRegion) {
+  const ys = []; let undated = 0;
+  const full = yearWindowIsFull(v);
+  (onlyRegion ? [onlyRegion] : REGIONS).forEach(r => {
+    const e = regionEntryFor(r, v); if (!e) return;
+    (e.years || []).forEach(o => {
+      if ((o.n || 0) > 0 && (full || (o.y >= yearRange[0] && o.y <= yearRange[1]))) ys.push(o);
+    });
+    if (full) undated += e.n_obs_undated || 0;
+  });
+  return { ys, undated };
+}
+// "2002, 2021" / "1997–1999, 2004" (≤ 4 runs) / "1996–2022" (more), and
+// "+ 2 undated" when some counts cannot be placed in a year
+function pooledYearsText(v, onlyRegion) {
+  const { ys, undated } = pooledItemYears(v, onlyRegion);
+  const runs = yearRuns(ys);
+  const yrs = !runs.length ? '' : runs.length <= 4 ? runs.join(', ').replace(/, ([^,]*)$/, ' and $1')
+    : `${Math.min(...ys.map(o => o.y))}–${Math.max(...ys.map(o => o.y))}`;
+  return { yrs, undated };
+}
 function regionUndatedObs(v) {
   if (!v) return 0;
   let n = 0;
   REGIONS.forEach(r => {
-    if (v.aphia_id) {
-      const t = (r.taxa || []).find(x => x.dataset_key === v.dataset_key &&
-                                         x.aphia_id === String(v.aphia_id));
-      if (t) { n += t.n_obs_undated || 0; return; }
-    }
+    const e = regionEntryFor(r, v);
+    if (e) { n += e.n_obs_undated || 0; return; }
+    if (regionKeyFor(v) && DS_REGION_PRESENCE.has(v.dataset_key)) return;
     const d = (r.datasets || []).find(x => x.dataset_key === v.dataset_key);
     if (d) n += d.n_obs_undated || 0;
   });
   return n;
 }
+// Which grid stations each region was pooled over. regions.json lists them in
+// the source's shorthand — "83.41" is line 83.3, station 41, "87.40" is line
+// 86.7 station 40 (the line rounded to a whole number) — and six of the 34
+// (83.41, 83.51, 90.37, 77.51, 80.51, 90.53) are intermediate inshore stations
+// with no grid cell of their own, so they attach to the nearest station on the
+// same line: 83.3 41 to the 83.3 40 cell, and so on.
+function indexRegionStations() {
+  const lines = [...new Set(STATIONS.filter(s => s.pattern !== 'historical').map(s => s.line))];
+  REGIONS.forEach(r => (r.station_codes || '').split(',').map(c => c.trim()).filter(Boolean).forEach((code, idx) => {
+    const [ln, st] = code.split('.').map(Number);
+    const line = lines.find(l => Math.round(l) === ln);
+    if (line == null || isNaN(st)) return;
+    let best = null;
+    STATIONS.forEach(s => {
+      if (s.line !== line || s.pattern === 'historical') return;
+      if (!best || Math.abs(s.station - st) < Math.abs(best.station - st)) best = s;
+    });
+    if (!best) return;
+    (REGION_OF_STATION[best.grid_key] ||= []).push({
+      region: r, label: `${line.toFixed(1)} ${st}`, exact: best.station === st, idx });
+  }));
+}
+// Functional-group totals — "diatom sum" and the like (Pooh's review via Erin,
+// 2026-09-28). The source sheets carry them as SUM rows, which the ingest drops
+// (workflows phytoplankton Q03); build_regions.sql rebuilds them from the taxa,
+// and they are offered here as browsable variables of their own, listed first
+// in the dataset. Synthesized from regions.json, so they exist only where it
+// carries `groups`.
+// The source's SUM rows, in plain words. Five, not the source's seven: the release
+// keys the "indistinguished" diatoms of both halves to one class (and the same
+// for dinoflagellates) and obs carries no provider code, so a centric vs
+// pennate split cannot be rebuilt from it (see build_regions.sql). The source's
+// seven would need its SUM rows kept at ingest (workflows phytoplankton Q03).
+const GROUP_TOTAL_LABEL = {
+  diatom: 'Total diatoms', dinoflagellate: 'Total dinoflagellates',
+  coccolithophore: 'Total coccolithophores', silicoflagellate: 'Total silicoflagellates',
+  other: 'Total miscellaneous taxa',
+};
+const GROUP_TOTAL_DESC = {
+  diatom: 'Every centric and pennate diatom counted, summed per sample',
+  dinoflagellate: 'Every thecate and athecate dinoflagellate counted, summed per sample',
+  coccolithophore: 'Every coccolithophore counted, summed per sample',
+  silicoflagellate: 'Every silicoflagellate counted, summed per sample',
+  other: 'Every miscellaneous taxon counted, summed per sample',
+};
+const GROUP_TOTAL_ORDER = ['diatom', 'dinoflagellate', 'coccolithophore', 'silicoflagellate', 'other'];
+function regionGroupVars() {
+  const out = [];
+  Object.entries(REGION_GROUPS).forEach(([dk, groups]) => [...groups].forEach(g => {
+    const i = GROUP_TOTAL_ORDER.indexOf(g);
+    out.push({
+      variable_id: `${dk}::group:${g}`, dataset_key: dk, realm: 'bio', variable_type: 'taxon_group',
+      name: g, display_name: GROUP_TOTAL_LABEL[g] || `Total ${g}`, units: 'cells/L',
+      description: GROUP_TOTAL_DESC[g] || `Every ${g} taxon counted, summed per sample`,
+      aphia_id: null, rank: null, common_name: null, taxon_group: g,
+      source_order: i === -1 ? -1 : i - GROUP_TOTAL_ORDER.length,   // ahead of every taxon
+    });
+  }));
+  return out;
+}
 // Polygons are created once and left off the map. A pooled dataset is 1 of 16,
 // so showing four large polygons over the station grid at all times would be
 // noise for every other selection; they are added only while a pooled variable
 // is selected (see applyStyles).
+//
+// They live in their own pane BELOW the station markers (overlayPane is 400).
+// Drawn in the default pane they sat on top and swallowed every click inside
+// them, so the stations a region was pooled over could not be opened while a
+// phytoplankton taxon was selected — the one moment their membership matters.
 function renderRegions() {
+  if (REGIONS.length && !map.getPane('regions')) {
+    map.createPane('regions');
+    map.getPane('regions').style.zIndex = 350;
+    map.createPane('regionCasing');
+    map.getPane('regionCasing').style.zIndex = 340;
+    map.getPane('regionCasing').style.pointerEvents = 'none';
+  }
   REGIONS.forEach(r => {
     if (!r.geometry) return;
     const layer = L.geoJSON(r.geometry, {
+      pane: 'regions',
       style: { color: '#ffd84d', weight: 2, fillColor: '#ffd84d',
                fillOpacity: 0.18, opacity: 0.9 }
     });
     layer.bindTooltip(
-      `${r.region_key} — ${r.description}<br>${r.n_stations} pooled stations · ` +
+      `${r.region_key} — ${regionDesc(r)}<br>${r.n_stations} pooled stations · ` +
       `${(r.area_km2 || 0).toLocaleString()} km²`,
       { direction: 'top', sticky: true });
+    layer.on('click', () => showRegionPanel(r));
     REGION_LAYERS[r.region_key] = layer;
+    REGION_CASING[r.region_key] = L.geoJSON(r.geometry, {
+      pane: 'regionCasing', interactive: false, style: { fill: false, weight: 0 } });
   });
 }
 const DATASET_SPAN_IS_AGGREGATE = new Set(['calcofi_mets']);
@@ -1208,33 +1578,70 @@ function applyStyles() {
   // dataset was actually pooled over rather than nothing at all
   // (CalCOFI/workflows#76). Falls back to the old neutral-map behaviour when
   // regions.json is absent.
+  //
+  // With the regions drawn, every marker is dimmed the same (Betty, 2026-09-28).
+  // Left "neutral" they kept the year-slider dimming, so stations with no data
+  // of any kind in 1996-2022 went grey and the rest stayed bright — which read
+  // as a phytoplankton pattern and was not one. The regions carry the data.
   const pooledSelection = selectedVar && isRegionPooled(selectedVar.dataset_key);
   const highlighting = selectedVar && !pooledSelection;
   const selSet = highlighting ? stationsForVar(selectedVar) : null;
   const selRegions = pooledSelection ? regionsForVar(selectedVar) : null;
+  // While a pooled (phytoplankton) item is selected the stations carry none of
+  // its data, so they stop taking clicks: a click on one falls through to the
+  // region under it and opens that region's numbers, instead of leaving the
+  // phytoplankton view for a station page (Betty, 2026-09-28: "too easy for
+  // people to get lost"). CSS: #map.pooled-mode path.station-mk.
+  map.getContainer().classList.toggle('pooled-mode', !!(pooledSelection && REGIONS.length));
+  if (!pooledSelection) SELECTED_REGION = null;
+  // Light theme draws the regions ABOVE the station markers (Betty, 2026-09-28:
+  // "hard to even tell what is on top or what is the focus"): while a pooled item
+  // is selected the stations carry none of its data and take no clicks, so the
+  // regions are the subject and sit on top. Dark keeps its original order.
+  const ink = mapInk();
+  if (map.getPane('regions')) {
+    map.getPane('regions').style.zIndex = ink.regionsOnTop ? 450 : 350;
+    map.getPane('regionCasing').style.zIndex = ink.regionsOnTop ? 440 : 340;
+  }
+  let focus = null;
   REGIONS.forEach(r => {
     const layer = REGION_LAYERS[r.region_key]; if (!layer) return;
+    const casing = REGION_CASING[r.region_key];
     const on = selRegions && selRegions.has(r.region_key);
     if (selRegions) {
       // A region with no data in the selected year window is dimmed rather than
       // removed, so the four regions stay legible as a set and the empty one
       // reads as "nothing here in this window" instead of vanishing.
-      layer.setStyle(on
-        ? { color: '#fff3bf', weight: 2, fillColor: '#ffd84d', fillOpacity: 0.28, opacity: 1 }
-        : { color: '#5a626b', weight: 1, fillColor: '#3a3f44', fillOpacity: 0.10, opacity: 0.35 });
+      const sel = SELECTED_REGION === r.region_key;
+      const rest = SELECTED_REGION && !sel;
+      layer.setStyle({ ...(on ? ink.regionOn : ink.regionOff),
+                       ...(sel ? ink.regionSel : rest && on ? ink.regionRest : {}) });
       if (!map.hasLayer(layer)) layer.addTo(map);
-    } else if (map.hasLayer(layer)) {
-      map.removeLayer(layer);
+      if (casing) {
+        const cs = on && ink.casingOn ? { ...ink.casingOn, ...(sel ? ink.casingSel : rest ? ink.casingRest : {}) } : null;
+        if (cs) { casing.setStyle(cs); if (!map.hasLayer(casing)) casing.addTo(map); }
+        else if (map.hasLayer(casing)) map.removeLayer(casing);
+      }
+      if (sel) focus = [casing, layer];
+    } else {
+      if (map.hasLayer(layer)) map.removeLayer(layer);
+      if (casing && map.hasLayer(casing)) map.removeLayer(casing);
     }
   });
+  if (focus) focus.forEach(l => l && map.hasLayer(l) && l.bringToFront());
   STATIONS.forEach(s => {
     const mk = MARKERS[s.grid_key]; if (!mk) return;
     const active = activeDatasets(s), nd = active.length;
+    // glow hook for highlighted stations (styled in light mode only)
+    const el = mk.getElement && mk.getElement();
+    if (el) el.classList.toggle('mk-hi', !!(highlighting && selSet.has(s.grid_key)));
     if (highlighting) {
       const on = selSet.has(s.grid_key);
       mk.setStyle(on
-        ? { ...baseStyle(s), color: '#fff3bf', weight: 2, fillColor: '#ffd84d', fillOpacity: 0.95, opacity: 1 }
+        ? { ...baseStyle(s), color: mapInk().hiStroke, weight: mapInk().hiWeight, fillColor: mapInk().hiFill, fillOpacity: 0.95, opacity: mapInk().hiOp }
         : baseStyle(s, true));
+    } else if (pooledSelection && REGIONS.length) {
+      mk.setStyle(baseStyle(s, true));
     } else {
       // Marker size always reflects the station's full dataset coverage, so
       // it never shrinks or jumps as the year slider moves. Whether the
@@ -2220,6 +2627,13 @@ const CAT_COUNTS = {};
 const DATASET_VAR_COUNTS = {};
 
 function contentKeywordGroup(v) {
+  // Keyword rules describe measurements, never organisms. They used to run on
+  // taxa too, and substring hits on scientific names sent four phytoplankton
+  // diatoms — Gyrosigma spenserii and three Pleurosigma — into Physical
+  // Oceanography as "sigma" (sigma-theta, density) readings (Pooh's review via
+  // Erin, 2026-09-28). Checked across all 1,900 taxa: those four were the only
+  // ones any rule here caught, so skipping taxa moves nothing else.
+  if (v.variable_type === 'taxon' || v.variable_type === 'taxon_group') return null;
   const n = (v.display_name || v.name || '').toLowerCase();
   if (n === 'sw_ph') return 'Carbonate System';
   if (n.startsWith('tsg')) return 'Physical Oceanography';
@@ -2852,7 +3266,24 @@ function zooplanktonGroup(v) {
   if (v.dataset_key === 'swfsc_ichthyo') return 'Zooplankton Biovolume';
   return 'Zooplankton';
 }
+// Splits "Phytoplankton" by the source's functional groups, in the order
+// Venrick's species list gives them — which is also the order of the rows in
+// every data sheet (Pooh's review via Erin, 2026-09-28: "keep them in the
+// original order", not A-Z). The group totals ("Total diatoms") lead.
+function phytoplanktonGroup(v) {
+  if (v.variable_type === 'taxon_group') return 'Group totals';
+  const g = v.taxon_group && TAXON_GROUP_NAMES[v.taxon_group];
+  return g ? g[1] : 'Phytoplankton';
+}
 const LOOSE_GROUPERS = {
+  'Phytoplankton': {
+    order: ['Group totals', 'Centric diatoms', 'Pennate diatoms', 'Unidentified diatoms',
+      'Thecate dinoflagellates', 'Athecate dinoflagellates', 'Unidentified dinoflagellates',
+      'Coccolithophores', 'Silicoflagellates', 'Miscellaneous taxa', 'Phytoplankton'],
+    group: phytoplanktonGroup,
+    // ~300 taxa: each section stays folded until its header is clicked; the
+    // totals stay open as the summary (2026-09-28)
+    foldable: true, openByDefault: ['Group totals'] },
   'Seabirds & Marine Mammals': { order: ['Seabirds', 'Marine Mammals', 'Sea Turtles'], group: birdMammalGroup },
   'Fish Eggs & Larvae': {
     order: ['CUFES (Underway Egg Counts)', 'Ichthyoplankton (Fish Eggs & Larvae)'],
@@ -3016,6 +3447,13 @@ function renderVarList(groupKey, vars) {
       const aLast = a.name === pinnedLast, bLast = b.name === pinnedLast;
       if (aLast !== bLast) return aLast ? 1 : -1;
     }
+    // the source's own order where the dataset has one (source_order, from
+    // build_vars.sql — the phytoplankton today); A-Z otherwise
+    const ao = a.source_order, bo = b.source_order;
+    if (ao != null || bo != null) {
+      if (ao == null || bo == null) return ao == null ? 1 : -1;
+      if (ao !== bo) return ao - bo;
+    }
     const aTaxon = a.variable_type === 'taxon', bTaxon = b.variable_type === 'taxon';
     if (aTaxon !== bTaxon) return aTaxon ? -1 : 1;
     return sortNameFor(a).localeCompare(sortNameFor(b));
@@ -3037,6 +3475,15 @@ function renderVarList(groupKey, vars) {
         const defaultLetter = hasNav ? (ALPHABET.find(l => items.some(v => letterOf(v) === l)) || null) : null;
         const nav = jumpNav(listId, items, defaultLetter);
         const rows = items.map(v => looseRow(v, hasNav && letterOf(v) !== defaultLetter)).join('');
+        if (grouper.foldable) {
+          const open = (grouper.openByDefault || []).includes(g);
+          return `<button type="button" class="inventory-subcategory-header inventory-fold" aria-expanded="${open}"
+              aria-controls="${listId}-fold" onclick="toggleFold(this)">
+              <span class="inventory-fold-label">${g}</span>
+              <span class="inventory-fold-count">${items.length}</span><span class="inventory-fold-chev" aria-hidden="true">▸</span>
+            </button>
+            <div id="${listId}-fold" class="inventory-fold-body"${open ? '' : ' hidden'}>${nav}<div id="${listId}">${rows}</div></div>`;
+        }
         return `<div class="inventory-subcategory-header">${g}</div>
           ${nav}
           <div id="${listId}">${rows}</div>`;
@@ -3045,6 +3492,14 @@ function renderVarList(groupKey, vars) {
     looseHtml = loose.map(v => looseRow(v, false)).join('');
   }
   return familyHtml + looseHtml || '<div class="inventory-subitem">No variables cataloged.</div>';
+}
+// fold / unfold one section of a long category list (LOOSE_GROUPERS foldable)
+function toggleFold(btn) {
+  const body = document.getElementById(btn.getAttribute('aria-controls'));
+  if (!body) return;
+  const open = btn.getAttribute('aria-expanded') !== 'true';
+  btn.setAttribute('aria-expanded', String(open));
+  body.hidden = !open;
 }
 function jumpToLetter(listId, letter) {
   const container = document.getElementById(listId);
@@ -3107,19 +3562,65 @@ function renderInventoryPanel() {
 }
 
 // ---- station markers ----
+// Marker + region colours per theme. Dark is the original palette, unchanged.
+// Light sits on Voyager's pale-blue water, where the dark theme's sky-blue dots
+// and pale-yellow outlines faded into the sea (Betty, 2026-09-28), so it uses the
+// Hexagon Explorer's deep blue with a white rim; a highlighted station is a deep
+// gold (the dark theme's #ffd84d washed out on pale water) with a thin dark-amber
+// rim and a faint glow (.mk-hi in styles.css), so it stands out the way the
+// yellow does on the dark ocean. The rim is thin
+// and partly see-through (Betty: "more subtle") — just enough to keep
+// neighbouring dots apart where the grid is tight.
+const MAP_INK = {
+  dark: {
+    stroke: '#cfd8e3', fill: '#4dabf7', fillOp: 0.72, noStroke: '#5a626b', noFill: '#3a3f44',
+    dimFillOp: 0.12, dimOp: 0.2, hiStroke: '#fff3bf', hiFill: '#ffd84d', weight: 1, op: 0.9,
+    hiWeight: 2, hiOp: 1,
+    regionOn:  { color: '#fff3bf', weight: 2, fillColor: '#ffd84d', fillOpacity: 0.28, opacity: 1, dashArray: null },
+    regionOff: { color: '#5a626b', weight: 1, fillColor: '#3a3f44', fillOpacity: 0.10, opacity: 0.35, dashArray: null },
+    // the clicked region (panel open): heavier edge and fill; the others as they were
+    regionSel: { weight: 3.5, fillOpacity: 0.45 }, regionRest: {},
+    regionsOnTop: false
+  },
+  light: {
+    stroke: '#ffffff', fill: '#00629b', fillOp: 0.8, noStroke: '#8d959e', noFill: '#aab4bf',
+    // a dimmed station is an empty ring (Betty, 2026-09-28: grey "doesn't help. the
+    // stations should just be not there, maybe just outline no fill")
+    dimFillOp: 0, dimOp: 0.45, dimStroke: '#5a6675', hiStroke: '#7c4a00', hiFill: '#f2a900', weight: 1, op: 0.75,
+    hiWeight: 1.25, hiOp: 0.5,
+    // pooled regions on pale water (Betty, 2026-09-28: "looks bad in white mode"):
+    // the dark theme's pale-yellow fill turned lime and its dark-grey "no data"
+    // fill read as a smudge. Gold with a dark-amber edge for a region with data;
+    // a light dashed outline for one without.
+    // (second pass, same day: "not enough contrast" for both, so the regions got
+    // a heavier fill and edge, and a dimmed station turns grey rather than a
+    // faint blue that vanished into the water)
+    // Third pass: adjacent regions ran together into one gold block, so each
+    // region is drawn with a white edge over a dark-amber casing (REGION_CASING)
+    // — a shared border reads as amber | white | amber — and the clicked region
+    // is the focus: fuller fill, darker casing, the other regions pale.
+    regionOn:  { color: '#ffffff', weight: 1.75, fillColor: '#f2a900', fillOpacity: 0.45, opacity: 1, dashArray: null },
+    regionOff: { color: '#4b5560', weight: 1.5, fillColor: '#ffffff', fillOpacity: 0.4, opacity: 0.9, dashArray: '6 4' },
+    regionSel: { weight: 2.5, fillOpacity: 0.62 }, regionRest: { fillOpacity: 0.22 },
+    casingOn:  { color: '#8a5a00', weight: 5, opacity: 1 },
+    casingSel: { color: '#6b4400', weight: 6 }, casingRest: { color: '#a87a1e', weight: 4 },
+    regionsOnTop: true
+  }
+};
+const mapInk = () => MAP_INK[ccThemeNow()];
 function baseStyle(s, dim = false) {
-  const nd = s.n_datasets || 0, has = nd > 0;
+  const nd = s.n_datasets || 0, has = nd > 0, k = mapInk();
   return {
     radius: has ? 3.5 + Math.sqrt(nd) * 1.9 : 3,
-    weight: 1, color: has ? '#cfd8e3' : '#5a626b',
-    fillColor: has ? '#4dabf7' : '#3a3f44',
-    fillOpacity: dim ? 0.12 : (has ? 0.72 : 0.35),
-    opacity: dim ? 0.2 : 0.9
+    weight: k.weight, color: dim && k.dimStroke || (has ? k.stroke : k.noStroke),
+    fillColor: has ? k.fill : k.noFill,
+    fillOpacity: dim ? k.dimFillOp : (has ? k.fillOp : 0.35),
+    opacity: dim ? k.dimOp : k.op
   };
 }
 function renderStations() {
   STATIONS.forEach(s => {
-    const m = L.circleMarker([s.lat, s.lon], baseStyle(s)).addTo(map);
+    const m = L.circleMarker([s.lat, s.lon], { ...baseStyle(s), className: 'station-mk' }).addTo(map);
     m.on('click', () => { if (compareMode) toggleStationSelection(s.grid_key); else openStation(s); });
     m.bindTooltip(`${s.station_id}` + (s.n_datasets ? ` · ${s.n_datasets} datasets` : ' · no data'),
       { direction: 'top', offset: [0, -2] });
@@ -3429,7 +3930,12 @@ function openDatasetCardModal(datasetKey, label, color) {
 // dataset's parameter list looks and reads the same in both places.
 function renderFlatVarList(vars) {
   const byCat = {};
-  vars.forEach(v => (byCat[categoryOf(v)] ||= []).push(v));
+  // same source order as the By Category list (see renderVarList); a stable sort,
+  // so datasets without one keep the order variables.json gives them
+  const ordered = vars.some(v => v.source_order != null)
+    ? vars.slice().sort((a, b) => (a.source_order ?? Infinity) - (b.source_order ?? Infinity))
+    : vars;
+  ordered.forEach(v => (byCat[categoryOf(v)] ||= []).push(v));
   const catRank = c => { const i = CATEGORY_ORDER.indexOf(c); return i === -1 ? Infinity : i; };
   const catKeys = Object.keys(byCat).sort((a, b) => catRank(a) - catRank(b));
   return catKeys.map(c => `
@@ -3484,6 +3990,18 @@ function showBackToCategories() {
   if (!btn) return;
   btn.textContent = '← All Categories';
   btn.onclick = () => clearAll();
+  btn.style.display = '';
+}
+// Back from a view opened *for* a variable (a station clicked while it is
+// selected, or a pooled region) returns to that variable's own panel, not to the
+// category list (Betty, 2026-09-28: "go back to pCO2 overview instead of
+// categories" — the category jump dropped the selection and made readers
+// re-find the variable).
+function showBackToVariable(v) {
+  const btn = document.getElementById('panel-back-btn');
+  if (!btn) return;
+  btn.textContent = `← Back to ${resolvedPlainLabel(v)}`;
+  btn.onclick = () => { currentStation = null; SELECTED_REGION = null; applyStyles(); showVariablePanel(v); };
   btn.style.display = '';
 }
 function updateBackButton() {
@@ -3562,8 +4080,12 @@ function openStation(s) {
   document.getElementById('panel-header').classList.remove('panel-header-flush');
   showBackToCategories();
   document.getElementById('panel-station-id').textContent = `Station ${s.station_id}`;
-  document.getElementById('panel-coords').textContent =
-    `${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}`;
+  // place_note: a coastal cell whose grid position is on land, drawn somewhere
+  // else (see placeStation) — say where and why, since the marker is not at
+  // the position its label names
+  document.getElementById('panel-coords').innerHTML =
+    `${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}` + (s.place_note
+      ? `<span class="panel-coords-note">${placeNoteText(s)}</span>` : '');
   document.getElementById('panel-depth-summary').innerHTML = '';
   // Map clicks route to toggleStationSelection() instead of openStation()
   // while compareMode is active (see the marker click handler below), so
@@ -3580,6 +4102,7 @@ function openStation(s) {
   // through to the normal view.
   if (selectedVar && !isRegionPooled(selectedVar.dataset_key)) {
     c.innerHTML = speciesStationInfoHtml(selectedVar, s);
+    showBackToVariable(selectedVar);
     return;
   }
   const dpCount = depthProfileCount(s);
@@ -3603,7 +4126,7 @@ function openStation(s) {
       ${dpCount ? `<button class="panel-tab${startTab === 'depth' ? ' active' : ''}" data-tab="depth">Depth Profiles <span class="panel-tab-count">${dpCount}</span></button>` : ''}
       <button class="panel-tab" data-tab="compare">⛛ Compare</button>
     </div>`;
-  const overviewInner = !s.n_datasets
+  const overviewInner = (!s.n_datasets
     ? `<div class="cov-empty">No integrated-database observations recorded at this grid station.</div>`
     : `<div class="cov-summary">
         <div><span class="k">datasets</span><span class="v">${s.n_datasets}</span></div>
@@ -3619,7 +4142,7 @@ function openStation(s) {
         return label === 'Hydrographic Bottle'
           ? datasetAccordion(d, s, { label, vars: bottleVars })
           : datasetAccordion(d, s, { label, vars: castVars, color: '#be8c63' });
-      }).join('')}`;
+      }).join('')}`);
   c.innerHTML = `${tabs}
     <div class="panel-tab-content" data-tabpanel="overview"${startTab === 'overview' ? '' : ' style="display:none"'}>${overviewInner}</div>
     <div class="panel-tab-content" data-tabpanel="depth"${startTab === 'depth' ? '' : ' style="display:none"'}></div>
@@ -3959,7 +4482,7 @@ function varMatch(v, q) {
   // them in here, renaming a family updates every display but not search.
   const fm = familyMemberFor(v);
   const familyText = fm ? [fm.family.name, fm.member.label, fm.member.short] : [];
-  const text = [v.name, v.display_name, v.common_name, ...(v.keywords || []), ...familyText]
+  const text = [v.name, v.display_name, v.common_name, ...(v.keywords || []), ...(v.source_names || []), ...familyText]
     .filter(Boolean).join(' ').toLowerCase();
   return q.toLowerCase().split(/\s+/).filter(Boolean).every(tok => tokenHits(text, tok));
 }
@@ -4072,6 +4595,7 @@ function selectVariable(vid) {
   const v = VARS.find(x => x.variable_id === vid);
   if (!v) return;
   selectedVar = v;
+  SELECTED_REGION = null;   // a new selection starts on its overview, no region in focus
   dropdown.classList.remove('open');
   searchInput.value = resolvedPlainLabel(v);
   // Prefer this species' own observation-year span over the dataset-wide
@@ -4092,20 +4616,34 @@ function stationsForVarIsFallback(v) {
 // wording when regions.json is absent, so the page keeps working without it.
 function regionBannerText(v) {
   const nr = regionsForVar(v).size;
-  if (!nr) return `<b>${datasetLabelFor(v)}</b> is <span class="banner-note" title="${POOLED_WHY}">${POOLED_SHORT}</span>`;
   const total = (DS_REGIONS[v.dataset_key] || new Set()).size;
+  const pooledNote = ` <span class="banner-note" title="${POOLED_WHY}">(pooled, not per-station)</span>`;
+  if (!total) return `<b>${datasetLabelFor(v)}</b> is <span class="banner-note" title="${POOLED_WHY}">${POOLED_SHORT}</span>`;
   // Only claim the year window when the count honors it, exactly as the station
-  // path does — and say how many observations carry no resolvable date at all,
-  // because for this dataset that is 40% of them, not a rounding error.
-  const undated = regionUndatedObs(v);
+  // path does — and say how many carry no resolvable date at all, because for
+  // this dataset that is 40% of them, not a rounding error.
+  const full = yearWindowIsFull(v);
   const yearNote = (!yearRange || !regionsForVarIsYearAware(v)) ? ''
     : ` in <b>${yearRange[0]}–${yearRange[1]}</b>`;
-  const undatedNote = undated
-    ? ` <span class="banner-note" title="These observations resolve no cruise, so they carry no date and cannot be filtered by year. They are counted in the region totals regardless of the slider.">(${undated.toLocaleString()} undated)</span>`
+  const undated = regionUndatedObs(v);
+  const undatedNote = (!full && undated)
+    ? ` <span class="banner-note" title="These samples resolve no cruise, so they carry no date and cannot be placed in a year. They are left out while the slider narrows the years, and counted when it spans the whole record.">(${undated.toLocaleString()} undated left out)</span>`
     : '';
+  // presence build: "counted in 3 of 4 regions · 5 of 409 samples"
+  const stats = orderedRegions().map(r => regionStats(r, v)).filter(Boolean);
+  const isTaxonLike = v.variable_type === 'taxon' || v.variable_type === 'taxon_group';
+  if (isTaxonLike && stats.length && stats.every(x => x.n != null)) {
+    const n = stats.reduce((a, x) => a + x.n, 0), N = stats.reduce((a, x) => a + x.N, 0);
+    // the item's own years, not the window's, when the window spans the record
+    const { yrs, undated: und } = pooledYearsText(v);
+    const itemYears = !full ? yearNote
+      : (yrs ? ` in <b>${yrs}</b>` : '')
+        + (und ? `<span class="banner-note" title="Counted in samples that resolve no cruise, so they carry no date and cannot be placed in a year.">, plus ${und.toLocaleString()} undated</span>` : '');
+    return `counted in <b>${nr} of ${total}</b> pooled region${total === 1 ? '' : 's'} · `
+      + `<b>${n.toLocaleString()}</b> of ${N.toLocaleString()} samples` + itemYears + undatedNote + pooledNote;
+  }
   return `${nr} of ${total} pooled region${total === 1 ? '' : 's'} with `
-    + `<b>${datasetLabelFor(v)}</b> coverage` + yearNote + undatedNote
-    + ` <span class="banner-note" title="${POOLED_WHY}">(pooled, not per-station)</span>`;
+    + `<b>${datasetLabelFor(v)}</b> coverage` + yearNote + undatedNote + pooledNote;
 }
 function highlight(v) {
   selectedVar = v;
@@ -4166,31 +4704,132 @@ function scopeNoteHtml(v, isAggregateSpan, yearAware, isFallback) {
 // The pooled equivalent of "Collected at N stations". Degrades to the original
 // explanation-only wording when regions.json is absent.
 function regionPanelCount(v) {
-  const n = regionsForVar(v).size;
-  if (!n) return 'Pooled by region — no per-station coverage';
   const total = (DS_REGIONS[v.dataset_key] || new Set()).size;
+  if (!total) return 'Pooled by region — no per-station coverage';
+  const n = regionsForVar(v).size;
+  const isTaxonLike = v.variable_type === 'taxon' || v.variable_type === 'taxon_group';
+  if (isTaxonLike && DS_REGION_PRESENCE.has(v.dataset_key))
+    return n ? `Counted in ${n} of ${total} pooled region${total === 1 ? '' : 's'}`
+             : `Not counted in any sample${yearWindowIsFull(v) ? '' : ' in these years'}`;
   return `Collected across ${n} of ${total} pooled region${total === 1 ? '' : 's'}`;
 }
-// Per-region observation counts for the selected variable. Worth showing because
-// the regions are not interchangeable — they are the gradient this dataset exists
-// to measure, from the inshore NE to the Central Pacific Offshore.
+// Per-region numbers for the selected variable, in the source's region order,
+// every value labelled (Pooh's review via Erin, 2026-09-28: "verify what the
+// number in the card is ... label what those values are"). The old card showed
+// one unlabelled number per region — the count of sample ROWS, zeros included —
+// so Actinocyclus read 105 in Alley where cells were counted in 1 sample.
+const fmtCells = x => x == null ? '—'
+  : x === 0 ? '0' : x < 0.1 ? '<0.1' : x < 100 ? x.toFixed(1) : Math.round(x).toLocaleString();
 function regionPanelBreakdown(v) {
+  if (!REGIONS.length) return '';
   const sel = regionsForVar(v);
-  if (!sel.size) return '';
-  const rows = REGIONS.map(r => {
-    const t = v.aphia_id
-      ? (r.taxa || []).find(x => x.dataset_key === v.dataset_key &&
-                                 x.aphia_id === String(v.aphia_id))
-      : null;
-    const d = t || (r.datasets || []).find(x => x.dataset_key === v.dataset_key);
-    if (!d) return '';
+  const rows = orderedRegions().map(r => {
+    const st = regionStats(r, v);
+    if (!st) return '';
     const on = sel.has(r.region_key);
-    return `<div class="region-row${on ? '' : ' region-row-off'}">`
-      + `<span class="region-name" title="${r.description} — ${r.n_stations} pooled stations, `
-      + `${(r.area_km2 || 0).toLocaleString()} km²">${r.region_key}</span>`
-      + `<span class="region-obs">${(d.n_obs || 0).toLocaleString()}</span></div>`;
+    // no years on this card: they belong to one region, so they show when that
+    // region is clicked (showRegionPanel; Betty, 2026-09-28)
+    const name = `<span class="region-name" title="${regionDesc(r)} — ${r.n_stations} pooled stations, `
+      + `${(r.area_km2 || 0).toLocaleString()} km²">${r.region_key}<small>${regionDesc(r)}</small></span>`;
+    if (st.n == null)   // dataset-level measurement, or a pre-presence regions.json
+      return `<div class="region-row${on ? '' : ' region-row-off'}">${name}`
+        + `<span class="region-obs">${st.N.toLocaleString()}</span></div>`;
+    // the thin bar is the share of the region's samples with cells (n of N) —
+    // the one comparison the card exists for, readable at a glance
+    const pct = st.N ? Math.round(100 * st.n / st.N) : 0;
+    return `<div class="region-row${on ? '' : ' region-row-off'}">${name}`
+      + `<span class="region-obs"><b>${st.n.toLocaleString()}</b> <span class="region-of">of ${st.N.toLocaleString()}</span>`
+      + `<span class="region-bar" title="${pct}% of samples"><span style="width:${pct}%"></span></span></span>`
+      + `<span class="region-mean"><b>${fmtCells(st.mean)}</b></span></div>`;
   }).join('');
-  return rows ? `<div class="region-breakdown">${rows}</div>` : '';
+  if (!rows) return '';
+  const st0 = orderedRegions().map(r => regionStats(r, v)).find(Boolean);
+  const presence = st0 && st0.n != null;
+  const windowNote = (st0 && !st0.full && yearRange) ? ` (${yearRange[0]}–${yearRange[1]}, dated samples only)` : '';
+  const head = presence
+    ? `<div class="region-row region-row-head"><span>Region</span><span>Samples with cells</span><span>Mean cells/L</span></div>`
+    : `<div class="region-row region-row-head"><span>Region</span><span>Samples</span></div>`;
+  // what the columns mean lives in "About the regions" at the top of the panel
+  // (Betty, 2026-09-28: too long here); only the year-window caveat stays
+  const legend = windowNote ? `<div class="region-legend">Samples${windowNote}.</div>` : '';
+  return `<div class="region-breakdown${presence ? ' region-breakdown-3' : ''}">${head}${rows}</div>${legend}`;
+}
+// "Where do these numbers come from" links at the top of a pooled-dataset panel
+// (Pooh, 2026-09-28: "at the top – link to information for region information
+// and species codes"). Both live in the source's definitions workbook on EDI
+// (sheets "Species Codes" and "Regions"); the region list is also drawn from
+// regions.json right here, so it reads without leaving the page.
+function pooledInfoLinksHtml(v) {
+  const src = datasetUrlFor(v.dataset_key);
+  const regions = orderedRegions().map(r => {
+    const codes = (r.station_codes || '').split(',').map(c => c.trim()).filter(Boolean).map(c => {
+      const [ln, st] = c.split('.');
+      const line = STATIONS.map(s => s.line).find(l => Math.round(l) === Number(ln));
+      return line != null ? `${line.toFixed(1)} ${Number(st)}` : c;
+    });
+    return `<li><b>${r.region_key}</b> — ${regionDesc(r)}: ${codes.join(', ')}</li>`;
+  }).join('');
+  return `<div class="pooled-links">
+      ${src ? `<a href="${src}" target="_blank" rel="noopener" class="varinfo-ext-link">${EXTERNAL_LINK_ICON}Species codes</a>` : ''}
+      <details class="pooled-regions-info">
+        <summary>About the ${REGIONS.length || 4} regions</summary>
+        <div class="pooled-regions-body">
+          Water from each region's stations is pooled before counting, so every number here is for a
+          region, not a station. Regions and their stations (line station), as defined in
+          Hayward &amp; Venrick (1998), <i>Deep-Sea Research I</i> 45:1617–1638:
+          <ul>${regions}</ul>
+          <b>Reading the table.</b> Each sample is one cruise's water from a region's stations, pooled
+          before counting. <i>Samples with cells</i>: how many of those samples had this item
+          (&gt;&nbsp;0 cells/L). <i>Mean cells/L</i>: its average over all of them, including the
+          samples with none.<br>
+          ${src ? `Species codes and region definitions: the dataset's <a href="${src}" target="_blank" rel="noopener">definitions file on EDI ↗</a>.` : ''}
+        </div>
+      </details>
+    </div>`;
+}
+// Clicking a region polygon (stations inside it are click-through while a
+// pooled item is selected). Same panel furniture as the station view; shows the
+// selected variable's numbers for just this region, and which stations it was
+// pooled over — as plain labels, since a station page has no phytoplankton data.
+function showRegionPanel(r) {
+  const v = selectedVar;
+  // a region is not a station: drop any open station's ring on the map
+  currentStation = null;
+  SELECTED_REGION = r.region_key;
+  applyStyles();
+  document.getElementById('panel-empty').style.display = 'none';
+  document.getElementById('panel-header').style.display = 'block';
+  document.getElementById('panel-header').classList.remove('panel-header-flush');
+  // back goes to the phytoplankton panel the reader came from, not to the
+  // category list (Betty, 2026-09-28)
+  if (v) showBackToVariable(v); else showBackToCategories();
+  document.getElementById('panel-station-id').textContent = `${r.region_key} region`;
+  document.getElementById('panel-coords').textContent = regionDesc(r);
+  document.getElementById('panel-depth-summary').innerHTML = '';
+  // in the order the source lists them (regions.json station_codes)
+  const members = STATIONS.filter(s => (REGION_OF_STATION[s.grid_key] || []).some(m => m.region === r))
+    .sort((a, b) => REGION_OF_STATION[a.grid_key].find(m => m.region === r).idx
+                  - REGION_OF_STATION[b.grid_key].find(m => m.region === r).idx);
+  const st = v ? regionStats(r, v) : null;
+  const vLine = !st ? '' : st.n == null
+    ? `<div class="region-panel-stat"><b>${st.N.toLocaleString()}</b> samples</div>`
+    : `<div class="region-panel-stat"><b>${resolvedLabel(v)}</b>: counted in <b>${st.n.toLocaleString()} of ${st.N.toLocaleString()}</b> samples · mean <b>${fmtCells(st.mean)}</b> cells/L`
+      + (() => { const ry = st.n ? pooledYearsText(v, r) : null;
+                 const t = ry && [ry.yrs, ry.undated ? `${ry.undated} undated` : ''].filter(Boolean).join(', plus ');
+                 return t ? `<span class="region-panel-years">Years counted: <b>${t}</b></span>` : ''; })()
+      + `</div>`;
+  document.getElementById('panel-content').innerHTML = `
+    <div class="panel-info-block">
+      ${vLine}
+      <div class="spinfo-note">
+        <span class="spinfo-note-count">${r.n_stations} pooled stations</span>
+        <span class="spinfo-note-fallback">Samples from these stations were combined before counting, so the ${r.region_key} numbers are sums over all of them.</span>
+        <div class="region-members">${members.map(s => {
+          const m = REGION_OF_STATION[s.grid_key].find(x => x.region === r);
+          return `<span class="region-member">${m.label}</span>`;
+        }).join('')}</div>
+      </div>
+    </div>`;
 }
 // External-link icon (e.g. before "AphiaID ####" in the WoRMS field) -
 // shared wherever variableInfoFieldsHtml is rendered (feedback 2026-08-22:
@@ -4263,8 +4902,37 @@ function speciesStationNoteHtml(v, s) {
   return `<div class="spinfo-note">
       <span class="spinfo-note-count">Collected at ${stationCount} station${stationCount === 1 ? '' : 's'}</span>
       ${fallbackNote}
-      ${yearsBlock}
+      ${yearsBlock || datasetYearsAtStationHtml(v, s)}
     </div>`;
+}
+// "1950–1969, 1972, 1975–2021" from a {y, n} list — a measurement's station
+// record runs to dozens of consecutive years, which reads better as runs
+function yearRuns(years) {
+  const ys = [...new Set(years.map(o => o.y))].sort((a, b) => a - b);
+  const runs = [];
+  ys.forEach(y => {
+    const last = runs[runs.length - 1];
+    if (last && y === last[1] + 1) last[1] = y; else runs.push([y, y]);
+  });
+  return runs.map(([a, b]) => a === b ? `${a}` : `${a}–${b}`);
+}
+// The station-click answer for a measurement (Temperature, Nitrate, ...).
+// Clicking a station used to repeat "Collected at N stations" under a hint
+// promising the "year(s) this species was observed" — for Temperature (Erin,
+// 2026-09-28). Per-parameter years are not tracked, so this gives the years
+// its dataset sampled THIS station, and says it is the dataset's record.
+function datasetYearsAtStationHtml(v, s) {
+  if (v.variable_type === 'taxon') return '';
+  const keys = [v.dataset_key, DATASET_KEY_ALIASES[v.dataset_key]].filter(Boolean);
+  const d = (s.datasets || []).find(x => keys.includes(x.dataset_key));
+  if (!d || !(d.years || []).length) return '';
+  const runs = yearRuns(d.years);
+  return `<span class="spinfo-note-years">
+      <span class="spinfo-note-years-label">${resolvedPlainLabel(v)} sampled at this station in: </span>${runs.map(r =>
+        `<span class="spinfo-note-years-year">${r}</span>`).join(', ')}
+      ${d.n_surveys ? `<span class="spinfo-note-years-count">(${d.n_surveys.toLocaleString()} surveys)</span>` : ''}
+    </span>
+    <span class="spinfo-note-fallback">Years come from the ${datasetLabelFor(v)} record at this station.</span>`;
 }
 // Species-focused panel content once a specific (non-pooled) parameter is
 // selected while a station is open - replaces the Overview/Depth Profiles
@@ -4325,26 +4993,41 @@ function showVariablePanel(v) {
   updateBackButton();
   const { main, sci } = speciesTitleParts(v);
   document.getElementById('panel-station-id').innerHTML = main || sci || '';
-  document.getElementById('panel-coords').innerHTML = (main && sci)
+  // Pooled (phytoplankton) taxa have no common names; the plain-language name a
+  // reader needs is the functional group — "centric diatom" — from the source's
+  // own group column (variables.json taxon_group; Pooh's review, 2026-09-28).
+  const grp = groupCommonName(v);
+  const srcNames = sourceNamesDiffering(v);
+  document.getElementById('panel-coords').innerHTML = ((main && sci)
     ? `<i>${sci}</i>`
-    : (pooled ? 'Pooled across stations into 4 regions' : '');
+    : (pooled ? [grp, `pooled into ${REGIONS.length || 4} regions`].filter(Boolean).join(' · ') : (grp || '')))
+    + (srcNames.length ? `<span class="panel-coords-note">Source name${srcNames.length > 1 ? 's' : ''}: ${srcNames.map(n => `<i>${n}</i>`).join(', ')}</span>` : '');
   document.getElementById('panel-depth-summary').innerHTML = '<div class="varinfo-rule"></div>';
   const src = variableSourceUrl(v);
   const stationCount = stationsForVar(v).size;
   const fallbackNote = !stationsForVarIsFallback(v) ? '' : `<span class="spinfo-note-fallback">No per-station breakdown exists yet for this species — this count is every station with any ${datasetLabelFor(v)} data, not confirmed sightings of this species specifically.</span>`;
+  // Hint wording (Erin, 2026-09-28: "need to change the sentence"): it said
+  // "view year(s) this species was observed" for every parameter, Temperature
+  // included. A measurement now points at the years its dataset sampled the
+  // station (datasetYearsAtStationHtml); a taxon names itself rather than
+  // "this species"; a pooled dataset has no station years at all, only the
+  // region a station was pooled into.
   const noteInner = pooled
-    ? `<span class="spinfo-note-count">${regionPanelCount(v)}</span>
-       <span class="spinfo-note-fallback">${POOLED_WHY}</span>
-       ${regionPanelBreakdown(v)}`
+    ? `<span class="spinfo-note-count region-card-title">${regionPanelCount(v)}</span>
+       ${regionPanelBreakdown(v)}
+       <span class="spinfo-note-hint">Click a region on the map for its numbers and the stations it pools.</span>`
     : `<span class="spinfo-note-count">${stationCount} station${stationCount === 1 ? '' : 's'} collected</span>
        ${fallbackNote}
-       <span class="spinfo-note-hint">Click a highlighted station on the map to view year(s) this species was observed.</span>`;
+       <span class="spinfo-note-hint">${v.variable_type === 'taxon'
+         ? `Click a highlighted station to see the years ${resolvedPlainLabel(v)} was recorded there.`
+         : `Click a highlighted station to see the years ${resolvedPlainLabel(v)} was sampled there.`}</span>`;
   document.getElementById('panel-content').innerHTML = `
     <div class="panel-info-block">
+      ${pooled ? pooledInfoLinksHtml(v) : ''}
       <div class="spinfo-body">
         ${variableInfoFieldsHtml(v, { spacer: '<br>', includeCount: false })}
       </div>
-      <div class="spinfo-note">
+      <div class="spinfo-note${pooled ? ' region-card' : ''}">
         ${noteInner}
       </div>
       ${src ? `<a href="${src}" target="_blank" rel="noopener" class="spinfo-open-btn">Open Dataset ↗</a>` : ''}

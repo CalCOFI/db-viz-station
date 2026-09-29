@@ -35,9 +35,13 @@ CONTRACT = {
         "keys": {"grid_key", "station_id", "lat", "lon", "datasets"},
         "optional": False,
     },
+    # source_order / taxon_group / source_names: the source's own list order,
+    # functional group and names, which the phytoplankton browse list sorts,
+    # groups and labels on (null for most rows, but the column must exist)
     "variables.json": {
         "keys": {"variable_id", "dataset_key", "variable_type", "name",
-                 "display_name", "aphia_id"},
+                 "display_name", "aphia_id", "source_order", "taxon_group",
+                 "source_names"},
         "optional": False,
     },
     # indexed as dataset_key + '::' + aphia_id, with `years` feeding the year slider
@@ -73,8 +77,8 @@ CONTRACT = {
     # (build_regions.sql). `geometry` is what L.geoJSON draws; the nested
     # datasets[]/taxa[] are what regionsForVar() indexes — see NESTED below.
     "regions.json": {
-        "keys": {"region_key", "description", "n_stations", "lat", "lon",
-                 "geometry", "datasets", "taxa"},
+        "keys": {"region_key", "description", "n_stations", "station_codes", "lat",
+                 "lon", "geometry", "datasets", "taxa", "groups"},
         "optional": True,
     },
 }
@@ -85,10 +89,16 @@ CONTRACT = {
 # down, and column-presence checking alone cannot see it.
 NESTED = {
     "regions.json": [
-        # app.js: (DS_REGIONS[d.dataset_key] ||= new Set()).add(r.region_key)
-        ("datasets", {"dataset_key", "n_obs", "n_obs_undated", "years"}),
-        # app.js: REGION_TAXA[t.dataset_key + '::' + t.aphia_id]
-        ("taxa", {"dataset_key", "aphia_id", "n_obs", "n_obs_undated", "years"}),
+        # app.js: (DS_REGIONS[d.dataset_key] ||= new Set()).add(r.region_key);
+        # n_samples / sample_years are regionStats()'s denominator
+        ("datasets", {"dataset_key", "n_obs", "n_obs_undated", "n_samples",
+                      "sample_years", "years"}),
+        # app.js: REGION_TAXA[t.dataset_key + '::' + t.aphia_id]; sum_value is what
+        # marks the presence build (DS_REGION_PRESENCE) and feeds the mean cells/L
+        ("taxa", {"dataset_key", "aphia_id", "n_obs", "n_obs_undated", "sum_value",
+                  "years"}),
+        # app.js: REGION_TAXA[g.dataset_key + '::group:' + g.taxon_group]
+        ("groups", {"dataset_key", "taxon_group", "n_obs", "sum_value", "years"}),
     ],
 }
 

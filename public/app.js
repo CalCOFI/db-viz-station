@@ -1371,7 +1371,9 @@ function orderedRegions() {
                                         a.region_key.localeCompare(b.region_key));
 }
 // "Northern Inshore" and "Southern inshore" arrive in mixed case from the source
-const regionDesc = r => (r.description || '').replace(/^./, c => c.toUpperCase());
+// the source's descriptions, capitalized alike ("Southern inshore" beside
+// "Northern Inshore" in regions.json)
+const regionDesc = r => (r.description || '').replace(/^./, c => c.toUpperCase()).replace(/\binshore\b/, 'Inshore');
 // the region's own coverage entry for this variable: its taxon row, its group
 // row, or (dataset-level measurement) the dataset row
 function regionEntryFor(r, v) {
@@ -4710,8 +4712,13 @@ function regionPanelBreakdown(v) {
     const on = sel.has(r.region_key);
     // no years on this card: they belong to one region, so they show when that
     // region is clicked (showRegionPanel; Betty, 2026-09-28)
+    // compact (Betty, 2026-09-29): the code, and under it the region's name
+    // kept short ("California Current" for the source's "Region of the
+    // California Current"); the full description is in the hover, "About the
+    // regions" and the region's own panel
+    const shortDesc = regionDesc(r).replace(/^Region of the /i, '');
     const name = `<span class="region-name" title="${regionDesc(r)} — ${r.n_stations} pooled stations, `
-      + `${(r.area_km2 || 0).toLocaleString()} km²">${r.region_key}<small>${regionDesc(r)}</small></span>`;
+      + `${(r.area_km2 || 0).toLocaleString()} km²">${r.region_key}<small>${shortDesc}</small></span>`;
     if (st.n == null)   // dataset-level measurement, or a pre-presence regions.json
       return `<div class="region-row${on ? '' : ' region-row-off'}">${name}`
         + `<span class="region-obs">${st.N.toLocaleString()}</span></div>`;
@@ -4755,15 +4762,10 @@ function pooledInfoLinksHtml(v) {
       <details class="pooled-regions-info">
         <summary>About the ${REGIONS.length || 4} regions</summary>
         <div class="pooled-regions-body">
-          Water from each region's stations is pooled before counting, so every number here is for a
-          region, not a station. Regions and their stations (line station), as defined in
-          Hayward &amp; Venrick (1998), <i>Deep-Sea Research I</i> 45:1617–1638:
+          <p>Water from each region's stations is pooled before counting, so every number here is
+          for a region, not a station.</p>
           <ul>${regions}</ul>
-          <b>Reading the table.</b> Each sample is one cruise's water from a region's stations, pooled
-          before counting. <i>Samples with cells</i>: how many of those samples had this item
-          (&gt;&nbsp;0 cells/L). <i>Mean cells/L</i>: its average over all of them, including the
-          samples with none.<br>
-          ${src ? `Species codes and region definitions: the dataset's <a href="${src}" target="_blank" rel="noopener">definitions file on EDI ↗</a>.` : ''}
+          ${src ? `<p class="pooled-regions-src">Species codes and region definitions: the dataset's <a href="${src}" target="_blank" rel="noopener">definitions file on EDI ↗</a>.</p>` : ''}
         </div>
       </details>
     </div>`;
@@ -4792,19 +4794,37 @@ function showRegionPanel(r) {
     .sort((a, b) => REGION_OF_STATION[a.grid_key].find(m => m.region === r).idx
                   - REGION_OF_STATION[b.grid_key].find(m => m.region === r).idx);
   const st = v ? regionStats(r, v) : null;
-  const vLine = !st ? '' : st.n == null
-    ? `<div class="region-panel-stat"><b>${st.N.toLocaleString()}</b> samples</div>`
-    : `<div class="region-panel-stat"><b>${resolvedLabel(v)}</b>: counted in <b>${st.n.toLocaleString()} of ${st.N.toLocaleString()}</b> samples · mean <b>${fmtCells(st.mean)}</b> cells/L`
-      + (() => { const ry = st.n ? pooledYearsText(v, r) : null;
-                 const t = ry && [ry.yrs, ry.undated ? `${ry.undated} undated` : ''].filter(Boolean).join(', plus ');
-                 return t ? `<span class="region-panel-years">Years counted: <b>${t}</b></span>` : ''; })()
-      + `</div>`;
+  // One fact per row, label above value (Betty, 2026-09-29: the one-line
+  // "counted in X of N samples · mean ... Years counted: ..." read cluttered).
+  const tile = (label, value, cls = '') => `<div class="region-stat${cls}"><span class="region-stat-label">${label}</span><span class="region-stat-value">${value}</span></div>`;
+  let vLine = '';
+  if (st && st.n == null) {
+    vLine = `<div class="region-stats">${tile('Samples', `<b>${st.N.toLocaleString()}</b>`)}</div>`;
+  } else if (st) {
+    const pct = st.N ? Math.round(100 * st.n / st.N) : 0;
+    const ry = st.n ? pooledYearsText(v, r) : null;
+    const years = ry && (ry.yrs || ry.undated)
+      ? tile('Years counted', (ry.yrs ? `<b>${ry.yrs}</b>` : '')
+          + (ry.undated ? `<span class="region-stat-sub">plus ${ry.undated.toLocaleString()} undated sample${ry.undated === 1 ? '' : 's'}</span>` : ''), ' region-stat-wide')
+      : '';
+    vLine = `<div class="region-stats">
+        <div class="region-stats-name">${resolvedLabel(v)}</div>
+        ${tile('Samples with cells', `<b>${st.n.toLocaleString()}</b> <span class="region-stat-unit">of ${st.N.toLocaleString()}</span>`
+          + `<span class="region-bar" title="${pct}% of samples"><span style="width:${pct}%"></span></span>`)}
+        ${tile('Mean', `<b>${fmtCells(st.mean)}</b> <span class="region-stat-unit">cells/L</span>`)}
+        ${years}
+      </div>`;
+  }
+  // The pooled-stations box says what a pooled value is, in reading weight
+  // rather than the faint small print it was (Betty, 2026-09-29). "Composite",
+  // not "sums": the cells were counted once in the combined water, so a value
+  // describes the region, it is not stations added up.
   document.getElementById('panel-content').innerHTML = `
     <div class="panel-info-block">
       ${vLine}
-      <div class="spinfo-note">
-        <span class="spinfo-note-count">${r.n_stations} pooled stations</span>
-        <span class="spinfo-note-fallback">Samples from these stations were combined before counting, so the ${r.region_key} numbers are sums over all of them.</span>
+      <div class="spinfo-note region-pool">
+        <span class="region-pool-title">${r.n_stations} pooled stations</span>
+        <span class="region-pool-note"><b>Composite samples:</b> water from these stations was combined into one sample per cruise before counting, so the ${r.region_key} values describe the region as a whole.</span>
         <div class="region-members">${members.map(s => {
           const m = REGION_OF_STATION[s.grid_key].find(x => x.region === r);
           return `<span class="region-member">${m.label}</span>`;
@@ -4992,11 +5012,19 @@ function showVariablePanel(v) {
   // included. A measurement now points at the years its dataset sampled the
   // station (datasetYearsAtStationHtml); a taxon names itself rather than
   // "this species"; a pooled dataset has no station years at all, only the
-  // region a station was pooled into.
+  // region a station was pooled into. Under the pooled table, what its columns
+  // mean (Betty, 2026-09-29: moved here from "About the regions", in place of
+  // the click-a-region hint).
   const noteInner = pooled
     ? `<span class="spinfo-note-count region-card-title">${regionPanelCount(v)}</span>
        ${regionPanelBreakdown(v)}
-       <span class="spinfo-note-hint">Click a region on the map for its numbers and the stations it pools.</span>`
+       <div class="spinfo-note-hint region-card-legend">
+         <p>Each sample is one cruise's water from a region's stations, pooled before counting.</p>
+         <dl class="region-card-terms">
+           <dt>Samples with cells</dt><dd>samples where it was counted (&gt;&nbsp;0 cells/L)</dd>
+           <dt>Mean cells/L</dt><dd>average over all samples, including those with none</dd>
+         </dl>
+       </div>`
     : `<span class="spinfo-note-count">${stationCount} station${stationCount === 1 ? '' : 's'} collected</span>
        ${fallbackNote}
        <span class="spinfo-note-hint">${v.variable_type === 'taxon'

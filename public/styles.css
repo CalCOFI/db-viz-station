@@ -2333,20 +2333,21 @@ body, .panel, .dd-item, .inventory-label, .inventory-subitem-name,
 }
 .region-card .region-breakdown { margin: 0 0 12px; }
 .region-card .region-breakdown-3 .region-row {
-  grid-template-columns: 1fr 112px 78px; gap: 12px; align-items: start;
-  padding: 11px 0; font-size: 14px;
+  grid-template-columns: 1fr 118px 84px; gap: 10px; align-items: center;
+  padding: 8px 0; font-size: 14px;
 }
+.region-card .region-breakdown-3 .region-row-head span { white-space: nowrap; letter-spacing: 0.3px; }
 .region-card .region-breakdown-3 .region-row-head {
   padding: 0 0 7px; font-size: 10.5px; letter-spacing: 0.5px; align-items: end;
   border-bottom: 1.5px solid var(--border);
 }
-.region-card .region-name { font-size: 16px; font-weight: 700; line-height: 1.25; }
-.region-card .region-name small { font-size: 12px; margin-top: 3px; line-height: 1.35; }
+.region-card .region-name { font-size: 15px; font-weight: 700; line-height: 1.25; }
+.region-card .region-name small { font-size: 11.5px; margin-top: 1px; line-height: 1.3; white-space: nowrap; }
 .region-card .region-obs b,
 .region-card .region-mean b { font-size: 16px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
 .region-card .region-of { font-size: 12px; }
 .region-bar {
-  display: block; height: 5px; margin-top: 7px; border-radius: 3px; overflow: hidden;
+  display: block; height: 4px; margin-top: 5px; border-radius: 3px; overflow: hidden;
   background: rgba(var(--ink), 0.1);
 }
 .region-bar > span { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
@@ -2365,6 +2366,9 @@ body, .panel, .dd-item, .inventory-label, .inventory-subitem-name,
 .pooled-regions-body { color: var(--muted); font-size: 12px; line-height: 1.6; margin-top: 6px; flex-basis: 100%; }
 .pooled-regions-body ul { margin: 6px 0 8px; padding-left: 18px; }
 .pooled-regions-body li { margin-bottom: 3px; }
+/* one idea per line (Betty, 2026-09-29) */
+.pooled-regions-body p { margin: 0 0 4px; }
+.pooled-regions-body .pooled-regions-src { margin-top: 10px; }
 .pooled-regions-body b { color: var(--text); }
 .pooled-regions-info[open] { flex-basis: 100%; }
 /* region panel (click on a region polygon) */
@@ -2374,6 +2378,50 @@ body, .panel, .dd-item, .inventory-label, .inventory-subitem-name,
 .region-member {
   font-size: 12px; padding: 2px 8px; border-radius: 10px;
   background: rgba(var(--ink), 0.05); color: var(--muted); font-variant-numeric: tabular-nums;
+}
+/* region panel stats: one fact per tile, label above value (Betty, 2026-09-29) */
+.region-stats {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0 4px 4px;
+}
+.region-stats-name { grid-column: 1 / -1; font-size: 15px; font-weight: 700; color: var(--text); }
+.region-stat {
+  padding: 10px 12px; border-radius: 8px;
+  background: rgba(var(--ink), 0.04); border: 1px solid var(--border);
+}
+.region-stat-wide { grid-column: 1 / -1; }
+.region-stat-label {
+  display: block; margin-bottom: 4px; color: var(--muted);
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
+}
+.region-stat-value { display: block; color: var(--text); font-size: 13.5px; line-height: 1.45; }
+.region-stat-value b { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.region-stat-wide .region-stat-value b { font-size: 15px; }
+.region-stat-unit { color: var(--muted); font-size: 12.5px; }
+.region-stat-sub { display: block; margin-top: 2px; color: var(--muted); font-size: 12.5px; }
+.region-stat .region-bar { margin-top: 8px; }
+/* the pooled-stations box: defined edge, a clear title, and the composite note at
+   reading size (Betty, 2026-09-29: "so faint rn") */
+.spinfo-note.region-pool {
+  border: 1px solid rgba(var(--accent-rgb), 0.5);
+  background: rgba(var(--accent-rgb), 0.06);
+  padding: 14px 16px;
+}
+.region-pool-title {
+  display: block; margin-bottom: 6px; color: var(--accent);
+  font-size: 11.5px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase;
+}
+.region-card-legend p { margin: 0 0 8px; }
+/* one term per line, label left and meaning right (Betty, 2026-09-29) */
+.region-card-terms {
+  display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; align-items: baseline;
+}
+.region-card-terms dt { color: var(--text); font-weight: 600; white-space: nowrap; }
+.region-card-terms dd { margin: 0; }
+.region-pool-note { display: block; color: var(--text); font-size: 13px; line-height: 1.55; margin-bottom: 10px; }
+.region-pool-note b { color: var(--text); }
+.region-pool .region-member {
+  font-size: 12.5px; padding: 3px 10px; color: var(--text);
+  background: rgba(var(--accent-rgb), 0.12); border: 1px solid rgba(var(--accent-rgb), 0.35);
 }
 /* stations don't take clicks while a pooled item is selected: the click falls
    through to the region polygon underneath (applyStyles toggles .pooled-mode) */
@@ -2702,6 +2750,10 @@ a.spinfo-full-link:hover { background: rgba(var(--accent-rgb), 0.08); }
 :root[data-theme="light"] .spinfo-note {
   border: 1px solid var(--card-border); background: #ffffff; box-shadow: var(--card-shadow);
 }
+:root[data-theme="light"] .spinfo-note.region-pool {
+  border-color: rgba(var(--accent-rgb), 0.45); background: #f3f8fc;
+}
+:root[data-theme="light"] .region-stat { background: #ffffff; border-color: var(--card-border); box-shadow: var(--card-shadow); }
 :root[data-theme="light"] .panel-tabs { background: #e6ecf2; border-color: var(--card-border); }
 :root[data-theme="light"] .panel-tab.active { color: #ffffff; }
 :root[data-theme="light"] .panel-tab.active .panel-tab-count { color: #ffffff; }

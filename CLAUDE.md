@@ -187,7 +187,7 @@ each station to its CalCOFI line/station position (a port of PROJ's `+proj=calco
 at load, keeping the centroid as `lat_cell`/`lon_cell`; 20 coastal cells whose nominal
 point is on land are handled by `STATION_ON_LAND`: at the official station where most
 of their samples were taken (release `sample.site_key`, e.g. 80.0 50 -> 80.0 51), else
-slid along their line to water, else the centroid; the panel says which. Anything that
+slid along their line to water, else the centroid (no panel note). Anything that
 reads `s.lat`/`s.lon` after load gets the marker position. Data never follows the
 marker: it is keyed by `grid_key` / `station_id`.
 

@@ -825,30 +825,13 @@ const STATION_ON_LAND = {
   // one (90.0 120.0): both at the nominal point would draw one marker over the other
   'st120-ln90_hist': null,
 };
-const fmtLineSta = (line, sta) => `${Number(line).toFixed(1)} ${Number(sta).toFixed(1).replace(/\.0$/, '')}`;
 function placeStation(s) {
   s.lat_cell = s.lat; s.lon_cell = s.lon;       // the cell centroid, kept for reference
   if (s.line == null || s.station == null) return;
   const ex = STATION_ON_LAND[s.grid_key];
-  if (ex === undefined) { [s.lat, s.lon] = calcofiToLatLon(s.line, s.station); return; }
-  if (ex === null) { s.place_note = 'centroid'; return; }
-  if (typeof ex === 'object') {
-    [s.lat, s.lon] = calcofiToLatLon(...ex.sampled);
-    s.place_note = 'sampled'; s.sampled_at = fmtLineSta(...ex.sampled);
-    return;
-  }
-  [s.lat, s.lon] = calcofiToLatLon(s.line, ex);
-  s.place_note = 'slid';
-}
-function placeNoteText(s) {
-  const pos = fmtLineSta(s.line, s.station);
-  if (s.grid_key === 'st120-ln90_hist')
-    return `A standard station has the same number (${pos}), so this marker sits in the middle of this cell to keep the two apart.`;
-  if (s.place_note === 'sampled')
-    return `Grid position ${pos} is on land. The marker is at station ${s.sampled_at}, where most samples here were taken.`;
-  if (s.place_note === 'slid')
-    return `Grid position ${pos} is on land. The marker sits on line ${Number(s.line).toFixed(1)} at the nearest water.`;
-  return `Grid position ${pos} is on land. The marker sits in the middle of this cell's water.`;
+  if (ex === null) return;                                          // keep the centroid
+  if (ex && typeof ex === 'object') { [s.lat, s.lon] = calcofiToLatLon(...ex.sampled); return; }
+  [s.lat, s.lon] = calcofiToLatLon(s.line, ex === undefined ? s.station : ex);
 }
 
 // Pooled-region geometry, for datasets whose samples were pooled across stations
@@ -4080,12 +4063,10 @@ function openStation(s) {
   document.getElementById('panel-header').classList.remove('panel-header-flush');
   showBackToCategories();
   document.getElementById('panel-station-id').textContent = `Station ${s.station_id}`;
-  // place_note: a coastal cell whose grid position is on land, drawn somewhere
-  // else (see placeStation) — say where and why, since the marker is not at
-  // the position its label names
-  document.getElementById('panel-coords').innerHTML =
-    `${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}` + (s.place_note
-      ? `<span class="panel-coords-note">${placeNoteText(s)}</span>` : '');
+  // no note for a coastal marker drawn off its grid position (see placeStation):
+  // that is the map correcting the grid, not something a reader needs to act on
+  // (Betty, 2026-09-29)
+  document.getElementById('panel-coords').textContent = `${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}`;
   document.getElementById('panel-depth-summary').innerHTML = '';
   // Map clicks route to toggleStationSelection() instead of openStation()
   // while compareMode is active (see the marker click handler below), so

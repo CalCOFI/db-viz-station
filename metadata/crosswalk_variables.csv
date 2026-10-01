@@ -1,7 +1,7 @@
 portal_dataset_id,variable_name,display_name,units,entity_type,db_provider_dataset,realm,dataset_match_class,measurement_type_match,var_note
 /euphausiid/save.php?mode=save,Krill (Euphausiids),Krill (Euphausiids),"",scientific_dataset,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
 555783,Genomics of microbial/plankton assemblage (ASVs) - 16S,Genomics of microbial/plankton assemblage (ASVs) - 16S,"",scientific_dataset,,omics,missing,,no DB dataset (missing/omics)
-CAC_FI_SBAS_obs,behavior,behavior,"",scientific_variable,farallon_bird-mammal,bio,partial,behavior,measurement_type (source_column/name)
+CAC_FI_SBAS_obs,behavior,behavior,"",scientific_variable,farallon_bird-mammal,bio,partial,,taxon (build-time species match)
 CAC_FI_SBAS_obs,count,count,"",scientific_variable,farallon_bird-mammal,bio,partial,count,measurement_type (source_column/name)
 CAC_FI_SBAS_obs,gis_key,gis_key,"",scientific_variable,farallon_bird-mammal,bio,partial,,taxon (build-time species match)
 CAC_FI_SBAS_obs,idnum,idnum,"",scientific_variable,farallon_bird-mammal,bio,partial,,taxon (build-time species match)
@@ -315,11 +315,11 @@ siocalcofiHydroBottle,meanap,C14 Mean Assimilation precision,"",scientific_varia
 siocalcofiHydroBottle,meanaq,C14 Mean Assimilation quality,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
 siocalcofiHydroBottle,meanas,C14 Mean Assimilation,milligrams C per cubic meter per half light day,scientific_variable,calcofi_bottle,env,matching,c14_mean,measurement_type (source_column/name)
 siocalcofiHydroBottle,nh3q,Ammonium Quality,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
-siocalcofiHydroBottle,nh3um,Measured Ammonium concentration,micromoles per liter,scientific_variable,calcofi_bottle,env,matching,ammonia,measurement_type (source_column/name)
+siocalcofiHydroBottle,nh3um,Measured Ammonium concentration,micromoles per liter,scientific_variable,calcofi_bottle,env,matching,,unmatched
 siocalcofiHydroBottle,no2q,Nitrite quality,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
-siocalcofiHydroBottle,no2um,Nitrite,micromoles per liter,scientific_variable,calcofi_bottle,env,matching,nitrite,measurement_type (source_column/name)
+siocalcofiHydroBottle,no2um,Nitrite,micromoles per liter,scientific_variable,calcofi_bottle,env,matching,,unmatched
 siocalcofiHydroBottle,no3q,Nitrate quality,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
-siocalcofiHydroBottle,no3um,Measured Nitrate concentration,micromoles per liter,scientific_variable,calcofi_bottle,env,matching,nitrate,measurement_type (source_column/name)
+siocalcofiHydroBottle,no3um,Measured Nitrate concentration,micromoles per liter,scientific_variable,calcofi_bottle,env,matching,,unmatched
 siocalcofiHydroBottle,o2ml_l,O2,milliliters per liter,scientific_variable,calcofi_bottle,env,matching,oxygen_ml_l,measurement_type (source_column/name)
 siocalcofiHydroBottle,o2sat,O2Sat,percent saturation,scientific_variable,calcofi_bottle,env,matching,oxygen_saturation,measurement_type (source_column/name)
 siocalcofiHydroBottle,o2satq,Oxygen saturation Quality,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
@@ -331,7 +331,7 @@ siocalcofiHydroBottle,ph2,pH replicate,pH scale,chemical_variable,calcofi_bottle
 siocalcofiHydroBottle,phaeop,Phaeopigment Concentratio,micrograms per liter,chemical_variable,calcofi_bottle,env,matching,phaeopigment,measurement_type (source_column/name)
 siocalcofiHydroBottle,phaqua,Phaeopigments quality,"",chemical_variable,calcofi_bottle,env,matching,,unmatched
 siocalcofiHydroBottle,po4q,Phosphate quality,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
-siocalcofiHydroBottle,po4um,Measured Phosphate Concentration,micromoles per liter,scientific_variable,calcofi_bottle,env,matching,phosphate,measurement_type (source_column/name)
+siocalcofiHydroBottle,po4um,Measured Phosphate Concentration,micromoles per liter,scientific_variable,calcofi_bottle,env,matching,,unmatched
 siocalcofiHydroBottle,r_depth,Reported Depth,meters,scientific_variable,calcofi_bottle,env,matching,r_depth,measurement_type (source_column/name)
 siocalcofiHydroBottle,r_dynht,Reported Dynamic Height,dynamic meters,scientific_variable,calcofi_bottle,env,matching,r_dynamic_height,measurement_type (source_column/name)
 siocalcofiHydroBottle,r_nuts,Reported Ammonium Concentration,micromoles per liter,scientific_variable,calcofi_bottle,env,matching,r_ammonium,measurement_type (source_column/name)
@@ -343,7 +343,7 @@ siocalcofiHydroBottle,s_prec,Salinity Precision,"",scientific_variable,calcofi_b
 siocalcofiHydroBottle,s_qual,Salinity Quality,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
 siocalcofiHydroBottle,salinity,Salinity,Practical Salinity Scale,physical_variable,calcofi_bottle,env,matching,salinity,measurement_type (source_column/name)
 siocalcofiHydroBottle,sio3qu,Silicate quality,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
-siocalcofiHydroBottle,sio3um,Measured Silicate concentration,micromoles per liter,scientific_variable,calcofi_bottle,env,matching,silicate,measurement_type (source_column/name)
+siocalcofiHydroBottle,sio3um,Measured Silicate concentration,micromoles per liter,scientific_variable,calcofi_bottle,env,matching,,unmatched
 siocalcofiHydroBottle,sta_id,Line and Station,"",scientific_variable,calcofi_bottle,env,matching,,unmatched
 siocalcofiHydroBottle,stheta,Potential Density of water,kilograms per cubic meter,scientific_variable,calcofi_bottle,env,matching,sigma_theta,measurement_type (source_column/name)
 siocalcofiHydroBottle,sthtaq,Potential Density Quality,"",scientific_variable,calcofi_bottle,env,matching,,unmatched

@@ -58,12 +58,69 @@ FROM split;
 -- duplicated — see build_stations.sql's header) still collapse into one
 -- variable. Fixing that means keying variable_id on taxon_key, which changes
 -- every variable_id in the catalog and is deliberately out of scope here.
+--
+-- source_order + taxon_group (2026-09-28, phytoplankton review with Pooh via
+-- Erin): the portal listed the 299 phytoplankton taxa A-Z, which is not how
+-- anyone who works with this dataset reads it. Venrick's own species list —
+-- definitions.xlsx sheet "Species Codes" (EDI knb-lter-cce.254.4), which every
+-- data sheet in the three abundance workbooks follows row for row — runs by
+-- functional group (centric diatoms, pennate diatoms, thecate dinoflagellates,
+-- athecate dinoflagellates, coccolithophores, silicoflagellates, other) and
+-- then by name. The release does not carry that order (ds_taxa_code is a code,
+-- not a position), so it is read from the workflows copy of the sheet,
+-- metadata/calcofi/phytoplankton/taxon_worms.csv — verified identical in row
+-- order to the EDI sheet (384 of 384 codes) — the same way measurement_type.csv
+-- is read above. The row number IS the datum: preserve_insertion_order (on by
+-- default) keeps a single small CSV in file order, and row_number() over that
+-- scan is its line number. (read_text + generate_subscripts would say so more
+-- explicitly, but DuckDB-WASM rejects this file's bytes as non-UTF-8 though it is
+-- plain ASCII, and the same SQL should run in the browser for checking.)
+--
+-- source_names (2026-09-28, Betty): the name the source itself uses for each
+-- code, the sheet's `species` column, with runs of spaces collapsed. The item's
+-- label is the release's WoRMS name, and 64 phytoplankton species differ from
+-- Venrick's (Ceratium fusus -> Tripos fusus, Emiliania huxleyi -> Gephyrocapsa
+-- huxleyi, ...), so the source's own names travel with the item: shown under its
+-- WoRMS name and searchable. A list, since several codes can key one taxon.
+CREATE TEMP TABLE src_order AS
+SELECT 'calcofi_phytoplankton' AS dataset_key,
+       trim(species_code) AS ds_taxa_code,
+       CAST(row_number() OVER () AS INTEGER) AS source_order,   -- 1 = first species
+       regexp_replace(trim(species), '\s+', ' ', 'g') AS source_name
+FROM read_csv('https://raw.githubusercontent.com/CalCOFI/workflows/main/metadata/calcofi/phytoplankton/taxon_worms.csv',
+              all_varchar = true, header = true);
+
+CREATE TEMP TABLE tgrp AS
+SELECT dataset_key, taxon_key,
+       CASE WHEN count(DISTINCT fine) = 1   THEN any_value(fine)
+            WHEN count(DISTINCT coarse) = 1 THEN any_value(coarse) END AS taxon_group
+FROM (
+  SELECT split_part(taxon_group_key, ':', 1) AS dataset_key, taxon_key,
+         trim(regexp_extract(description, ':\s*(.+)$', 1)) AS fine,
+         trim(split_part(regexp_extract(description, ':\s*(.+)$', 1), ',', 1)) AS coarse
+  FROM __TBL:taxon_group__
+  -- the source's own "undefined (code not in source definitions; Q05)" bucket
+  -- is a data-quality flag, not a group anyone browses by
+  WHERE description NOT ILIKE '%undefined%'
+)
+WHERE fine <> ''
+GROUP BY 1, 2;
+
 CREATE TEMP TABLE tx AS
-SELECT DISTINCT dt.dataset_key, t.scientific_name,
-       CAST(t.worms_id AS VARCHAR) AS aphia_id, t.rank, t.common_name
+SELECT dt.dataset_key, t.scientific_name,
+       CAST(t.worms_id AS VARCHAR) AS aphia_id, t.rank, t.common_name,
+       min(so.source_order) AS source_order,
+       CASE WHEN count(DISTINCT tg.taxon_group) = 1 THEN any_value(tg.taxon_group) END AS taxon_group,
+       list(DISTINCT so.source_name ORDER BY so.source_name) FILTER (WHERE so.source_name IS NOT NULL) AS source_names
 FROM __TBL:dataset_taxon__ dt
 JOIN __TBL:taxon__ t USING (taxon_key)
-WHERE t.scientific_name IS NOT NULL;
+LEFT JOIN src_order so ON so.dataset_key = dt.dataset_key AND so.ds_taxa_code = dt.ds_taxa_code
+LEFT JOIN tgrp tg ON tg.dataset_key = dt.dataset_key AND tg.taxon_key = dt.taxon_key
+WHERE t.scientific_name IS NOT NULL
+-- GROUP BY replaces the old SELECT DISTINCT over these same five columns, so the
+-- row set is unchanged; it only lets the two new columns aggregate across the
+-- provider rows a taxon fans out to (see the DISTINCT note above)
+GROUP BY dt.dataset_key, t.scientific_name, t.worms_id, t.rank, t.common_name;
 
 -- harvested catalog (extras source) + crosswalks
 CREATE TEMP TABLE hv AS
@@ -99,6 +156,8 @@ COPY (
          mt.measurement_type AS name, mt.measurement_type AS display_name,
          mt.units, coalesce(mt.description, e.h_description) AS description,
          mt.is_canonical, NULL AS aphia_id, NULL AS rank, NULL AS common_name,
+         CAST(NULL AS INTEGER) AS source_order, CAST(NULL AS VARCHAR) AS taxon_group,
+         CAST(NULL AS VARCHAR[]) AS source_names,
          e.keywords, e.science_concepts, e.src AS "source"
   FROM mt LEFT JOIN mt_extras e USING (dataset_key, measurement_type)
   UNION ALL BY NAME
@@ -108,6 +167,8 @@ COPY (
          tx.scientific_name AS name, coalesce(tx.common_name, tx.scientific_name) AS display_name,
          NULL AS units, NULL AS description, NULL AS is_canonical,
          tx.aphia_id, tx.rank, tx.common_name,
+         tx.source_order, tx.taxon_group,
+         CASE WHEN len(tx.source_names) > 0 THEN tx.source_names END AS source_names,
          e.keywords, e.science_concepts, e.src AS "source"
   FROM tx LEFT JOIN tx_extras e ON lower(tx.scientific_name) = e.name_key
   ORDER BY dataset_key, variable_type, name

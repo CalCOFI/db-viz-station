@@ -182,6 +182,31 @@ explicit `KEEP_MEASUREMENT_TYPE` allowlist), collapses byte-identical duplicate 
 and merges the three bottle/CTD/DIC datasets on a canonical name. Adding a variable to the
 browsable list usually means touching one of those sets, not the render code.
 
+**Markers sit at the nominal station, not the cell centroid.** `placeStation()` moves
+each station to its CalCOFI line/station position (a port of PROJ's `+proj=calcofi`)
+at load, keeping the centroid as `lat_cell`/`lon_cell`; 20 coastal cells whose nominal
+point is on land are handled by `STATION_ON_LAND`: at the official station where most
+of their samples were taken (release `sample.site_key`, e.g. 80.0 50 -> 80.0 51), else
+slid along their line to water, else the centroid (no panel note). Anything that
+reads `s.lat`/`s.lon` after load gets the marker position. Data never follows the
+marker: it is keyed by `grid_key` / `station_id`.
+
+**`public/data/*.json` has one writer: `refresh.yml`.** Never commit a regenerated copy
+from a laptop to land a build-script change. `scripts/check_data_contract.py`'s `PENDING`
+table lets the committed files lack the keys a PR's new build scripts add until the next
+refresh (all-or-none per file; a half-built file still fails). Verify a script change by
+building into a scratch copy of the repo (`resolve_release.py`, then `duckdb -c ".read
+build/build_vars.sql"`) and diffing, never in `public/data/`. Delete `PENDING` after the
+refresh that regenerates the files (db-viz-station#21).
+
+**Pooled regions count presence, not rows.** `regions.json` taxa/groups carry the
+number of samples with cells > 0 (`n_obs`) and `sum_value`; a taxon absent from a
+region was never counted there. The card divides by the region's `n_samples` (or
+`sample_years` inside a narrowed year window). Functional-group totals ("Total
+diatoms", the source workbooks' SUM rows in plain words) are synthesized from
+`regions.json` `groups[]` as `variable_type: 'taxon_group'`. Phytoplankton labels follow the
+source's own groups (`TAXON_GROUP_NAMES`), written out without shorthand.
+
 ### Conventions to follow
 
 - **Every optional data file degrades to `[]`** (`.then(r => r.ok ? r.json() : []).catch(() => [])`).

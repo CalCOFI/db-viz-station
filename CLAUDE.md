@@ -191,6 +191,14 @@ slid along their line to water, else the centroid (no panel note). Anything that
 reads `s.lat`/`s.lon` after load gets the marker position. Data never follows the
 marker: it is keyed by `grid_key` / `station_id`.
 
+**`public/data/*.json` has one writer: `refresh.yml`.** Never commit a regenerated copy
+from a laptop to land a build-script change. `scripts/check_data_contract.py`'s `PENDING`
+table lets the committed files lack the keys a PR's new build scripts add until the next
+refresh (all-or-none per file; a half-built file still fails). Verify a script change by
+building into a scratch copy of the repo (`resolve_release.py`, then `duckdb -c ".read
+build/build_vars.sql"`) and diffing, never in `public/data/`. Delete `PENDING` after the
+refresh that regenerates the files (db-viz-station#21).
+
 **Pooled regions count presence, not rows.** `regions.json` taxa/groups carry the
 number of samples with cells > 0 (`n_obs`) and `sum_value`; a taxon absent from a
 region was never counted there. The card divides by the region's `n_samples` (or

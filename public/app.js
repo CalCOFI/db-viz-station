@@ -510,7 +510,9 @@ const TAXON_GROUP_NAMES = {
 // DISPLAY_NAME_FIXES), these two species are the only ones any of them names.
 // Keyed by AphiaID, and only filled where the release has no common_name, so the
 // release's name wins once it lands (the same rows go into the workflows
-// registry, metadata/taxon_common.csv).
+// registry, metadata/taxon_common.csv, with CalCOFI/workflows#119).
+// TODO(db-viz-station#21): delete this and addCommonName() once a release that
+// carries #119 has been refreshed and variables.json has both common_name values.
 const COMMON_NAME_ADDS = {
   '109921': 'sea sparkle',        // Noctiluca scintillans: WoRMS, GBIF, NCBI
   '110328': 'ocean night light',  // Pyrocystis fusiformis: WoRMS

@@ -49,10 +49,13 @@ jobs:
       # app.js. GitHub Pages serves these with max-age and no header control, and
       # the counter is exactly the kind of manual step that gets missed in review.
       #
-      # This rewrites only the deployment artifact, never the repo: the committed
-      # counter stays as the human-readable marker, and the deployed bytes get a
-      # value that changes on its own with every commit. Data files under
-      # public/data/ are unaffected — they carry ?v=<release> from version.json.
+      # This rewrites only the deployment artifact, never the repo. The committed
+      # index.html carries NO version on app.js / styles.css (check.yml fails a
+      # hand-typed `?v=<int>`), so there is no counter to forget: on Pages this
+      # stamp is the freshness mechanism, and on app.calcofi.io the Caddy
+      # `Cache-Control: no-cache` header is (server/caddy/Caddyfile). Data files
+      # under public/data/ are unaffected — they carry ?v=<release> from
+      # version.json.
       - name: Stamp asset cache-busting from the deployed commit
         env:
           DEPLOY_SHA: ${{ inputs.sha || github.sha }}
@@ -60,12 +63,15 @@ jobs:
           V="${DEPLOY_SHA:0:7}"
           # Two plain BRE substitutions rather than one alternation — `\|` is a
           # GNU extension that no-ops silently under BSD sed, which would leave
-          # the stale counter in place and look like it worked.
-          sed -i -e "s/app\.js?v=[0-9A-Za-z]*/app.js?v=$V/" \
-                 -e "s/styles\.css?v=[0-9A-Za-z]*/styles.css?v=$V/" public/index.html
+          # the page unstamped and look like it worked. The committed form is
+          # a bare `app.js"`; a `?v=` already there would not match, and the
+          # grep below turns that into a red build instead of a silent skip.
+          sed -i -e "s/app\.js\"/app.js?v=$V\"/" \
+                 -e "s/styles\.css\"/styles.css?v=$V\"/" public/index.html
           grep -oE '(app\.js|styles\.css)\?v=[^"]*' public/index.html
           # Fail loudly rather than deploy an unstamped page.
-          grep -q "app.js?v=$V" public/index.html || { echo "::error::stamp failed"; exit 1; }
+          grep -q "app.js?v=$V\"" public/index.html || { echo "::error::stamp failed"; exit 1; }
+          grep -q "styles.css?v=$V\"" public/index.html || { echo "::error::stamp failed"; exit 1; }
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

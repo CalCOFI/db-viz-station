@@ -40,11 +40,12 @@ or pasting a local copy over the repo's). Six such commits on 2026-08-11 replace
 cache-busting and the Pages deploy dispatch, all of it shipped to production before
 `9ee1c0e` restored it. Edit in place and push a diff.
 
-**Asset cache-busting is stamped at deploy, not by hand.** `pages.yml` rewrites the
-`?v=` on `app.js` and `styles.css` to the deployed commit's short SHA in the artifact
-only, so the counter can no longer be forgotten (it was: `app.js` changed three times
-while `?v=106` stood still). The committed counter remains as a human-readable marker —
-keep the two equal if you touch it; `check.yml` fails when they diverge.
+**There is no hand-typed asset version.** `public/index.html` references `app.js` and
+`styles.css` bare, and `check.yml` fails any `?v=<int>` there (a counter nobody bumps
+shipped v2026.10.01's `app.js` to nobody: the URL stayed `?v=118`). Freshness is the
+deploy's job: `pages.yml` stamps `?v=<short SHA>` into the Pages artifact only, and
+`app.calcofi.io/station/` sends `Cache-Control: no-cache` from the Caddyfile in the
+`server` repo, so browsers revalidate by ETag. Do not re-add a counter.
 
 ## Rebuilding the data
 

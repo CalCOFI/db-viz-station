@@ -252,6 +252,12 @@ Do not open the HTML file directly from disk, as JSON fetch requests will fail.
 
 ## Deployment
 
+### Asset freshness (no version counter)
+
+`public/index.html` references `app.js` and `styles.css` bare; never type a `?v=<int>` there (`check.yml` fails it).
+On `app.calcofi.io/station/` freshness is the Caddy `Cache-Control: no-cache` header (browsers revalidate by ETag); on GitHub Pages `pages.yml` stamps `?v=<short SHA>` into the deployed artifact only.
+A new `app.js` therefore reaches returning browsers on its own, with nothing to remember at commit time.
+
 ### Vercel
 
 1. Push repository to GitHub.

@@ -64,11 +64,19 @@ jobs:
             exit 1
           fi
 
-      # Both assets must carry the same ?v= counter; index.html referencing a
-      # stale styles.css against a fresh app.js is its own bug.
-      - name: index.html cache-busting counters agree
+      # index.html must NOT carry a hand-typed `?v=<int>` on app.js / styles.css.
+      # A counter somebody has to remember to bump is how v2026.10.01's new
+      # app.js never reached returning browsers: the URL stayed `app.js?v=118`,
+      # Caddy sent no Cache-Control, and browsers reused their copy. Freshness
+      # is not the page's job any more: app.calcofi.io sends
+      # `Cache-Control: no-cache` (server/caddy/Caddyfile) and pages.yml stamps
+      # `?v=<sha>` into the Pages artifact only. Both assets must still be
+      # referenced, bare.
+      - name: index.html carries no hand-typed asset version
         run: |
-          JS=$(grep -o 'app\.js?v=[0-9]*'    public/index.html | grep -o '[0-9]*$')
-          CSS=$(grep -o 'styles\.css?v=[0-9]*' public/index.html | grep -o '[0-9]*$')
-          echo "app.js?v=$JS  styles.css?v=$CSS"
-          [ -n "$JS" ] && [ "$JS" = "$CSS" ] || { echo "::error::?v= counters differ or are missing"; exit 1; }
+          if grep -nE '(app\.js|styles\.css)\?v=[0-9]+' public/index.html; then
+            echo "::error::hand-typed ?v=<int> on an asset in public/index.html; remove it (freshness is the Caddy header's and pages.yml's job, see README)"
+            exit 1
+          fi
+          grep -q 'src="app\.js"' public/index.html      || { echo "::error::index.html does not reference app.js bare"; exit 1; }
+          grep -q 'href="styles\.css"' public/index.html || { echo "::error::index.html does not reference styles.css bare"; exit 1; }

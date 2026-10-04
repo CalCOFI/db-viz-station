@@ -65,6 +65,12 @@ jobs:
           gzip -9 -f public/data/taxon_coverage.json
           duckdb -c ".read build/build_vars.sql"
           duckdb -c ".read build/build_decades.sql"
+          # per-(station, subset) coverage for the Hydrographic Bottle / Cast
+          # cards. A hand-uploaded file until 2026-10-04 (issue #3); it is keyed
+          # by grid_key, so it must be rebuilt from the same release as
+          # stations.json or check_data_contract.py's join fails on the first
+          # grid change (v2026.10.04 retired and redrew cells).
+          duckdb -c ".read build/build_bottle_cast_coverage.sql"
           duckdb -c ".read build/build_datasets.sql"
           # build_regions.sql writes regions.json: the pooled-region polygons for
           # datasets with no grid_key at all (calcofi_phytoplankton today), which
@@ -111,7 +117,7 @@ jobs:
           # silently discarded, leaving the committed copy to drift from the rest
           # (taxon_coverage.json did exactly that when it was first added).
           git add public/data/stations.json public/data/cruises.json public/data/variables.json \
-                  public/data/decades.json \
+                  public/data/decades.json public/data/bottle_cast_coverage.json \
                   public/data/taxon_coverage.json.gz public/data/depth_profiles.json.gz \
                   public/data/datasets_meta.json public/data/regions.json public/data/version.json \
                   public/data/tables.json \

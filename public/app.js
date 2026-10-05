@@ -479,6 +479,11 @@ const isSppTaxon = v => v.variable_type === 'taxon' && v.rank === 'Genus' && SPP
 // "<Genus>, uncertain species." or "<Genus> spp."; the 40th is "Liriogramma
 // complex" (notes: "includes Asteromphalus sarcophagus") — a named group, not
 // unidentified cells of one genus — so it keeps the source's own word.
+// Re-checked 2026-10-04 against release v2026.10.04 (db-viz-station#21), where
+// CalCOFI/workflows#119 keys a source's unknown species of a named genus, or two
+// species of one genus, to that genus: 71 genus rows, the 31 new ones all
+// "<Genus> sp. 1 / sp. a", "<Genus> cf …" or "<A> + <B>" of one genus, so
+// "spp." reads right for them too; Liriogramma is still the one exception.
 const GENUS_QUALIFIER = { 'calcofi_phytoplankton::Liriogramma': 'complex' };
 const genusQualifier = v => GENUS_QUALIFIER[v.variable_id] || 'spp.';
 // The source's functional-group labels ("diatom, centric") in reading order,
@@ -491,7 +496,11 @@ const genusQualifier = v => GENUS_QUALIFIER[v.variable_id] || 'spp.';
 // workbooks sum (centric diatoms ... "MISC. TAXA") — written out plainly, with
 // no shorthand (2026-09-28: "clean and readable, no shorthand or +"). The two
 // catch-all classes hold the source's "indistinguished ..." rows and "pennate
-// sp. 1"-style unknowns, hence "Unidentified".
+// sp. 1"-style unknowns, hence "Unidentified" (v2026.10.04: Bacillariophyceae
+// holds only "indistinguished diatom species / pennate diatoms", "pennate sp.
+// 1-6" and "Mastogloia woodiana + pennate a"; Dinophyceae only the two
+// "indistinguished … dinoflagellate spp." — the named codes that sat there on
+// v2026.09.11 are genus- or species-keyed now).
 const TAXON_GROUP_NAMES = {
   'diatom, centric': ['centric diatom', 'Centric diatoms'],
   'diatom, pennate': ['pennate diatom', 'Pennate diatoms'],
@@ -503,24 +512,10 @@ const TAXON_GROUP_NAMES = {
   'silicoflagellate': ['silicoflagellate', 'Silicoflagellates'],
   'other': ['miscellaneous taxon', 'Miscellaneous taxa'],
 };
-// English common names the release does not carry yet (Betty, 2026-09-28:
-// "find common names anywhere; if they exist, add"). Every phytoplankton taxon
-// was looked up in WoRMS, GBIF, ITIS and NCBI Taxonomy. Beyond the four classes
-// (named already: the release's "diatoms" and "dinoflagellates", and
-// DISPLAY_NAME_FIXES), these two species are the only ones any of them names.
-// Keyed by AphiaID, and only filled where the release has no common_name, so the
-// release's name wins once it lands (the same rows go into the workflows
-// registry, metadata/taxon_common.csv, with CalCOFI/workflows#119).
-// TODO(db-viz-station#21): delete this and addCommonName() once a release that
-// carries #119 has been refreshed and variables.json has both common_name values.
-const COMMON_NAME_ADDS = {
-  '109921': 'sea sparkle',        // Noctiluca scintillans: WoRMS, GBIF, NCBI
-  '110328': 'ocean night light',  // Pyrocystis fusiformis: WoRMS
-};
-function addCommonName(v) {
-  if (v.variable_type === 'taxon' && !v.common_name && COMMON_NAME_ADDS[v.aphia_id])
-    v.common_name = COMMON_NAME_ADDS[v.aphia_id];
-}
+// COMMON_NAME_ADDS (sea sparkle, ocean night light) retired 2026-10-04
+// (db-viz-station#21): release v2026.10.04 carries both names from the workflows
+// registry metadata/taxon_common.csv (CalCOFI/workflows#119), and a scratch build
+// of variables.json against it has common_name on worms 109921 and 110328.
 // The source's own name(s) for a species when the release shows another — the
 // WoRMS name Venrick's name now goes by (Ceratium fusus -> Tripos fusus). From
 // variables.json source_names (build_vars.sql); searched by varMatch too, so
@@ -795,44 +790,37 @@ function calcofiToLatLon(line, sta) {
   const lam = O_LAM - ((xym - oy) * Math.tan(ROT) + (rym - xym) / (Math.cos(ROT) * Math.sin(ROT)));
   return [phi * 180 / Math.PI, lam * 180 / Math.PI];
 }
-// The one exception: 20 cells whose nominal station falls ON LAND (a
-// regularized-grid cell reaching into the coast). Checked against Natural Earth
-// 10m land. Each is placed one of three ways:
+// From release v2026.10.04 the grid itself fixes most of this: one Voronoi cell
+// per official station (113, the SCCOOS inshore stations included as cells of
+// their own, e.g. 93.4 26.4, 86.8 32.5), so `geom_ctr` IS the nominal station for
+// every standard and extended cell (measured 2026-10-04 on the staging release:
+// 0.0 km from this port on all 113, every one inside its own cell) and
+// placeStation() moves none of them. The cells the table below used to place
+// (80.0 50 -> 80.0 51, 93.3 25 -> 93.3 26.7, 86.7 30 -> 86.8 32.5, …) no longer
+// exist: their stations are cells now. Their grid_keys are gone from the
+// release, and the release's `grid_crosswalk` (prev_grid_key -> grid_key,
+// overlap fractions) is the only mapping; nothing here remaps an old key.
 //
-//  - {sampled: [line, station]}: the official station where most of the cell's
-//    samples were taken, read from the release's own station IDs
-//    (sample.site_key, v2026.09.11, checked 2026-09-28). 80.0 50 -> 80.0 51
-//    (5,156 samples at 080.0 051.0), 93.3 25 -> 93.3 26.7 (4,447), 70.0 50 ->
-//    70.0 51 (1,359), 86.7 30 -> 86.8 32.5 (235, plus 82 at 086.7 032.5),
-//    66.7 45 -> 66.7 47.3 (18). The marker's data is unchanged: everything is
-//    keyed by grid_key / station_id, never by where the marker is drawn.
+// What is left: 11 cells whose nominal station still falls ON LAND (not inside
+// any grid cell — the grid is clipped to water), each placed one of two ways:
 //  - a number: no one station to go by, so the marker slides out along its own
-//    line to the first water, still in the row. 76.7 45 and 40.0 20 have no
-//    samples at all; the historical cells' samples spread over several
-//    stations and lines.
-//  - null: the samples sit off to the side of the line, over several stations,
-//    so the cell's centroid (the middle of its water) is the truest place:
-//    90.0 25 (samples on line 91, stations 26.6-27.2), 83.3 35 (line 85 off
-//    Point Mugu), 80.0 45 (lines 80.8-82), 60.0 45 (underway data only).
+//    line to the first water, still in the row (each point checked inside its
+//    own cell on v2026.10.04). The historical cells' samples spread over
+//    several stations and lines.
+//  - null: the cell's centroid (the middle of its water) is the truest place:
+//    60.0 45 (underway data only, nominal point 18.6 km inland of its centroid)
+//    and the historical cells whose samples sit off to the side of the line.
 const STATION_ON_LAND = {
-  'st50-ln80': { sampled: [80, 51] }, 'st25-ln93.3': { sampled: [93.3, 26.7] },
-  'st50-ln70': { sampled: [70, 51] }, 'st30-ln86.7': { sampled: [86.8, 32.5] },
-  'st45-ln66.7': { sampled: [66.7, 47.3] },
-  'st45-ln76.7': 47.3,
   'st-20-ln130_hist': -12.6, 'st-40-ln160_hist': -31.7, 'st20-ln100_hist': 27.8,
   'st20-ln120_hist': 22.3, 'st20-ln130_hist': 23.9, 'st20-ln140_hist': 24.9,
-  'st25-ln90': null, 'st35-ln83.3': null, 'st45-ln60': null, 'st45-ln80': null,
+  'st45-ln60': null,
   'st0-ln30_hist': null, 'st20-ln40_hist': null, 'st20-ln110_hist': null, 'st40-ln55_hist': null,
-  // not on land, but a historical cell with the same line/station as a standard
-  // one (90.0 120.0): both at the nominal point would draw one marker over the other
-  'st120-ln90_hist': null,
 };
 function placeStation(s) {
   s.lat_cell = s.lat; s.lon_cell = s.lon;       // the cell centroid, kept for reference
   if (s.line == null || s.station == null) return;
   const ex = STATION_ON_LAND[s.grid_key];
   if (ex === null) return;                                          // keep the centroid
-  if (ex && typeof ex === 'object') { [s.lat, s.lon] = calcofiToLatLon(...ex.sampled); return; }
   [s.lat, s.lon] = calcofiToLatLon(s.line, ex === undefined ? s.station : ex);
 }
 
@@ -1089,7 +1077,6 @@ loadDataVersion().then(() => Promise.all([
   fetch(dataUrl('cruises.json')).then(r => r.ok ? r.json() : []).catch(() => [])
 ])).then(([st, va, dm, tc, bc, bathy, dsMetaRows, rg, crz]) => {
   STATIONS = st; VARS = va;
-  VARS.forEach(addCommonName);
   // Regions are indexed exactly like taxon_coverage: `dataset_key::aphia_id`,
   // because a pooled dataset's variables are taxa and variables.json keys them
   // by aphia_id. Keeping the two indexes the same shape is what lets
@@ -1462,15 +1449,33 @@ function regionUndatedObs(v) {
 }
 // Which grid stations each region was pooled over. regions.json lists them in
 // the source's shorthand — "83.41" is line 83.3, station 41, "87.40" is line
-// 86.7 station 40 (the line rounded to a whole number) — and six of the 34
-// (83.41, 83.51, 90.37, 77.51, 80.51, 90.53) are intermediate inshore stations
-// with no grid cell of their own, so they attach to the nearest station on the
-// same line: 83.3 41 to the 83.3 40 cell, and so on.
+// 86.7 station 40 (the line rounded to a whole number). A code with no grid cell
+// of its own attaches to the nearest station on the same line. Up to v2026.10.01
+// that was six of the 34 (83.41, 83.51, 90.37, 77.51, 80.51, 90.53); from
+// v2026.10.04 every official station is a cell and only 83.41 has none (it
+// attaches to 83.3 40.6).
+//
+// The shorthand's line is the whole-number rounding of a REGULAR CalCOFI line
+// (60 + k * 3 1/3: 60.0, 63.3, …, 93.3). Matching it with Math.round() against
+// every grid line stopped being unique on v2026.10.04, whose grid carries the
+// SCCOOS inshore stations as cells on lines of their own: 93.4 and 93.3 both
+// round to 93, 86.8 and 86.7 to 87, so "87.40" resolved to whichever line came
+// first in stations.json. regularLineFor() matches only lines on the 3 1/3
+// spacing, which are > 3 units apart, so it is unique.
+function isRegularLine(l) {
+  // the nearest lattice line, written to one decimal as the grid writes lines
+  const lat = Math.round((60 + Math.round((l - 60) * 0.3) / 0.3) * 10) / 10;
+  return Math.abs(l - lat) < 1e-6;                // 93.3 yes; 93.4, 86.8, 81.7 no
+}
+function regularLineFor(ln) {
+  const cands = [...new Set(STATIONS.filter(s => s.pattern !== 'historical' && s.line != null && isRegularLine(s.line))
+    .map(s => s.line))].filter(l => Math.abs(l - ln) <= 0.5);
+  return cands.length ? cands.reduce((a, b) => (Math.abs(b - ln) < Math.abs(a - ln) ? b : a)) : null;
+}
 function indexRegionStations() {
-  const lines = [...new Set(STATIONS.filter(s => s.pattern !== 'historical').map(s => s.line))];
   REGIONS.forEach(r => (r.station_codes || '').split(',').map(c => c.trim()).filter(Boolean).forEach((code, idx) => {
     const [ln, st] = code.split('.').map(Number);
-    const line = lines.find(l => Math.round(l) === ln);
+    const line = regularLineFor(ln);
     if (line == null || isNaN(st)) return;
     let best = null;
     STATIONS.forEach(s => {
@@ -4754,7 +4759,7 @@ function pooledInfoLinksHtml(v) {
   const regions = orderedRegions().map(r => {
     const codes = (r.station_codes || '').split(',').map(c => c.trim()).filter(Boolean).map(c => {
       const [ln, st] = c.split('.');
-      const line = STATIONS.map(s => s.line).find(l => Math.round(l) === Number(ln));
+      const line = regularLineFor(Number(ln));   // not Math.round(): 93.4 and 93.3 both round to 93
       return line != null ? `${line.toFixed(1)} ${Number(st)}` : c;
     });
     return `<li><b>${r.region_key}</b> — ${regionDesc(r)}: ${codes.join(', ')}</li>`;

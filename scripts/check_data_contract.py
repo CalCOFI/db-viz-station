@@ -102,25 +102,12 @@ NESTED = {
     ],
 }
 
-# Keys the build scripts emit but the COMMITTED json may not carry yet.
-# public/data/*.json is CI-owned: refresh.yml (every release dispatch, weekly,
-# manual) is its only writer, so a PR that changes a build script cannot ship the
-# regenerated file without a second writer. The contract above is the full shape
-# app.js indexes on; this table is the part of it that the committed files catch
-# up to at the next refresh. All-or-none per file: while EVERY pending key of a
-# file is absent the check notes it (app.js degrades: `r.groups || []`, null
-# source_order, DS_REGION_PRESENCE); a file carrying SOME of them is half-built
-# and fails. Once refresh.yml has regenerated both files (2026-09 phytoplankton
-# review, db-viz-station#16), delete this table and the contract is unconditional.
-PENDING = {
-    "variables.json": {"source_order", "taxon_group", "source_names"},
-    "regions.json": {"groups"},
-}
-PENDING_NESTED = {
-    ("regions.json", "datasets"): {"sample_years"},
-    ("regions.json", "taxa"): {"sum_value"},
-    ("regions.json", "groups"): None,    # the whole nested array, from "groups" above
-}
+# There is no PENDING table any more: it let the committed files lack the keys
+# #16's build scripts added until refresh.yml regenerated them, and it did
+# (variables.json and regions.json carry every key on v2026.10.01's refresh), so
+# it was deleted 2026-10-04 (db-viz-station#21) and the contract is unconditional.
+# If a PR adds a key the committed json cannot carry until the next refresh,
+# reintroduce the all-or-none pattern from git history rather than loosening a key.
 
 # Cross-file referential checks: a key in one file that must resolve in another.
 # Catches the drift that column presence alone cannot — e.g. a coverage file
@@ -159,13 +146,6 @@ def main():
         loaded[name] = rows
         present = set(rows[0].keys())
         missing = spec["keys"] - present
-        pend = PENDING.get(name, set())
-        if pend and pend <= missing:
-            notes.append(
-                f"{name}: committed before {sorted(pend)} were built; the next "
-                f"refresh.yml run regenerates it (PENDING)"
-            )
-            missing -= pend
         if missing:
             errors.append(
                 f"{name}: missing {sorted(missing)} — present: {sorted(present)}"
@@ -181,14 +161,6 @@ def main():
             continue
         for col, keys in specs:
             entries = [e for r in rows for e in (r.get(col) or [])]
-            pend = PENDING_NESTED.get((name, col), set())
-            if pend is None:
-                # a whole nested array that is itself a pending top-level column
-                if col not in rows[0]:
-                    continue
-            elif entries and pend and not (pend & set(entries[0].keys())):
-                # all-or-none, as above: the file still awaits its regeneration
-                keys = keys - pend
             if not entries:
                 # an empty nested array is legitimate (a region with no data yet),
                 # but ALL of them empty means the join in the build script found

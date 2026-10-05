@@ -105,8 +105,12 @@ adding a build script:
    go green while shipping stale data.
 
 Files with **no committed generator** — treat as committed artifacts, not build outputs:
-`bathymetry.json`, `bottle_cast_coverage.json`, `station_groups.json` (tracked in
-issue #3). The two per-species stand-ins that used to sit here
+`bathymetry.json`, `station_groups.json` (tracked in issue #3).
+`bottle_cast_coverage.json` is built by `scripts/build_bottle_cast_coverage.sql` in
+`refresh.yml` since 2026-10-04: it is keyed by `grid_key`, so it has to move with
+`stations.json` when the grid changes. `bathymetry.json` is keyed by `grid_key` too and
+is rebuilt by hand after a grid change (GEBCO at each cell's `geom_ctr`, the same values
+as ctd-transects' `metadata/station_bathymetry.csv`), or stations lose their seafloor line. The two per-species stand-ins that used to sit here
 (`euphausiid_species_coverage.json`, `bird_mammal_species_coverage.json`) were deleted
 on 2026-08-13 once `taxon_coverage.json` carried `dataset_key`, which made them
 redundant — don't reintroduce a hand-built coverage file when the release can produce it.
@@ -183,22 +187,23 @@ explicit `KEEP_MEASUREMENT_TYPE` allowlist), collapses byte-identical duplicate 
 and merges the three bottle/CTD/DIC datasets on a canonical name. Adding a variable to the
 browsable list usually means touching one of those sets, not the render code.
 
-**Markers sit at the nominal station, not the cell centroid.** `placeStation()` moves
-each station to its CalCOFI line/station position (a port of PROJ's `+proj=calcofi`)
-at load, keeping the centroid as `lat_cell`/`lon_cell`; 20 coastal cells whose nominal
-point is on land are handled by `STATION_ON_LAND`: at the official station where most
-of their samples were taken (release `sample.site_key`, e.g. 80.0 50 -> 80.0 51), else
-slid along their line to water, else the centroid (no panel note). Anything that
-reads `s.lat`/`s.lon` after load gets the marker position. Data never follows the
-marker: it is keyed by `grid_key` / `station_id`.
+**Markers sit at the nominal station, not the cell centroid.** From release v2026.10.04
+the grid has one Voronoi cell per official station and `geom_ctr` IS the nominal station
+for all 113 official cells, so `placeStation()` (a port of PROJ's `+proj=calcofi`) moves
+none of them; it still places the 11 cells whose nominal point is on land
+(`STATION_ON_LAND`: slid along their line to water, else the centroid, no panel note).
+Grid keys the release retired are never remapped here; the release's `grid_crosswalk` is
+the only old -> new mapping. Anything that reads `s.lat`/`s.lon` after load gets the
+marker position. Data never follows the marker: it is keyed by `grid_key` /
+`station_id`. A region code's CalCOFI line is matched by `regularLineFor()`, never
+`Math.round()`: the SCCOOS one-cell lines (93.4, 86.8) round onto 93.3 and 86.7.
 
 **`public/data/*.json` has one writer: `refresh.yml`.** Never commit a regenerated copy
-from a laptop to land a build-script change. `scripts/check_data_contract.py`'s `PENDING`
-table lets the committed files lack the keys a PR's new build scripts add until the next
-refresh (all-or-none per file; a half-built file still fails). Verify a script change by
-building into a scratch copy of the repo (`resolve_release.py`, then `duckdb -c ".read
-build/build_vars.sql"`) and diffing, never in `public/data/`. Delete `PENDING` after the
-refresh that regenerates the files (db-viz-station#21).
+from a laptop to land a build-script change. The data contract is unconditional
+(`PENDING` was deleted 2026-10-04, db-viz-station#21); a PR whose build scripts add a key
+the committed json lacks must bring back that all-or-none table from git history. Verify a
+script change by building into a scratch copy of the repo (`resolve_release.py`, then
+`duckdb -c ".read build/build_vars.sql"`) and diffing, never in `public/data/`.
 
 **Pooled regions count presence, not rows.** `regions.json` taxa/groups carry the
 number of samples with cells > 0 (`n_obs`) and `sum_value`; a taxon absent from a

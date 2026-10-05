@@ -1,7 +1,7 @@
 portal_dataset_id,variable_name,display_name,units,entity_type,db_provider_dataset,realm,dataset_match_class,measurement_type_match,var_note
 /euphausiid/save.php?mode=save,Krill (Euphausiids),Krill (Euphausiids),"",scientific_dataset,cce-lter_euphausiids,bio,matching,,taxon (build-time species match)
 555783,Genomics of microbial/plankton assemblage (ASVs) - 16S,Genomics of microbial/plankton assemblage (ASVs) - 16S,"",scientific_dataset,,omics,missing,,no DB dataset (missing/omics)
-CAC_FI_SBAS_obs,behavior,behavior,"",scientific_variable,farallon_bird-mammal,bio,partial,,taxon (build-time species match)
+CAC_FI_SBAS_obs,behavior,behavior,"",scientific_variable,farallon_bird-mammal,bio,partial,behavior,measurement_type (source_column/name)
 CAC_FI_SBAS_obs,count,count,"",scientific_variable,farallon_bird-mammal,bio,partial,count,measurement_type (source_column/name)
 CAC_FI_SBAS_obs,gis_key,gis_key,"",scientific_variable,farallon_bird-mammal,bio,partial,,taxon (build-time species match)
 CAC_FI_SBAS_obs,idnum,idnum,"",scientific_variable,farallon_bird-mammal,bio,partial,,taxon (build-time species match)

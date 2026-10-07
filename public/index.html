@@ -75,6 +75,11 @@
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- the basemap is CARTO's vector GL style drawn inside Leaflet (app.js):
+       CARTO's raster tiles now need an API key, its GL styles do not -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css" />
+  <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js"></script>
   <!-- JSZip: bundles the multi-card PNG + CSV download into one archive
        (downloadBundleZip in app.js). This is the only third-party library the
        download features need — the coverage-card PNGs are drawn directly on a

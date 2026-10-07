@@ -6,18 +6,22 @@ const ccThemeNow = () =>
 const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
 // ---- map (CARTO basemap in the theme's shade) ----
-// Light is Voyager, the basemap the Hexagon Explorer uses (its voyager-gl-style,
-// here as raster tiles). Positron (light_all) drew the ocean and the land in two
-// near-identical greys, so the coastline and the pale markers washed out
-// (Betty, 2026-09-28). Dark stays Dark Matter.
+// Light is Voyager, the basemap the Hexagon Explorer uses (its voyager-gl-style).
+// Positron (light_all) drew the ocean and the land in two near-identical greys,
+// so the coastline and the pale markers washed out (Betty, 2026-09-28). Dark
+// stays Dark Matter. CARTO's raster tiles answer every request with an
+// "API KEY REQUIRED" watermark since 2026-09, so the basemap is CARTO's vector
+// GL style drawn inside Leaflet by maplibre-gl-leaflet (scripts in index.html);
+// the GL styles need no key.
 const basemapUrl = theme =>
-  `https://{s}.basemaps.cartocdn.com/${theme === 'light' ? 'rastertiles/voyager' : 'dark_all'}/{z}/{x}/{y}{r}.png?key=cb1_2exm_1_dcedec936b7a69c909965eaa`;
-const basemap = L.tileLayer(basemapUrl(ccThemeNow()), {
-  attribution: '© OpenStreetMap · © CARTO', subdomains: 'abcd', maxZoom: 19, crossOrigin: true });
+  `https://basemaps.cartocdn.com/gl/${theme === 'light' ? 'voyager' : 'dark-matter'}-gl-style/style.json`;
+const basemap = L.maplibreGL({
+  style: basemapUrl(ccThemeNow()), interactive: false,
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · © <a href="https://carto.com/attributions">CARTO</a>' });
 const map = L.map('map', { center: [32.8, -120.2], zoom: 6, worldCopyJump: true })
   .addLayer(basemap);
 document.addEventListener('cc:theme', e => {
-  basemap.setUrl(basemapUrl(e.detail.theme));
+  basemap.getMaplibreMap().setStyle(basemapUrl(e.detail.theme));
   // light mode frames the map as a card (styles.css), so its box changes size
   map.invalidateSize();
   // the selected-station ring is drawn in --text, which just changed

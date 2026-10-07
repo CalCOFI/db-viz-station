@@ -18,7 +18,8 @@ const basemapUrl = theme =>
 const basemap = L.maplibreGL({
   style: basemapUrl(ccThemeNow()), interactive: false,
   attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors · © <a href="https://carto.com/attributions">CARTO</a>' });
-const map = L.map('map', { center: [32.8, -120.2], zoom: 6, worldCopyJump: true })
+// maxZoom on the map: the raster layer it replaced carried 19, a GL layer carries none
+const map = L.map('map', { center: [32.8, -120.2], zoom: 6, maxZoom: 19, worldCopyJump: true })
   .addLayer(basemap);
 document.addEventListener('cc:theme', e => {
   basemap.getMaplibreMap().setStyle(basemapUrl(e.detail.theme));

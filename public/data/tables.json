@@ -1,5 +1,5 @@
 {
- "version": "v2026.10.06",
+ "version": "v2026.10.08",
  "layout": "canonical",
  "tables": {
   "obs": {
@@ -19,21 +19,18 @@
     "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=cce-lter_zooscan/f9aeb7a327a297de1db7f67c/data_0.parquet",
     "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=cdfw_dungeness-crab/424b90ca608a5f1a7737cfe4/data_0.parquet",
     "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=farallon_bird-mammal/046c6b488e2b5815900f05a0/data_0.parquet",
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=sio_cetacean-edna/ccdb631db5874f4e12a93f88/data_0.parquet",
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=sio_cetacean-sightings/dd025c8940d2b17ace3c11da/data_0.parquet",
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=sio_cetacean-sonobuoy/09009af8bfff2df6b3a0e661/data_0.parquet",
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=sio_mesopelagic-fish/481d8af8c62375b5c766d964/data_0.parquet",
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=swfsc_cufes/761f94337c4a40c8e344c08a/data_0.parquet",
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=swfsc_ichthyo/f16e60335b94fafb6539ee49/data_0.parquet"
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=sio_mesopelagic-fish/fe33e29ec810d40cf6f07c37/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=swfsc_cufes/eaf04577d817fe524f3b2c5e/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=swfsc_ichthyo/3d8c1dba679668fb969f4c41/data_0.parquet"
    ],
    "hive": true,
    "canonical": true,
    "partition_by": "dataset_key",
-   "single_file": "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/8dc1d8f2d59c73b93150b6c7/obs.parquet"
+   "single_file": "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/efc67e6c840416d94f04fb79/obs.parquet"
   },
   "taxon": {
    "urls": [
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/taxon/d309beaec33878f9c13ef0e0/taxon.parquet"
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/taxon/6cf16b3cda9db699e19ce65e/taxon.parquet"
    ],
    "hive": false,
    "canonical": true,

@@ -106,21 +106,74 @@ FROM (
 WHERE fine <> ''
 GROUP BY 1, 2;
 
+-- dataset-local taxa (2026-10-07, Betty): a class the source counts that no
+-- authority can key -- picoplankton's heterotrophic bacteria and picoeukaryotes,
+-- ZooScan's eggs / multiples / nauplii / others, phytoplankton 232 (named, no
+-- WoRMS record) -- takes a key like `cce-lter_picoplankton-bacteria:het_bacteria`
+-- (workflows release_database.qmd TAXON_LOCAL_ALLOW). The release leaves that
+-- key's taxon.scientific_name AND taxon.common_name NULL on purpose: it is not a
+-- taxon, and apply_taxon_common() refuses an operational-class label as a common
+-- name. The dataset's own label survives only in dataset_taxon.ds_scientific_name
+-- / ds_common_name, which is exactly where calcofi4db's taxa catalog reads a
+-- local key's name from. The old `WHERE t.scientific_name IS NOT NULL` therefore
+-- dropped every one of them: the portal listed 2 of picoplankton's 4 populations
+-- and hid Danasphaera indica. Only the classes in tx_local_show below are let
+-- back in. Authority-keyed taxa are unchanged --
+-- t.scientific_name is always set for them, so the coalesce never reaches the
+-- dataset label. The common-name fallback is title-cased ("heterotrophic
+-- bacteria" -> "Heterotrophic Bacteria", the source CSV's own column header);
+-- a scientific name is left as written.
+--
+-- taxon_key is emitted ONLY for these name-less rows: app.js's download resolves
+-- a taxon to its obs.taxon_key by matching taxon.scientific_name, which is NULL
+-- here, so without the key a CSV of "Heterotrophic Bacteria" came back empty.
+-- Authority rows keep NULL so the Hydrozoa/Salpida name-collapse (see the
+-- DISTINCT note) is not split into duplicate variable_ids.
+--
+-- Which dataset-local classes the portal lists is an ALLOWLIST (2026-10-07,
+-- Betty), not a blocklist: a blocklist lets any class a future release adds slip
+-- into the species lists unreviewed, and most local classes are not things a
+-- user browses -- ZooScan's eggs / multiples / others (eggs of any animal,
+-- several organisms in one image, the residual class) and
+-- phytoplankton's nine codes with no name at all were reviewed and left out.
+-- A class not listed here stays hidden until someone adds it, one key at a time
+-- with the reason -- the same discipline as the release's TAXON_LOCAL_ALLOW in
+-- workflows release_database.qmd, which every new local key must already pass.
+CREATE TEMP TABLE tx_local_show AS
+SELECT * FROM (VALUES
+  ('cce-lter_picoplankton-bacteria:het_bacteria',   'a flow-cytometry population counted beside the two genera'),
+  ('cce-lter_picoplankton-bacteria:picoeukaryotes', 'a flow-cytometry population counted beside the two genera'),
+  ('cce-lter_zooscan:16',                           'nauplii: crustacean (mostly copepod) first larval stage, a tracked group'),
+  ('calcofi_phytoplankton:232',                     'Danasphaera indica: a real species, no WoRMS record')
+) v(taxon_key, why);
+
 CREATE TEMP TABLE tx AS
-SELECT dt.dataset_key, t.scientific_name,
-       CAST(t.worms_id AS VARCHAR) AS aphia_id, t.rank, t.common_name,
-       min(so.source_order) AS source_order,
-       CASE WHEN count(DISTINCT tg.taxon_group) = 1 THEN any_value(tg.taxon_group) END AS taxon_group,
-       list(DISTINCT so.source_name ORDER BY so.source_name) FILTER (WHERE so.source_name IS NOT NULL) AS source_names
-FROM __TBL:dataset_taxon__ dt
-JOIN __TBL:taxon__ t USING (taxon_key)
-LEFT JOIN src_order so ON so.dataset_key = dt.dataset_key AND so.ds_taxa_code = dt.ds_taxa_code
-LEFT JOIN tgrp tg ON tg.dataset_key = dt.dataset_key AND tg.taxon_key = dt.taxon_key
-WHERE t.scientific_name IS NOT NULL
--- GROUP BY replaces the old SELECT DISTINCT over these same five columns, so the
--- row set is unchanged; it only lets the two new columns aggregate across the
--- provider rows a taxon fans out to (see the DISTINCT note above)
-GROUP BY dt.dataset_key, t.scientific_name, t.worms_id, t.rank, t.common_name;
+SELECT dataset_key, scientific_name, aphia_id, rank, common_name, taxon_key,
+       min(source_order) AS source_order,
+       CASE WHEN count(DISTINCT taxon_group) = 1 THEN any_value(taxon_group) END AS taxon_group,
+       list(DISTINCT source_name ORDER BY source_name) FILTER (WHERE source_name IS NOT NULL) AS source_names
+FROM (
+  SELECT dt.dataset_key,
+         coalesce(t.scientific_name, dt.ds_scientific_name,
+                  array_to_string(list_transform(string_split(trim(dt.ds_common_name), ' '),
+                                                 w -> upper(w[1]) || w[2:]), ' ')) AS scientific_name,
+         CAST(t.worms_id AS VARCHAR) AS aphia_id, t.rank, t.common_name,
+         CASE WHEN t.scientific_name IS NULL THEN dt.taxon_key END AS taxon_key,
+         so.source_order, tg.taxon_group, so.source_name
+  FROM __TBL:dataset_taxon__ dt
+  JOIN __TBL:taxon__ t USING (taxon_key)
+  LEFT JOIN src_order so ON so.dataset_key = dt.dataset_key AND so.ds_taxa_code = dt.ds_taxa_code
+  LEFT JOIN tgrp tg ON tg.dataset_key = dt.dataset_key AND tg.taxon_key = dt.taxon_key
+  -- an authority-keyed taxon always lists; a dataset-local one only if allowlisted
+  WHERE t.scientific_name IS NOT NULL
+     OR dt.taxon_key IN (SELECT taxon_key FROM tx_local_show)
+)
+WHERE scientific_name IS NOT NULL
+-- GROUP BY replaces the old SELECT DISTINCT over these same five columns (plus
+-- taxon_key, NULL for every authority row), so the row set is unchanged for
+-- them; it only lets the aggregates span the provider rows a taxon fans out to
+-- (see the DISTINCT note above)
+GROUP BY dataset_key, scientific_name, aphia_id, rank, common_name, taxon_key;
 
 -- harvested catalog (extras source) + crosswalks
 CREATE TEMP TABLE hv AS
@@ -157,7 +210,7 @@ COPY (
          mt.units, coalesce(mt.description, e.h_description) AS description,
          mt.is_canonical, NULL AS aphia_id, NULL AS rank, NULL AS common_name,
          CAST(NULL AS INTEGER) AS source_order, CAST(NULL AS VARCHAR) AS taxon_group,
-         CAST(NULL AS VARCHAR[]) AS source_names,
+         CAST(NULL AS VARCHAR[]) AS source_names, CAST(NULL AS VARCHAR) AS taxon_key,
          e.keywords, e.science_concepts, e.src AS "source"
   FROM mt LEFT JOIN mt_extras e USING (dataset_key, measurement_type)
   UNION ALL BY NAME
@@ -169,6 +222,7 @@ COPY (
          tx.aphia_id, tx.rank, tx.common_name,
          tx.source_order, tx.taxon_group,
          CASE WHEN len(tx.source_names) > 0 THEN tx.source_names END AS source_names,
+         tx.taxon_key,
          e.keywords, e.science_concepts, e.src AS "source"
   FROM tx LEFT JOIN tx_extras e ON lower(tx.scientific_name) = e.name_key
   ORDER BY dataset_key, variable_type, name

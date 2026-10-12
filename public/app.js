@@ -2310,8 +2310,16 @@ async function fetchRealObservations({ gridKey, datasetKey, chosenVars }) {
   const commonCols = `o.grid_key, strftime(o.datetime, '%Y-%m-%dT%H:%M:%S') AS datetime,
       extract(year FROM o.datetime)::INT AS year, extract(month FROM o.datetime)::INT AS month,
       o.depth_min_m, o.latitude AS obs_lat, o.longitude AS obs_lon`;
-  const taxonKeys = chosenVars.filter(v => v.variable_type === 'taxon')
-    .map(v => byName.get(normTaxonName(v.name))).filter(Boolean);
+  // A dataset-local class (picoplankton's Heterotrophic Bacteria, ZooScan's
+  // Nauplii) has no taxon.scientific_name, so byName cannot resolve it and its
+  // download came back empty; build_vars.sql carries its obs.taxon_key instead
+  // (2026-10-07). `localLabel` puts the portal's label back on those rows the
+  // way byKey does for named taxa. A variables.json built before that change has
+  // no taxon_key, and this degrades to the old name lookup.
+  const taxonVars = chosenVars.filter(v => v.variable_type === 'taxon');
+  const localLabel = new Map(taxonVars.filter(v => v.taxon_key).map(v => [v.taxon_key, v.name]));
+  const taxonKeys = taxonVars
+    .map(v => v.taxon_key || byName.get(normTaxonName(v.name))).filter(Boolean);
   const runAgainst = async (dk, src) => {
     const sql = buildObsSql(src, dk, chosenVars, taxonKeys, stationPred, commonCols, esc);
     if (!sql) return [];
@@ -2319,7 +2327,8 @@ async function fetchRealObservations({ gridKey, datasetKey, chosenVars }) {
     // The taxon arm selects taxon_key as `variable` (see buildObsSql); swap in
     // the scientific name here so both arms hand back the same shape.
     return res.toArray().map(row => (row.toJSON ? row.toJSON() : row))
-      .map(r => byKey.has(r.variable) ? { ...r, variable: byKey.get(r.variable) } : r);
+      .map(r => byKey.has(r.variable) ? { ...r, variable: byKey.get(r.variable) }
+        : localLabel.has(r.variable) ? { ...r, variable: localLabel.get(r.variable) } : r);
   };
   const run = async dk => {
     const src = parquetSource(rel, 'obs', dk);

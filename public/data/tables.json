@@ -1,5 +1,5 @@
 {
- "version": "v2026.10.13",
+ "version": "v2026.10.14",
  "layout": "canonical",
  "tables": {
   "obs": {
@@ -30,7 +30,7 @@
   },
   "taxon": {
    "urls": [
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/taxon/fe1fb1ad3046d7fbd99c3db0/taxon.parquet"
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/taxon/442c4d881e38d533d6281b92/taxon.parquet"
    ],
    "hive": false,
    "canonical": true,

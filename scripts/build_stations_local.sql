@@ -213,18 +213,26 @@ COPY (
 -- a column to the SELECT below without adding it to app.js's loader (or vice
 -- versa) fails exactly this quietly; scripts/check_data_contract.py now asserts
 -- the two agree.
+--
+-- A taxon with no WoRMS id (a dataset-local group such as picoplankton's
+-- "Heterotrophic Bacteria", or ZooScan's "Nauplii") is keyed by its taxon_key
+-- instead: aphia_id is null and taxon_key carries it, the same taxon_key
+-- variables.json lists for those rows. taxon_key stays null whenever aphia_id
+-- is set, so the WoRMS rows are exactly what they were. Before 2026-10-22 these
+-- taxa were dropped here and the app fell back to whole-dataset coverage.
 CREATE TEMP TABLE taxon_cov AS
 SELECT o.dataset_key,
        o.grid_key,
        CAST(t.worms_id AS VARCHAR) AS aphia_id,
+       CASE WHEN t.worms_id IS NULL THEN o.taxon_key END AS taxon_key,
        min(o.datetime)::DATE AS time_min,
        max(o.datetime)::DATE AS time_max,
        count(*) AS n_obs,
        count(DISTINCT o.sample_key) AS n_samples
 FROM obs o
 JOIN __TBL:taxon__ t USING (taxon_key)
-WHERE o.taxon_key IS NOT NULL AND t.worms_id IS NOT NULL
-GROUP BY 1, 2, 3;
+WHERE o.taxon_key IS NOT NULL
+GROUP BY 1, 2, 3, 4;
 
 -- per-year bins on the same grain, so the year-range slider filters the
 -- per-taxon path too. Without these, taxonStationsInRange() has nothing to
@@ -233,20 +241,26 @@ GROUP BY 1, 2, 3;
 -- {y, n} struct the dataset-wide `ybin` above uses, so both sides of
 -- stationsForVar() consume one shape.
 CREATE TEMP TABLE taxon_ybin AS
-SELECT dataset_key, grid_key, aphia_id,
+SELECT dataset_key, grid_key, aphia_id, taxon_key,
        list(struct_pack(y := yr, n := n) ORDER BY yr) AS years
 FROM (SELECT o.dataset_key, o.grid_key, CAST(t.worms_id AS VARCHAR) AS aphia_id,
+             CASE WHEN t.worms_id IS NULL THEN o.taxon_key END AS taxon_key,
              year(o.datetime) AS yr, count(*) AS n
       FROM obs o
       JOIN __TBL:taxon__ t USING (taxon_key)
-      WHERE o.taxon_key IS NOT NULL AND t.worms_id IS NOT NULL AND o.datetime IS NOT NULL
-      GROUP BY 1, 2, 3, 4)
-GROUP BY 1, 2, 3;
+      WHERE o.taxon_key IS NOT NULL AND o.datetime IS NOT NULL
+      GROUP BY 1, 2, 3, 4, 5)
+GROUP BY 1, 2, 3, 4;
 
 COPY (
-  SELECT c.dataset_key, c.grid_key, c.aphia_id,
+  SELECT c.dataset_key, c.grid_key, c.aphia_id, c.taxon_key,
          c.time_min, c.time_max, c.n_obs, c.n_samples, y.years
   FROM taxon_cov c
-  LEFT JOIN taxon_ybin y USING (dataset_key, grid_key, aphia_id)
-  ORDER BY c.dataset_key, c.aphia_id, c.grid_key
+  -- IS NOT DISTINCT FROM, not USING: one of aphia_id / taxon_key is always
+  -- null, and a USING join never matches null = null
+  LEFT JOIN taxon_ybin y
+    ON y.dataset_key = c.dataset_key AND y.grid_key = c.grid_key
+   AND y.aphia_id IS NOT DISTINCT FROM c.aphia_id
+   AND y.taxon_key IS NOT DISTINCT FROM c.taxon_key
+  ORDER BY c.dataset_key, c.aphia_id, c.taxon_key, c.grid_key
 ) TO 'public/data/taxon_coverage.json' (FORMAT JSON, ARRAY true);

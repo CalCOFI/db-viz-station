@@ -129,11 +129,14 @@ GROUP BY 1, 2;
 CREATE TEMP TABLE rtx AS
 SELECT o.region_key, o.dataset_key, o.sample_key, any_value(o.yr) AS yr,
        CAST(t.worms_id AS VARCHAR) AS aphia_id,
+       -- no WoRMS id (e.g. phytoplankton's Danasphaera indica): keyed by
+       -- taxon_key instead, as in build_stations.sql's taxon_coverage
+       CASE WHEN t.worms_id IS NULL THEN o.taxon_key END AS taxon_key,
        sum(o.value) AS value
 FROM robs o
 JOIN __TBL:taxon__ t USING (taxon_key)
-WHERE o.taxon_key IS NOT NULL AND t.worms_id IS NOT NULL AND o.value > 0
-GROUP BY o.region_key, o.dataset_key, o.sample_key, t.worms_id;
+WHERE o.taxon_key IS NOT NULL AND o.value > 0
+GROUP BY o.region_key, o.dataset_key, o.sample_key, 5, 6;
 
 -- per (region, dataset, taxon). Joined out to worms_id because variables.json
 -- keys taxa by aphia_id, exactly as taxon_coverage.json does — see the long note
@@ -142,21 +145,21 @@ GROUP BY o.region_key, o.dataset_key, o.sample_key, t.worms_id;
 -- zeros included); sum_value is the total counted across them, in the
 -- measurement's own units (cells/L for phytoplankton).
 CREATE TEMP TABLE tax AS
-SELECT region_key, dataset_key, aphia_id,
+SELECT region_key, dataset_key, aphia_id, taxon_key,
        count(*) AS n_obs,
        count(*) FILTER (WHERE yr IS NULL) AS n_obs_undated,
        count(*) AS n_samples,
        round(sum(value), 2) AS sum_value,
        min(yr) AS year_min, max(yr) AS year_max
-FROM rtx GROUP BY 1, 2, 3;
+FROM rtx GROUP BY 1, 2, 3, 4;
 
 CREATE TEMP TABLE tax_ybin AS
-SELECT region_key, dataset_key, aphia_id,
+SELECT region_key, dataset_key, aphia_id, taxon_key,
        list(struct_pack(y := yr, n := n, s := s) ORDER BY yr) AS years
-FROM (SELECT region_key, dataset_key, aphia_id, yr,
+FROM (SELECT region_key, dataset_key, aphia_id, taxon_key, yr,
              count(*) AS n, round(sum(value), 2) AS s
-      FROM rtx WHERE yr IS NOT NULL GROUP BY 1, 2, 3, 4)
-GROUP BY 1, 2, 3;
+      FROM rtx WHERE yr IS NOT NULL GROUP BY 1, 2, 3, 4, 5)
+GROUP BY 1, 2, 3, 4;
 
 -- per (region, dataset, sample, functional group): group totals, e.g. "diatom
 -- sum" — asked for in the same review. The source workbooks carry these as
@@ -231,12 +234,15 @@ GROUP BY c.region_key;
 CREATE TEMP TABLE tx AS
 SELECT t.region_key,
        list(struct_pack(
-         dataset_key := t.dataset_key, aphia_id := t.aphia_id,
+         dataset_key := t.dataset_key, aphia_id := t.aphia_id, taxon_key := t.taxon_key,
          n_obs := t.n_obs, n_obs_undated := t.n_obs_undated,
          n_samples := t.n_samples, sum_value := t.sum_value,
          year_min := t.year_min, year_max := t.year_max,
-         years := y.years) ORDER BY t.dataset_key, t.aphia_id) AS taxa
-FROM tax t LEFT JOIN tax_ybin y USING (region_key, dataset_key, aphia_id)
+         years := y.years) ORDER BY t.dataset_key, t.aphia_id, t.taxon_key) AS taxa
+FROM tax t LEFT JOIN tax_ybin y
+  ON y.region_key = t.region_key AND y.dataset_key = t.dataset_key
+ AND y.aphia_id IS NOT DISTINCT FROM t.aphia_id
+ AND y.taxon_key IS NOT DISTINCT FROM t.taxon_key
 GROUP BY t.region_key;
 
 CREATE TEMP TABLE gx AS

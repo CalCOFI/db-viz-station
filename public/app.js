@@ -89,7 +89,7 @@ const DATASET_META = {
 };
 // datasets_meta.json — dataset_key -> official name + link + citation, built by
 // scripts/build_datasets.sql from the release's own dataset.parquet (see #11).
-// Primary source for the official name and the "Open Dataset ↗" link.
+// Primary source for the official name and the "Download Dataset ↗" link.
 // DATASET_OFFICIAL_NAME / DATASET_URL_FALLBACK are fallback-only: a key the
 // release does not carry (a portal-only split such as calcofi_bottle_cast, or a
 // dataset added between releases), or the file being absent altogether (an old
@@ -392,8 +392,26 @@ const DISPLAY_NAME_FIXES = {
   'zooscan feret diameter': 'ZooScan Organism Size (Feret Diameter)',
   'zooscan abundance': 'ZooScan Abundance',
 };
+// Whole-name labels for the derived products, matched on the raw name before
+// any stripping: title-casing gave "Mld Sigma Theta 002" and "Chl Max"
+// (Betty, 2026-10-22). Wording follows each measurement_type description in
+// workflows' metadata/measurement_type.csv; the raw name still shows as the
+// variable code in the panel, and varMatch() searches these labels too.
+const RAW_NAME_LABELS = {
+  'chl_integrated': 'Integrated Chlorophyll-a',
+  'chl_integrated_depth': 'Chlorophyll-a Integration Depth',
+  'chl_max': 'Chlorophyll-a Maximum',
+  'chl_max_depth': 'Chlorophyll-a Maximum Depth',
+  'mld_sigma_theta_002': 'Mixed-Layer Depth (CalCOFI)',
+  'mld_sigma_theta_003': 'Mixed-Layer Depth (retired)',
+  'mld_sigma_theta_0125': 'Mixed-Layer Depth (Levitus)',
+  'mld_temperature_02': 'Mixed-Layer Depth (temperature)',
+  'spiciness0': 'Spiciness',
+  'sigma_theta_teos10': 'Sigma Theta (TEOS-10)',
+};
 function fixDisplayName(name) {
   if (!name) return name;
+  if (RAW_NAME_LABELS[name.toLowerCase()]) return RAW_NAME_LABELS[name.toLowerCase()];
   const rawLower = name.toLowerCase();
   const isReported = /^r_/.test(rawLower);
   const hasBottleMarker = /(^|_)btl(_|$)/.test(rawLower);
@@ -537,10 +555,23 @@ function groupCommonName(v) {
   if (!g) return '';
   return (TAXON_GROUP_NAMES[g] || [g])[0];
 }
+// An eDNA detection is marked, so a Bottlenose Dolphin from the eDNA survey
+// isn't read as the sightings record of the same species: a small gold "eDNA"
+// after the name in lists and search, and "eDNA detection" wording in the
+// panel, whose title stays the plain name (Betty, 2026-10-22, from mockups;
+// "Bottlenose Dolphin eDNA" as the name itself read as a kind of dolphin).
+// Keyed on the category the release gives the dataset, so the cetacean eDNA
+// set picks it up once released.
+function isEdnaTaxon(v) {
+  return v.variable_type === 'taxon' && categoryOf(v) === 'Genomics & eDNA';
+}
+const EDNA_TAG = '<span class="edna-tag">eDNA</span>';
+const stripEdnaTag = html => (html || '').replace(EDNA_TAG, '');
 function taxonLabel(v) {
   if (v.variable_type !== 'taxon') return displayLabel(v);
   const sci = (v.name || '').trim();
-  if (isSppTaxon(v)) return `<i>${sci}</i> ${genusQualifier(v)}`;
+  const tag = isEdnaTaxon(v) ? EDNA_TAG : '';
+  if (isSppTaxon(v)) return `<i>${sci}</i> ${genusQualifier(v)}${tag}`;
   const MINOR_WORDS = new Set(['of', 'and', 'the', 'a', 'an', 'in', 'on', 'at', 'for', 'to', 'from', 'with']);
   const titleCaseCommonName = str => {
     let firstWord = true;
@@ -558,7 +589,7 @@ function taxonLabel(v) {
     if (m) commonName = m[1];
   }
   if (commonName && sci && commonName.toLowerCase() !== sci.toLowerCase() && !sci.includes('(')) {
-    return `${commonName} <i style="color:var(--muted);font-weight:400;">(${sci})</i>`;
+    return `${commonName}${tag} <i style="color:var(--muted);font-weight:400;">(${sci})</i>`;
   }
   // No usable common name — the raw scientific name IS the label. Use it
   // as-is (already correctly cased in the source, e.g. "Panulirus
@@ -566,8 +597,12 @@ function taxonLabel(v) {
   // the species epithet into "Panulirus Interruptus". Single-word entries
   // (class-level names like "Bacillariophyceae") don't have this problem,
   // so they still go through the normal display pipeline.
-  if (sci.includes(' ') && !sci.includes('(')) return `<i>${sci}</i>`;
-  return displayLabel(v);
+  // Italic only for a Linnaean name ("Genus species"): the dataset-local groups
+  // PR #24 lists ("Heterotrophic Bacteria") are two capitalised words, not a
+  // binomial, and were set in italics as one (2026-10-22). No existing taxon
+  // without a common name has that shape, so nothing else changes.
+  if (sci.includes(' ') && !sci.includes('(')) return /^[A-Z][a-z]+ [a-z(×]/.test(sci) ? `<i>${sci}</i>${tag}` : `${sci}${tag}`;
+  return displayLabel(v) + tag;
 }
 // Single source of truth for "what name shows for this variable" — checks
 // PARAMETER_FAMILIES first (its member.label is hand-written and more
@@ -602,6 +637,8 @@ function resolvedPlainLabel(v) {
   // "Sea Sparkle (Noctiluca scintillans)" or "Chaetoceros affinis", not
   // fixDisplayName's "Noctiluca Scintillans" (a capitalized species epithet)
   if (v.variable_type === 'taxon' && SPP_DATASETS.has(v.dataset_key)) return taxonLabel(v).replace(/<[^>]+>/g, '');
+  // an eDNA taxon reads as the panel title does: the common name alone
+  if (isEdnaTaxon(v)) { const { main, sci } = speciesTitleParts(v); return (main || sci || '').replace(/<[^>]+>/g, '').trim(); }
   return displayLabel(v);
 }
 // Splits resolvedLabel(v)'s flowing "Common Name (Sci Name)" HTML into its
@@ -611,7 +648,7 @@ function resolvedPlainLabel(v) {
 // already-resolved label rather than re-deriving name logic, so this can
 // never drift from resolvedLabel/taxonLabel.
 function speciesTitleParts(v) {
-  const label = resolvedLabel(v);
+  const label = stripEdnaTag(resolvedLabel(v));
   let m = label.match(/^(.*?)\s*<i[^>]*>\(([^)]+)\)<\/i>$/);
   if (m) return { main: m[1], sci: m[2] };
   m = label.match(/^<i[^>]*>([^<]+)<\/i>$/);
@@ -1063,7 +1100,7 @@ loadDataVersion().then(() => Promise.all([
   // euphausiid variables and 124 of the 127 bird/mammal variables resolves
   // through the aphia_id path, with none left needing the name-keyed index.
   // Deleting them drops 1 MB of ungenerated data that could only go stale.
-  // datasets_meta.json: dataset_key -> official name, "Open Dataset" link,
+  // datasets_meta.json: dataset_key -> official name, "Download Dataset" link,
   // description, citation, licence and PI, straight from the release's
   // dataset.parquet (see #11 / scripts/build_datasets.sql). Optional and
   // additive, same tolerant pattern as the rest — absent just means every
@@ -1095,7 +1132,7 @@ loadDataVersion().then(() => Promise.all([
       if (d.years) (REGION_DS_YEARS[d.dataset_key] ||= {})[r.region_key] = d.years;
     });
     (r.taxa || []).forEach(t => {
-      const k = t.dataset_key + '::' + t.aphia_id;
+      const k = t.dataset_key + '::' + taxonCovId(t);
       (REGION_TAXA[k] ||= new Set()).add(r.region_key);
       if (t.years) (REGION_TAXA_YEARS[k] ||= {})[r.region_key] = t.years;
       if (t.sum_value != null) DS_REGION_PRESENCE.add(t.dataset_key);
@@ -1119,7 +1156,7 @@ loadDataVersion().then(() => Promise.all([
   // and stays all-time — stationsForVarIsYearAware() reports that rather than
   // printing a year range next to an unfiltered count.
   (tc || []).forEach(r => {
-    const k = r.dataset_key + '::' + r.aphia_id;
+    const k = r.dataset_key + '::' + taxonCovId(r);
     (TAXON_STATIONS[k] ||= new Set()).add(r.grid_key);
     if (r.years) (TAXON_YEARS[k] ||= {})[r.grid_key] = r.years;
   });
@@ -1266,12 +1303,24 @@ function taxonStationsInRange(stationSet, yearsByStation) {
 // coverage for bird/mammal and mesopelagic-fish taxa silently undercounts
 // (feedback 2026-08-21/nvpatin: "Striped Dolphin" showed 1 station instead
 // of the real 4). Returns null when there's no per-species data at all.
+// The id a taxon is filed under in taxon_coverage.json and regions.json taxa[]:
+// its WoRMS aphia_id, or — for a taxon WoRMS has no record of (picoplankton's
+// "Heterotrophic Bacteria", ZooScan's "Nauplii", Danasphaera indica) — its
+// taxon_key, prefixed so it can never collide with a numeric aphia_id. Works on
+// a coverage row and on a variables.json row alike, since both carry the pair.
+// Coverage files built before 2026-10-22 have no taxon_key, so those taxa find
+// nothing and keep the whole-dataset fallback, exactly as before.
+function taxonCovId(x) {
+  if (x.aphia_id != null && x.aphia_id !== '') return String(x.aphia_id);
+  return x.taxon_key ? 'tk:' + x.taxon_key : null;
+}
 function taxonLookupKey(v) {
   const alias = typeof DATASET_KEY_ALIASES !== 'undefined' ? DATASET_KEY_ALIASES[v.dataset_key] : null;
-  if (v.aphia_id) {
-    const key = v.dataset_key + '::' + v.aphia_id;
+  const id = taxonCovId(v);
+  if (id) {
+    const key = v.dataset_key + '::' + id;
     if (TAXON_STATIONS[key]) return key;
-    if (alias) { const ak = alias + '::' + v.aphia_id; if (TAXON_STATIONS[ak]) return ak; }
+    if (alias) { const ak = alias + '::' + id; if (TAXON_STATIONS[ak]) return ak; }
   }
   const nameKey = v.dataset_key + '::name::' + normTaxonName(v.name);
   if (TAXON_STATIONS[nameKey]) return nameKey;
@@ -1328,7 +1377,8 @@ function regionsInRange(regionSet, yearsByRegion) {
 function regionKeyFor(v) {
   if (!v) return null;
   if (v.variable_type === 'taxon_group') return v.dataset_key + '::group:' + v.taxon_group;
-  return v.aphia_id ? v.dataset_key + '::' + v.aphia_id : null;
+  const id = taxonCovId(v);
+  return id ? v.dataset_key + '::' + id : null;
 }
 function regionsForVar(v) {
   if (!v) return new Set();
@@ -1373,8 +1423,9 @@ const regionDesc = r => (r.description || '').replace(/^./, c => c.toUpperCase()
 function regionEntryFor(r, v) {
   if (v.variable_type === 'taxon_group')
     return (r.groups || []).find(g => g.dataset_key === v.dataset_key && g.taxon_group === v.taxon_group) || null;
-  if (v.aphia_id)
-    return (r.taxa || []).find(t => t.dataset_key === v.dataset_key && t.aphia_id === String(v.aphia_id)) || null;
+  const id = taxonCovId(v);
+  if (id)
+    return (r.taxa || []).find(t => t.dataset_key === v.dataset_key && taxonCovId(t) === id) || null;
   return null;
 }
 // True when the year slider covers the variable's whole record, so undated
@@ -2310,8 +2361,16 @@ async function fetchRealObservations({ gridKey, datasetKey, chosenVars }) {
   const commonCols = `o.grid_key, strftime(o.datetime, '%Y-%m-%dT%H:%M:%S') AS datetime,
       extract(year FROM o.datetime)::INT AS year, extract(month FROM o.datetime)::INT AS month,
       o.depth_min_m, o.latitude AS obs_lat, o.longitude AS obs_lon`;
-  const taxonKeys = chosenVars.filter(v => v.variable_type === 'taxon')
-    .map(v => byName.get(normTaxonName(v.name))).filter(Boolean);
+  // A dataset-local class (picoplankton's Heterotrophic Bacteria, ZooScan's
+  // Nauplii) has no taxon.scientific_name, so byName cannot resolve it and its
+  // download came back empty; build_vars.sql carries its obs.taxon_key instead
+  // (2026-10-07). `localLabel` puts the portal's label back on those rows the
+  // way byKey does for named taxa. A variables.json built before that change has
+  // no taxon_key, and this degrades to the old name lookup.
+  const taxonVars = chosenVars.filter(v => v.variable_type === 'taxon');
+  const localLabel = new Map(taxonVars.filter(v => v.taxon_key).map(v => [v.taxon_key, v.name]));
+  const taxonKeys = taxonVars
+    .map(v => v.taxon_key || byName.get(normTaxonName(v.name))).filter(Boolean);
   const runAgainst = async (dk, src) => {
     const sql = buildObsSql(src, dk, chosenVars, taxonKeys, stationPred, commonCols, esc);
     if (!sql) return [];
@@ -2319,7 +2378,8 @@ async function fetchRealObservations({ gridKey, datasetKey, chosenVars }) {
     // The taxon arm selects taxon_key as `variable` (see buildObsSql); swap in
     // the scientific name here so both arms hand back the same shape.
     return res.toArray().map(row => (row.toJSON ? row.toJSON() : row))
-      .map(r => byKey.has(r.variable) ? { ...r, variable: byKey.get(r.variable) } : r);
+      .map(r => byKey.has(r.variable) ? { ...r, variable: byKey.get(r.variable) }
+        : localLabel.has(r.variable) ? { ...r, variable: localLabel.get(r.variable) } : r);
   };
   const run = async dk => {
     const src = parquetSource(rel, 'obs', dk);
@@ -2635,6 +2695,10 @@ function contentKeywordGroup(v) {
   if (n === 'sw_ph') return 'Carbonate System';
   if (n.startsWith('tsg')) return 'Physical Oceanography';
   if (n === 'chl_fluor' || n === 'par_surf' || n === 'pred_chl') return 'Productivity & Pigments';
+  // CTD-derived chl_max / chl_max_depth / chl_integrated(_depth): none spells
+  // out "chlorophyll", so all four fell through to Physical Oceanography
+  // (Betty, 2026-10-22); measurement_type.csv files them under this category
+  if (n.startsWith('chl_')) return 'Productivity & Pigments';
   if (n === 'pred_sal_psu') return 'Physical Oceanography';
   if (n === 'ph' || n.startsWith('ph ') || n.startsWith('ph_') || n.includes('ph replicate')) return 'Carbonate System';
   // "dic" as a bare substring false-positives on any word that happens to contain
@@ -2675,6 +2739,7 @@ const FAMILY_CATEGORY = {
   'Conductivity': 'Physical Oceanography', 'Sea Surface Conductivity': 'Physical Oceanography',
   'Density': 'Physical Oceanography', 'Sound Velocity': 'Physical Oceanography',
   'Oxygen': 'Physical Oceanography',
+  'Spiciness': 'Physical Oceanography', 'Mixed-Layer Depth': 'Physical Oceanography',
 };
 function categoryOf(v) {
   if (v.dataset_key === 'swfsc_ichthyo' && ['small_plankton_biomass', 'total_plankton_biomass'].includes(v.display_name)) return 'Zooplankton';
@@ -2690,7 +2755,12 @@ function categoryOf(v) {
 }
 const CATEGORY_ORDER = ['Physical Oceanography', 'Nutrients & Chemistry', 'Productivity & Pigments',
   'Carbonate System', 'Meteorology & Sea State', 'Phytoplankton', 'Picoplankton & Bacteria', 'Zooplankton',
-  'Euphausiids (Krill)', 'Seabirds & Marine Mammals', 'Mesopelagic Fish', 'Fish Eggs & Larvae'];
+  'Euphausiids (Krill)', 'Seabirds & Marine Mammals', 'Mesopelagic Fish', 'Fish Eggs & Larvae',
+  // the release tags calcofi_2022-edna with this category, but it was missing
+  // here, so its 19 variables showed under By Dataset and were dropped from
+  // By Category (1,885 vs 1,904 variables; Betty, 2026-10-22). Order and icon
+  // follow workflows' metadata/category.csv (order 13, icon cat-genomics).
+  'Genomics & eDNA'];
 // the brand's category glyphs (calcofi.io/brand/v2/icons.css masks, ids from metadata/category.csv) — the same
 // set the explorer draws, so the two apps match; was one emoji per category, which rendered differently per OS
 const CATEGORY_ICON = {
@@ -2706,6 +2776,7 @@ const CATEGORY_ICON = {
   'Fish Eggs & Larvae': 'cat-ichthyo',
   'Mesopelagic Fish': 'cat-fish',
   'Seabirds & Marine Mammals': 'cat-birds-mammals',
+  'Genomics & eDNA': 'cat-genomics',
 };
 function catLabel(c) { return CATEGORY_ICON[c] ? `<i class="cc-i cc-i-${CATEGORY_ICON[c]} cat-icon" aria-hidden="true"></i> ${c}` : c; }
 
@@ -2836,7 +2907,39 @@ const PARAMETER_FAMILIES = [
           { dataset_key: 'calcofi_bottle', match: 'sigma_theta', source: 'Bottle' },
           { dataset_key: 'calcofi_ctd-cast', match: 'sigma_theta_1', source: 'CTD Cast (station-corrected)' },
           { dataset_key: 'calcofi_mets', match: 'tsg1_density', source: 'METS (Underway)', note: 'TSG75 unit, continuous underway intake sensor, reported as sigma-t' },
+          // the derived products' sigma-theta sat loose beside this umbrella as a
+          // second "Sigma Theta" (Betty, 2026-10-22)
+          { dataset_key: 'calcofi_ctd-derived', match: 'sigma_theta_ave', source: 'CTD Derived', note: "Sensor-pair average after the provider's quality flags" },
+          { dataset_key: 'calcofi_bottle-derived', match: 'sigma_theta_teos10', source: 'Bottle Derived', note: 'TEOS-10, from each bottle\'s temperature and salinity' },
         ] },
+    ],
+  },
+  // Spiciness and Mixed-Layer Depth: the CTD/Bottle Derived Products, which
+  // listed as loose rows (four mixed-layer depths side by side) instead of
+  // under an umbrella like every other physical parameter (Betty, 2026-10-22).
+  // Methods are the measurement_type descriptions.
+  {
+    name: 'Spiciness',
+    members: [
+      { type: 'group', label: 'Spiciness', short: 'Standard',
+        method: 'Spice (spiciness at 0 dbar, TEOS-10); positive spicy (warm, salty), negative minty',
+        sources: [
+          { dataset_key: 'calcofi_ctd-derived', match: 'spiciness0', source: 'CTD Derived' },
+          { dataset_key: 'calcofi_bottle-derived', match: 'spiciness0', source: 'Bottle Derived' },
+        ] },
+    ],
+  },
+  {
+    name: 'Mixed-Layer Depth',
+    members: [
+      { type: 'single', dataset_key: 'calcofi_ctd-derived', match: 'mld_sigma_theta_002', label: 'Mixed-Layer Depth (CalCOFI)', short: 'CalCOFI',
+        method: 'Where sigma-theta is 0.02 kg/m3 greater than at 10 m (CalCOFI legacy definition)' },
+      { type: 'single', dataset_key: 'calcofi_ctd-derived', match: 'mld_sigma_theta_0125', label: 'Mixed-Layer Depth (Levitus)', short: 'Levitus',
+        method: 'Sigma-theta increase of 0.125 kg/m3 from 10 m (Levitus 1982)' },
+      { type: 'single', dataset_key: 'calcofi_ctd-derived', match: 'mld_temperature_02', label: 'Mixed-Layer Depth (temperature)', short: 'Temperature',
+        method: 'Temperature departure of 0.2 degC from 10 m (de Boyer Montegut et al. 2004)' },
+      { type: 'single', dataset_key: 'calcofi_ctd-derived', match: 'mld_sigma_theta_003', label: 'Mixed-Layer Depth (retired)', short: 'Retired',
+        method: 'RETIRED: sigma-theta increase of 0.03 kg/m3 from 10 m (de Boyer Montegut et al. 2004)' },
     ],
   },
   {
@@ -2997,6 +3100,16 @@ const PARAMETER_FAMILIES = [
         method: 'Continuous underway fluorescence sensor, reported in volts — a raw signal, not a calibrated Chl a concentration' },
       { type: 'single', dataset_key: 'calcofi_mets', match: 'pred_chl', label: 'Chlorophyll-a (Predicted)', short: 'Predicted',
         method: 'Derived from a calibration of the underway fluorescence sensor against CalCOFI 0–7 m bottle Chl a' },
+      // CTD Derived Products, per cast (Betty, 2026-10-22); methods are the
+      // measurement_type descriptions
+      { type: 'single', dataset_key: 'calcofi_ctd-derived', match: 'chl_max', label: 'Chlorophyll-a Maximum', short: 'Maximum',
+        method: 'Chlorophyll-a at its maximum: the 3 m running mean at the maximum\'s depth' },
+      { type: 'single', dataset_key: 'calcofi_ctd-derived', match: 'chl_max_depth', label: 'Chlorophyll-a Maximum Depth', short: 'Maximum Depth',
+        method: 'Depth of the chlorophyll-a maximum (DCM): the highest value of a 3 m running mean' },
+      { type: 'single', dataset_key: 'calcofi_ctd-derived', match: 'chl_integrated', label: 'Integrated Chlorophyll-a', short: 'Integrated',
+        method: 'Chlorophyll-a integrated over the top 200 m (or the cast bottom): the sum of the 1 m bins' },
+      { type: 'single', dataset_key: 'calcofi_ctd-derived', match: 'chl_integrated_depth', label: 'Chlorophyll-a Integration Depth', short: 'Integration Depth',
+        method: 'Depth reached by the integration (200 m unless the cast is shallower)' },
     ],
   },
   {
@@ -3296,8 +3409,10 @@ const LOOSE_GROUPERS = {
 // for the handful of less-common physical readings (Beam Attenuation,
 // Pressure, Transmissometer, Water Color).
 const CATEGORY_ITEM_ORDER = {
+  // the derived products (Mixed-Layer Depth, Spiciness) last: common
+  // parameters first (Betty, 2026-10-22)
   'Physical Oceanography': ['Temperature', 'Salinity', 'Density', 'Pressure', 'Atmospheric Pressure', 'Conductivity',
-    'Depth', 'Oxygen', 'Dynamic Height', 'Sound Velocity'],
+    'Depth', 'Oxygen', 'Dynamic Height', 'Sound Velocity', 'Mixed-Layer Depth', 'Spiciness'],
   'Productivity & Pigments': ['Chlorophyll-a', 'Phaeopigment', 'Primary Productivity (C14 Assimilation)', 'Photosynthetically Active Radiation'],
 };
 function renderVarList(groupKey, vars) {
@@ -3424,12 +3539,20 @@ function renderVarList(groupKey, vars) {
   // shifting around as data changes.
   const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
   const letterOf = v => { const l = sortNameFor(v)[0]; return /[A-Za-z]/.test(l) ? l.toUpperCase() : '#'; };
+  // A letter dropdown, not a 26-button keypad (Betty, 2026-10-22: "not sure
+  // if i like the keypad", chosen over a letter strip and a type-to-filter
+  // box from mockups). Only letters with entries are offered.
   const jumpNav = (listId, items, activeLetter) => {
     if (items.length < 150) return '';
-    const present = new Set(items.map(letterOf));
-    return `<div class="inventory-jumpnav" id="${listId}-nav">${ALPHABET.map(l => present.has(l)
-      ? `<button class="inventory-jumpnav-btn${l === activeLetter ? ' inventory-jumpnav-btn-active' : ''}" onclick="jumpToLetter('${listId}','${l}')">${l}</button>`
-      : `<span class="inventory-jumpnav-btn inventory-jumpnav-btn-off">${l}</span>`).join('')}</div>`;
+    const present = ALPHABET.filter(l => items.some(v => letterOf(v) === l));
+    const shown = items.filter(v => letterOf(v) === activeLetter).length;
+    return `<div class="inventory-jumpnav" id="${listId}-nav">
+        <label class="inventory-jumpnav-label" for="${listId}-letter">Names starting with</label>
+        <select class="inventory-jumpnav-select" id="${listId}-letter" onchange="jumpToLetter('${listId}', this.value)">
+          ${present.map(l => `<option value="${l}"${l === activeLetter ? ' selected' : ''}>${l}</option>`).join('')}
+        </select>
+        <span class="inventory-jumpnav-count">${shown} shown</span>
+      </div>`;
   };
   const PINNED_LOOSE_ITEM = {};
   const PINNED_LOOSE_ITEM_LAST = { 'Nutrients & Chemistry': 'isus_v' };
@@ -3502,11 +3625,16 @@ function jumpToLetter(listId, letter) {
   const container = document.getElementById(listId);
   const nav = document.getElementById(listId + '-nav');
   if (!container) return;
+  let shown = 0;
   container.querySelectorAll('.inventory-subitem[data-letter]').forEach(el => {
-    el.style.display = el.dataset.letter === letter ? '' : 'none';
+    const on = el.dataset.letter === letter;
+    el.style.display = on ? '' : 'none';
+    if (on) shown++;
   });
-  if (nav) nav.querySelectorAll('button.inventory-jumpnav-btn').forEach(b =>
-    b.classList.toggle('inventory-jumpnav-btn-active', b.textContent === letter));
+  if (nav) {
+    const sel = nav.querySelector('select'); if (sel) sel.value = letter;
+    const cnt = nav.querySelector('.inventory-jumpnav-count'); if (cnt) cnt.textContent = `${shown} shown`;
+  }
 }
 function renderInventoryPanel() {
   const empty = document.getElementById('panel-empty'); if (!empty) return;
@@ -3583,8 +3711,10 @@ const MAP_INK = {
     stroke: '#ffffff', fill: '#00629b', fillOp: 0.8, noStroke: '#8d959e', noFill: '#aab4bf',
     // a dimmed station is an empty ring (Betty, 2026-09-28: grey "doesn't help. the
     // stations should just be not there, maybe just outline no fill")
-    dimFillOp: 0, dimOp: 0.45, dimStroke: '#5a6675', hiStroke: '#7c4a00', hiFill: '#f2a900', weight: 1, op: 0.75,
-    hiWeight: 1.25, hiOp: 0.5,
+    // marigold #ffb000 (was #f2a900): brighter, nearer dark mode's glow, chosen
+    // over amber, mustard and a navy-rimmed gold from mockups (Betty, 2026-10-22)
+    dimFillOp: 0, dimOp: 0.45, dimStroke: '#5a6675', hiStroke: '#7a4300', hiFill: '#ffb000', weight: 1, op: 0.75,
+    hiWeight: 1.5, hiOp: 0.85,
     // pooled regions on pale water (Betty, 2026-09-28: "looks bad in white mode"):
     // the dark theme's pale-yellow fill turned lime and its dark-grey "no data"
     // fill read as a smudge. Gold with a dark-amber edge for a region with data;
@@ -3596,7 +3726,7 @@ const MAP_INK = {
     // region is drawn with a white edge over a dark-amber casing (REGION_CASING)
     // — a shared border reads as amber | white | amber — and the clicked region
     // is the focus: fuller fill, darker casing, the other regions pale.
-    regionOn:  { color: '#ffffff', weight: 1.75, fillColor: '#f2a900', fillOpacity: 0.45, opacity: 1, dashArray: null },
+    regionOn:  { color: '#ffffff', weight: 1.75, fillColor: '#ffb000', fillOpacity: 0.45, opacity: 1, dashArray: null },
     regionOff: { color: '#4b5560', weight: 1.5, fillColor: '#ffffff', fillOpacity: 0.4, opacity: 0.9, dashArray: '6 4' },
     regionSel: { weight: 2.5, fillOpacity: 0.62 }, regionRest: { fillOpacity: 0.22 },
     casingOn:  { color: '#8a5a00', weight: 5, opacity: 1 },
@@ -3985,7 +4115,7 @@ function datasetAccordion(d, s, opts) {
 function showBackToCategories() {
   const btn = document.getElementById('panel-back-btn');
   if (!btn) return;
-  btn.textContent = '← All Categories';
+  btn.textContent = '← All categories';
   btn.onclick = () => clearAll();
   btn.style.display = '';
 }
@@ -4008,7 +4138,7 @@ function updateBackButton() {
     btn.textContent = `← Back to Station ${currentStation.station_id}`;
     btn.onclick = () => openStation(currentStation);
   } else {
-    btn.textContent = '← All Categories';
+    btn.textContent = '← All categories';
     btn.onclick = () => clearAll();
   }
   btn.style.display = '';
@@ -4076,7 +4206,8 @@ function openStation(s) {
   document.getElementById('panel-header').style.display = 'block';
   document.getElementById('panel-header').classList.remove('panel-header-flush');
   showBackToCategories();
-  document.getElementById('panel-station-id').textContent = `Station ${s.station_id}`;
+  // the variable panel's title type, one line, no gold label (Betty, 2026-10-22)
+  document.getElementById('panel-station-id').innerHTML = `<div class="vd-title">Station ${s.station_id}</div>`;
   // no note for a coastal marker drawn off its grid position (see placeStation):
   // that is the map correcting the grid, not something a reader needs to act on
   // (Betty, 2026-09-29)
@@ -4477,7 +4608,7 @@ function varMatch(v, q) {
   // them in here, renaming a family updates every display but not search.
   const fm = familyMemberFor(v);
   const familyText = fm ? [fm.family.name, fm.member.label, fm.member.short] : [];
-  const text = [v.name, v.display_name, v.common_name, ...(v.keywords || []), ...(v.source_names || []), ...familyText]
+  const text = [v.name, v.display_name, RAW_NAME_LABELS[(v.name || '').toLowerCase()], isEdnaTaxon(v) ? 'eDNA' : '', v.common_name, ...(v.keywords || []), ...(v.source_names || []), ...familyText]
     .filter(Boolean).join(' ').toLowerCase();
   return q.toLowerCase().split(/\s+/).filter(Boolean).every(tok => tokenHits(text, tok));
 }
@@ -4640,6 +4771,29 @@ function regionBannerText(v) {
   return `${nr} of ${total} pooled region${total === 1 ? '' : 's'} with `
     + `<b>${datasetLabelFor(v)}</b> coverage` + yearNote + undatedNote + pooledNote;
 }
+// The banner names the variable in its dataset's colour. Those colours are
+// picked for the dark ocean, and on the light banner a fixed CSS darkening
+// either left them faint (#38d9a9 at ~2:1) or, strong enough for the pale
+// ones, turned them near-black so the colour no longer showed (Betty,
+// 2026-10-22: "can't really see the green Atlantas"). In light mode each
+// colour is instead darkened only as far as it needs to reach 4.8:1 on white,
+// keeping its hue and saturation.
+function bannerInk(hex) {
+  if (ccThemeNow() !== 'light' || !/^#[0-9a-f]{6}$/i.test(hex || '')) return hex;
+  const rgb = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const lin = v => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  const contrast = c => 1.05 / (0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2]) + 0.05);
+  // to HSL, step lightness down until the contrast holds
+  const mx = Math.max(...rgb), mn = Math.min(...rgb), d = mx - mn;
+  let h = 0; const l0 = (mx + mn) / 2, sat = d === 0 ? 0 : d / (1 - Math.abs(2 * l0 - 1));
+  if (d) h = mx === rgb[0] ? ((rgb[1] - rgb[2]) / d) % 6 : mx === rgb[1] ? (rgb[2] - rgb[0]) / d + 2 : (rgb[0] - rgb[1]) / d + 4;
+  const fromHsl = l => { const c = (1 - Math.abs(2 * l - 1)) * sat, x = c * (1 - Math.abs((h % 2 + 2) % 2 - 1)), m = l - c / 2;
+    const [r, g, b] = h < 1 ? [c, x, 0] : h < 2 ? [x, c, 0] : h < 3 ? [0, c, x] : h < 4 ? [0, x, c] : h < 5 ? [x, 0, c] : [c, 0, x];
+    return [r + m, g + m, b + m]; };
+  let l = l0, out = rgb;
+  while (contrast(out) < 4.8 && l > 0.05) { l -= 0.02; out = fromHsl(l); }
+  return '#' + out.map(v => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, '0')).join('');
+}
 function highlight(v) {
   selectedVar = v;
   document.getElementById('clear-btn').classList.add('visible');
@@ -4663,7 +4817,7 @@ function highlight(v) {
           ? ` <span class="banner-note" title="${datasetLabelFor(v)} combines many separately-added parameters — this is the whole dataset's coverage span, not necessarily this specific parameter's.">(dataset span)</span>`
           : '')
     : ` <span class="banner-note" title="Per-taxon coverage has no year breakdown yet, so this count spans the full record regardless of the slider.">(all years)</span>`;
-  banner.innerHTML = `<b style="color:${datasetColorFor(v)}">${resolvedLabel(v)}</b> — `
+  banner.innerHTML = `<b style="color:${bannerInk(datasetColorFor(v))}">${resolvedLabel(v)}</b> — `
     + (isRegionPooled(v.dataset_key)
         // "0 stations with Phytoplankton coverage" is false: the coverage exists,
         // it just isn't resolved to stations. Since regions.json we can give the
@@ -4769,8 +4923,11 @@ function pooledInfoLinksHtml(v) {
     });
     return `<li><b>${r.region_key}</b> — ${regionDesc(r)}: ${codes.join(', ')}</li>`;
   }).join('');
+  // no separate "Species codes" link: it opened the same EDI page as the
+  // panel's Download Dataset button, and this note names that file below.
+  // Sits at the foot of the regions table it explains (Betty, 2026-10-22:
+  // "Species codes / About the regions / WoRMS" as a link row was clunky).
   return `<div class="pooled-links">
-      ${src ? `<a href="${src}" target="_blank" rel="noopener" class="varinfo-ext-link">${EXTERNAL_LINK_ICON}Species codes</a>` : ''}
       <details class="pooled-regions-info">
         <summary>About the ${REGIONS.length || 4} regions</summary>
         <div class="pooled-regions-body">
@@ -4798,8 +4955,9 @@ function showRegionPanel(r) {
   // back goes to the phytoplankton panel the reader came from, not to the
   // category list (Betty, 2026-09-28)
   if (v) showBackToVariable(v); else showBackToCategories();
-  document.getElementById('panel-station-id').textContent = `${r.region_key} region`;
-  document.getElementById('panel-coords').textContent = regionDesc(r);
+  document.getElementById('panel-station-id').innerHTML = `<div class="vd-title">${r.region_key} region</div>`;
+  // prose, not coordinates: Inter, not the Space Mono a station's lat/lon gets
+  document.getElementById('panel-coords').innerHTML = `<span class="panel-coords-text">${regionDesc(r)}</span>`;
   document.getElementById('panel-depth-summary').innerHTML = '';
   // in the order the source lists them (regions.json station_codes)
   const members = STATIONS.filter(s => (REGION_OF_STATION[s.grid_key] || []).some(m => m.region === r))
@@ -4845,37 +5003,74 @@ function showRegionPanel(r) {
     </div>`;
 }
 // External-link icon (e.g. before "AphiaID ####" in the WoRMS field) -
-// shared wherever variableInfoFieldsHtml is rendered (feedback 2026-08-22:
+// shared wherever the variable panel links WoRMS (feedback 2026-08-22:
 // "better match image 2" - icon instead of a plain underlined link).
 const EXTERNAL_LINK_ICON = '<svg class="varinfo-ext-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>';
-// Dataset/Description/Units/WoRMS fields, shared by the no-station side
-// panel (showVariablePanel) and the station-open species view
-// (speciesStationInfoHtml) so the two views never drift out of sync. The
-// station-count/fallback/pooled note is built separately by each caller,
-// since only showVariablePanel needs the pooled-regions branch.
-function variableInfoFieldsHtml(v, opts) {
-  opts = opts || {};
-  const spacer = opts.spacer || '<br>';
-  const countClass = opts.countClass || 'panel-station-count';
-  const fallbackClass = opts.fallbackClass || 'panel-fallback-note';
-  // includeCount: false lets a caller (showVariablePanel) render the count/
-  // fallback lines itself, merged into its own note box alongside the
-  // "click a station" hint, instead of getting them as separate free-
-  // floating lines here (feedback 2026-08-22: station count + hint
-  // consolidated into one box).
-  const includeCount = opts.includeCount !== false;
-  const stationCount = stationsForVar(v).size;
-  const rawDesc = descriptionFor(v, displayLabel(v)) || v.description || 'No description available.';
-  const desc = rawDesc === 'No description available.' ? `<span class="panel-desc-placeholder">${rawDesc}</span>` : rawDesc;
-  const datasetLine = `<b>Dataset:</b> ${datasetLabelFor(v)}${spacer}`;
-  const countLine = `<span class="${countClass}">Collected at ${stationCount} station${stationCount === 1 ? '' : 's'}</span>`;
-  const fallbackLine = !stationsForVarIsFallback(v) ? '' : `<span class="${fallbackClass}">No per-station breakdown exists yet for this species — this count is every station with any ${datasetLabelFor(v)} data, not confirmed sightings of this species specifically.</span>`;
-  return `${datasetLine}
-      <b>Description:</b> ${desc}${spacer}
-      ${v.units ? `<b>Units:</b> ${v.units}${spacer}` : ''}
-      ${v.aphia_id ? `<b>WoRMS:</b> <a target="_blank" rel="noopener" href="https://www.marinespecies.org/aphia.php?p=taxdetails&id=${v.aphia_id}" class="varinfo-ext-link">${EXTERNAL_LINK_ICON}AphiaID ${v.aphia_id}</a>${spacer}` : ''}
-      ${includeCount ? countLine : ''}
-      ${includeCount ? fallbackLine : ''}`;
+// ---- variable detail panel (Betty, 2026-10-22) -----------------------------
+// One layout for the no-station panel (showVariablePanel) and the station-open
+// view (speciesStationInfoHtml), in place of the Dataset/Description/Units field
+// list, a bordered count box and two identical full-width buttons ("Open
+// Dataset" and "dataset page" read as the same link). The gold line on top is
+// a measurement's variable code (the raw name a download's `variable` column
+// carries) or a taxon's rank; the count is the one large number; the dataset the variable comes
+// from gets the panel's one box, holding the download and its calcofi.io page; a "Download opens <host>" line under the button was dropped as noise.
+// Chosen over a category line on top (not relevant once a variable is open)
+// and over an indented rule for the dataset section, from mockups.
+const DOWNLOAD_ICON = '<svg class="vd-dl-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M3 13h10"/></svg>';
+function variableEyebrowHtml(v) {
+  // a taxon's raw name is its scientific name, already the title or the italic
+  // line under it, so a taxon gets its rank ("SPECIES") here instead
+  if (v.variable_type === 'measurement_type' && v.name) {
+    return `<div class="vd-code" title="Variable code: the name in the variable column of downloaded data">${v.name}</div>`;
+  }
+  if (isEdnaTaxon(v)) return '<div class="vd-eyebrow"><span class="vd-keep-case">eDNA</span> detection</div>';
+  return v.variable_type === 'taxon' && v.rank ? `<div class="vd-eyebrow">${v.rank}</div>` : '';
+}
+function variableTitleHtml(label, v) {
+  return `${label}${v.units ? `<span class="vd-unit">${v.units}</span>` : ''}`;
+}
+// Source column definitions for taxa the release has no description for,
+// keyed dataset_key::name. Picoplankton: the CCE-LTER dataset's attribute
+// table (DataZoo dataset 159), as Betty supplied it 2026-10-22 — wording kept,
+// first letter capitalised. Heterotrophic Bacteria and Picoeukaryotes have no
+// WoRMS record, so without this their panel had no text at all.
+const TAXON_DESCRIPTIONS = {
+  'cce-lter_picoplankton-bacteria::Heterotrophic Bacteria': 'Number of bacterial single-celled organisms measured in a milliliter of fluid.',
+  'cce-lter_picoplankton-bacteria::Prochlorococcus': 'Number of plankton cells between 0.2 and 2 microns measured in a milliliter of fluid.',
+  'cce-lter_picoplankton-bacteria::Synechococcus': 'Number of plankton cells between 0.2 and 2 microns measured in a milliliter of fluid.',
+  'cce-lter_picoplankton-bacteria::Picoeukaryotes': 'Number of plankton cells between 0.2 and 2 microns measured in a milliliter of fluid.',
+};
+function variableDescHtml(v) {
+  const desc = TAXON_DESCRIPTIONS[v.dataset_key + '::' + v.name] || descriptionFor(v, displayLabel(v)) || v.description;
+  const worms = v.aphia_id
+    ? `<a target="_blank" rel="noopener" href="https://www.marinespecies.org/aphia.php?p=taxdetails&id=${v.aphia_id}" class="varinfo-ext-link vd-worms">${EXTERNAL_LINK_ICON}WoRMS AphiaID ${v.aphia_id}</a>`
+    : '';
+  // no "No description available." line: most taxa have none, and in this
+  // layout the placeholder read as the panel's main sentence
+  return `${desc ? `<p class="vd-desc">${desc}</p>` : ''}${worms}`;
+}
+// the station count as the panel's one large number; `after` is the hint (no
+// station open) or the years at the open station
+function variableStatHtml(v, after) {
+  const n = stationsForVar(v).size;
+  const what = v.variable_type === 'taxon'
+    ? `station${n === 1 ? '' : 's'} with ${isEdnaTaxon(v) ? 'eDNA detections' : 'records'}`
+    : `station${n === 1 ? '' : 's'} sampled`;
+  const fallback = !stationsForVarIsFallback(v) ? '' : `<p class="vd-note">No per-station breakdown exists yet for this species — this count is every station with any ${datasetLabelFor(v)} data, not confirmed sightings of this species specifically.</p>`;
+  return `<div class="vd-stat"><span class="vd-num">${n.toLocaleString()}</span><span class="vd-num-label">${what}</span></div>
+    ${fallback}${after || ''}`;
+}
+function datasetSourceBoxHtml(v) {
+  const dk = v.dataset_key;
+  const meta = DATASETS_META[dk] || {};
+  const src = variableSourceUrl(v);
+  return `<div class="vd-src">
+      <div class="vd-eyebrow">From dataset</div>
+      <div class="vd-src-name">${officialNameFor(dk) || datasetLabelFor(v)}</div>
+      ${meta.description ? `<p class="vd-src-desc">${meta.description}</p>` : ''}
+      ${src ? `<a href="${src}" target="_blank" rel="noopener" class="vd-dl">${DOWNLOAD_ICON}Download Dataset</a>` : ''}
+      <a href="${datasetPageUrlFor(dk)}" target="_blank" rel="noopener" class="vd-about">About this dataset →</a>
+    </div>`;
 }
 function variableSourceUrl(v) {
   return (v.dataset_key === 'swfsc_ichthyo' && ZOOPLANKTON_VOLUME_FIELDS.has(v.name))
@@ -4893,12 +5088,11 @@ function selectedTaxonYearsAt(gridKey) {
   const years = key && TAXON_YEARS[key] && TAXON_YEARS[key][gridKey];
   return years && years.length ? years.slice().sort((a, b) => a.y - b.y) : null;
 }
-// Merged "N stations collected" + "observed at this station in: years" note
-// for the station-open species view - one bordered box (feedback
-// 2026-08-22: option B over option C, "keep the outline").
+// The station count + "observed at this station in: years" for the
+// station-open view. Was one bordered box (feedback 2026-08-22, "keep the
+// outline"); since the 2026-10-22 redesign it is the panel's large count with
+// the years under it, the dataset box being the panel's only outline.
 function speciesStationNoteHtml(v, s) {
-  const stationCount = stationsForVar(v).size;
-  const fallbackNote = !stationsForVarIsFallback(v) ? '' : `<span class="spinfo-note-fallback">No per-station breakdown exists yet for this species — this count is every station with any ${datasetLabelFor(v)} data, not confirmed sightings of this species specifically.</span>`;
   const years = selectedTaxonYearsAt(s.grid_key);
   // One flowing line/paragraph rather than a label line + a separate years
   // line — reads as a sentence instead of a label:value pair (feedback
@@ -4907,16 +5101,12 @@ function speciesStationNoteHtml(v, s) {
   // between years are both muted so they don't compete with the year for
   // attention (feedback 2026-08-22: "does orange commas make sense").
   const yearsBlock = !years ? '' : `<span class="spinfo-note-years">
-      <span class="spinfo-note-years-label">${resolvedPlainLabel(v)} observed at this station in: </span>${years.map(o => {
+      <span class="spinfo-note-years-label">${resolvedPlainLabel(v)} ${isEdnaTaxon(v) ? 'detected' : 'observed'} at this station in: </span>${years.map(o => {
         const yr = `<span class="spinfo-note-years-year">${o.y}</span>`;
         return o.n > 1 ? `${yr} <span class="spinfo-note-years-count">(×${o.n})</span>` : yr;
       }).join(', ')}
     </span>`;
-  return `<div class="spinfo-note">
-      <span class="spinfo-note-count">Collected at ${stationCount} station${stationCount === 1 ? '' : 's'}</span>
-      ${fallbackNote}
-      ${yearsBlock || datasetYearsAtStationHtml(v, s)}
-    </div>`;
+  return variableStatHtml(v, `<div class="vd-years">${yearsBlock || datasetYearsAtStationHtml(v, s)}</div>`);
 }
 // "1950–1969, 1972, 1975–2021" from a {y, n} list — a measurement's station
 // record runs to dozens of consecutive years, which reads better as runs
@@ -4943,7 +5133,7 @@ function datasetYearsAtStationHtml(v, s) {
   return `<span class="spinfo-note-years">
       <span class="spinfo-note-years-label">${resolvedPlainLabel(v)} sampled at this station in: </span>${runs.map(r =>
         `<span class="spinfo-note-years-year">${r}</span>`).join(', ')}
-      ${d.n_surveys ? `<span class="spinfo-note-years-count">(${d.n_surveys.toLocaleString()} surveys)</span>` : ''}
+      ${d.n_surveys ? `<span class="spinfo-note-years-count">(${d.n_surveys.toLocaleString()} survey${d.n_surveys === 1 ? '' : 's'})</span>` : ''}
     </span>
     <span class="spinfo-note-fallback">Years come from the ${datasetLabelFor(v)} record at this station.</span>`;
 }
@@ -4952,34 +5142,17 @@ function datasetYearsAtStationHtml(v, s) {
 // tab bar and the coverage-card list entirely (feedback 2026-08-22: "do not
 // need overview and depth and coverage").
 function speciesStationInfoHtml(v, s) {
-  const src = variableSourceUrl(v);
-  return `<div class="spinfo">
-      <div class="spinfo-rule"></div>
-      <div class="spinfo-title">${resolvedLabel(v)}</div>
-      <div class="spinfo-body">
-        ${variableInfoFieldsHtml(v, { spacer: '<br>', includeCount: false })}
-      </div>
+  return `<div class="spinfo vd">
+      ${variableEyebrowHtml(v)}
+      <div class="vd-title">${variableTitleHtml(stripEdnaTag(resolvedLabel(v)), v)}</div>
+      ${variableDescHtml(v)}
       ${speciesStationNoteHtml(v, s)}
-      ${src ? `<a href="${src}" target="_blank" rel="noopener" class="spinfo-open-btn">Open Dataset ↗</a>` : ''}
-      <a href="${datasetPageUrlFor(v.dataset_key)}" target="_blank" rel="noopener" class="spinfo-open-btn">dataset page ↗</a>
-      <a href="#" onclick="viewFullStationCoverage(); return false;" class="spinfo-full-link">View Full Station Coverage — All Parameters →</a>
+      ${datasetSourceBoxHtml(v)}
     </div>`;
 }
-// Escape hatch from the species-focused view back to the normal tabbed
-// coverage view for this same station - clears the species selection
-// (search, banner, slider lock) and re-opens the station fresh.
-function viewFullStationCoverage() {
-  selectedVar = null;
-  document.getElementById('clear-btn').classList.remove('visible');
-  document.getElementById('year-slider').classList.remove('var-active');
-  if (G_MIN != null) { lockYearRange(G_MIN, G_MAX); setYearRange(G_MIN, G_MAX); }
-  const banner = document.getElementById('search-banner');
-  banner.style.display = 'none'; banner.innerHTML = '';
-  searchInput.value = '';
-  dropdown.classList.remove('open');
-  applyStyles();
-  openStation(currentStation);
-}
+// No "View Full Station Coverage — All Parameters" link under the dataset box
+// (removed, Betty 2026-10-22): clearing the search and clicking the station
+// again shows its full coverage.
 function showVariablePanel(v) {
   if (currentStation) {
     // Reached by clicking a parameter inside an already-open station's list,
@@ -5005,7 +5178,8 @@ function showVariablePanel(v) {
   document.getElementById('panel-header').classList.add('panel-header-flush');
   updateBackButton();
   const { main, sci } = speciesTitleParts(v);
-  document.getElementById('panel-station-id').innerHTML = main || sci || '';
+  document.getElementById('panel-station-id').innerHTML =
+    `${variableEyebrowHtml(v)}<div class="vd-title">${variableTitleHtml(main || sci || '', v)}</div>`;
   // Pooled (phytoplankton) taxa have no common names; the plain-language name a
   // reader needs is the functional group — "centric diatom" — from the source's
   // own group column (variables.json taxon_group; Pooh's review, 2026-09-28).
@@ -5015,10 +5189,7 @@ function showVariablePanel(v) {
     ? `<i>${sci}</i>`
     : (pooled ? [grp, `pooled into ${REGIONS.length || 4} regions`].filter(Boolean).join(' · ') : (grp || '')))
     + (srcNames.length ? `<span class="panel-coords-note">Source name${srcNames.length > 1 ? 's' : ''}: ${srcNames.map(n => `<i>${n}</i>`).join(', ')}</span>` : '');
-  document.getElementById('panel-depth-summary').innerHTML = '<div class="varinfo-rule"></div>';
-  const src = variableSourceUrl(v);
-  const stationCount = stationsForVar(v).size;
-  const fallbackNote = !stationsForVarIsFallback(v) ? '' : `<span class="spinfo-note-fallback">No per-station breakdown exists yet for this species — this count is every station with any ${datasetLabelFor(v)} data, not confirmed sightings of this species specifically.</span>`;
+  document.getElementById('panel-depth-summary').innerHTML = '';
   // Hint wording (Erin, 2026-09-28: "need to change the sentence"): it said
   // "view year(s) this species was observed" for every parameter, Temperature
   // included. A measurement now points at the years its dataset sampled the
@@ -5036,23 +5207,16 @@ function showVariablePanel(v) {
            <dt>Samples with cells</dt><dd>samples where it was counted (&gt;&nbsp;0 cells/L)</dd>
            <dt>Mean cells/L</dt><dd>average over all samples, including those with none</dd>
          </dl>
-       </div>`
-    : `<span class="spinfo-note-count">${stationCount} station${stationCount === 1 ? '' : 's'} collected</span>
-       ${fallbackNote}
-       <span class="spinfo-note-hint">${v.variable_type === 'taxon'
-         ? `Click a highlighted station to see the years ${resolvedPlainLabel(v)} was recorded there.`
-         : `Click a highlighted station to see the years ${resolvedPlainLabel(v)} was sampled there.`}</span>`;
+       </div>
+       ${pooledInfoLinksHtml(v)}`
+    : `<p class="vd-hint">${v.variable_type === 'taxon'
+         ? 'Click a highlighted station to see the years it was recorded there.'
+         : 'Click a highlighted station to see the years it was sampled there.'}</p>`;
   document.getElementById('panel-content').innerHTML = `
-    <div class="panel-info-block">
-      ${pooled ? pooledInfoLinksHtml(v) : ''}
-      <div class="spinfo-body">
-        ${variableInfoFieldsHtml(v, { spacer: '<br>', includeCount: false })}
-      </div>
-      <div class="spinfo-note${pooled ? ' region-card' : ''}">
-        ${noteInner}
-      </div>
-      ${src ? `<a href="${src}" target="_blank" rel="noopener" class="spinfo-open-btn">Open Dataset ↗</a>` : ''}
-      <a href="${datasetPageUrlFor(v.dataset_key)}" target="_blank" rel="noopener" class="spinfo-open-btn">dataset page ↗</a>
+    <div class="panel-info-block vd">
+      ${variableDescHtml(v)}
+      ${pooled ? `<div class="spinfo-note region-card">${noteInner}</div>` : variableStatHtml(v, noteInner)}
+      ${datasetSourceBoxHtml(v)}
     </div>`;
 }
 

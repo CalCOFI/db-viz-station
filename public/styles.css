@@ -2606,23 +2606,6 @@ a.spinfo-open-btn {
   text-decoration: none;
 }
 a.spinfo-open-btn:hover { background: var(--text); }
-/* Bordered pill row, its own distinct row with room above it. */
-a.spinfo-full-link {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin: 14px 4px 20px;
-  padding: 11px 14px;
-  border: 1px solid rgba(var(--accent-rgb), 0.3);
-  border-radius: 5px;
-  text-align: center;
-  font-family: 'Inter', sans-serif;
-  font-size: 12.5px;
-  color: var(--accent);
-  text-decoration: none;
-}
-a.spinfo-full-link:hover { background: rgba(var(--accent-rgb), 0.08); }
 
 /* "Surveys (N)" affordance on a dataset card — the cruises behind that
    card's n_surveys count. Originally a separate "Surveys (N)" disclosure row
@@ -2810,26 +2793,27 @@ a.spinfo-full-link:hover { background: rgba(var(--accent-rgb), 0.08); }
    text on white is unreadable (~1.5:1), so the yellow is the label's fill and
    the digits are dark */
 :root[data-theme="light"] #year-slider.var-active .ys-label {
-  background: #f2a900; color: #2b1a00; border-radius: 4px; padding: 1px 5px;
+  background: #ffb000; color: #2b1a00; border-radius: 4px; padding: 1px 5px;
 }
-/* selected-variable state: a deep gold (#f2a900) — the dark theme's yellow
+/* selected-variable state: marigold #ffb000 (2026-10-22; was a deep gold
+   #f2a900) — the dark theme's yellow
    family, but dark enough to hold contrast on white and on Voyager's pale water.
    (Betty, 2026-09-28: brown "doesn't glow like dark mode"; #facc15 "too yellow,
    bad contrast".) */
 :root[data-theme="light"] #year-slider.var-active .ys-fill {
-  background: #f2a900; box-shadow: 0 0 4px rgba(242, 169, 0, 0.4);
+  background: #ffb000; box-shadow: 0 0 4px rgba(255, 176, 0, 0.4);
 }
 :root[data-theme="light"] #year-slider.var-active .ys-range::-webkit-slider-thumb {
-  background: #f2a900; border-color: #ffffff;
-  box-shadow: 0 0 0 1px #a16207, 0 0 4px rgba(242, 169, 0, 0.45);
+  background: #ffb000; border-color: #ffffff;
+  box-shadow: 0 0 0 1px #7a4300, 0 0 4px rgba(255, 176, 0, 0.45);
 }
 :root[data-theme="light"] #year-slider.var-active .ys-range::-moz-range-thumb {
-  background: #f2a900; border-color: #ffffff;
-  box-shadow: 0 0 0 1px #a16207, 0 0 4px rgba(242, 169, 0, 0.45);
+  background: #ffb000; border-color: #ffffff;
+  box-shadow: 0 0 0 1px #7a4300, 0 0 4px rgba(255, 176, 0, 0.45);
 }
 /* highlighted station markers glow yellow on the pale map (class set in applyStyles) */
 :root[data-theme="light"] .mk-hi {
-  filter: drop-shadow(0 0 2px rgba(180, 110, 0, 0.45));   /* subtle — Betty: "not too glow" */
+  filter: drop-shadow(0 0 2px rgba(255, 176, 0, 0.45));   /* subtle — Betty: "not too glow" */
 }
 :root[data-theme="light"] .ys-reset { border: 1.5px solid var(--rule); color: var(--accent-d); }
 /* side panel: heavier section rule, toggle outline, row dividers, labels */
@@ -2897,3 +2881,207 @@ a.spinfo-full-link:hover { background: rgba(var(--accent-rgb), 0.08); }
    pushed the newly opened list up past it. The panel only ever grows below
    what was clicked, so anchoring has nothing to protect here. */
 #side-panel { overflow-anchor: none; }
+
+/* ============================================
+   VARIABLE DETAIL PANEL (Betty, 2026-10-22)
+   The no-station panel (showVariablePanel) and the station-open view
+   (speciesStationInfoHtml) share these. Type and spacing carry the
+   structure; the dataset box (.vd-src) is the panel's only outline, and
+   reaches into the panel's side padding rather than sitting tight inside
+   it ("can be expanded on side to use up unnecessary empty space").
+   ============================================ */
+/* Every panel header (variable, station, region) shares this: a quiet text
+   back link, then the gold label + name in .panel-station-id. The boxed
+   Space Mono back button and cyan Space Mono title were the pre-redesign
+   look (Betty, 2026-10-22: station header "can be updated to fit current
+   aesthetic"). */
+.panel-header .panel-back-btn {
+  border: none; background: none; padding: 0; margin-bottom: 24px;
+  font-family: 'Inter', sans-serif; font-weight: 500; font-size: 12.5px;
+  color: var(--muted);
+}
+.panel-header .panel-back-btn:hover { background: none; color: var(--accent); }
+.panel-header .panel-station-id {
+  font-family: 'Inter', sans-serif; font-weight: 600; letter-spacing: -0.2px;
+  color: var(--text); font-size: 22px;
+}
+.panel-header .panel-coords { font-family: 'Space Mono', monospace; font-size: 12px; color: var(--muted-2); margin-top: 6px; }
+.panel-header-flush .panel-coords { font-family: 'Inter', sans-serif; font-size: 13px; color: var(--muted); margin-top: 8px; }
+.vd-code {
+  font: 700 12px 'Space Mono', monospace; letter-spacing: 0.5px;
+  color: var(--accent2); margin-bottom: 6px; overflow-wrap: anywhere;
+}
+.vd-eyebrow {
+  font: 600 10.5px 'Inter', sans-serif; letter-spacing: 1.4px;
+  text-transform: uppercase; color: var(--accent2); margin-bottom: 6px;
+}
+.vd-title { font: 600 22px/1.25 'Inter', sans-serif; color: var(--text); letter-spacing: -0.2px; }
+.spinfo.vd .vd-title { font-size: 20px; }
+.spinfo.vd { margin: 18px 4px 20px; }
+.vd-unit {
+  font: 400 13px 'Space Mono', monospace; color: var(--muted-2);
+  margin-left: 8px; letter-spacing: 0; white-space: nowrap;
+}
+.panel-info-block.vd { line-height: 1.5; padding: 0 4px; }
+.vd-desc { font-size: 13.5px; line-height: 1.55; color: var(--muted); margin: 10px 0 0; }
+.panel-info-block.vd > .vd-desc:first-child { margin-top: 2px; }
+a.vd-worms { display: inline-block; margin-top: 6px; font-size: 12.5px; }
+.vd-stat { display: flex; align-items: baseline; gap: 12px; margin-top: 22px; }
+.vd-num { font: 600 40px/1 'Inter', sans-serif; color: var(--accent); letter-spacing: -1px; }
+.vd-num-label { font-size: 13px; font-weight: 500; color: var(--text); }
+.vd-hint { font-size: 12.5px; line-height: 1.5; color: var(--muted-2); margin: 8px 0 0; }
+.vd-note { font-size: 11.5px; line-height: 1.55; color: var(--muted); margin: 8px 0 0; }
+.vd-years { margin-top: 2px; }
+.vd-src {
+  margin: 26px -10px 0; padding: 18px 18px 16px; border-radius: 8px;
+  background: rgba(var(--accent-rgb), 0.06); border: 1px solid rgba(var(--accent-rgb), 0.18);
+  line-height: 1.5;
+}
+.vd-src .vd-eyebrow { margin-bottom: 0; }
+.vd-src-name { font: 600 15px/1.35 'Inter', sans-serif; color: var(--text); margin-top: 6px; }
+.vd-src-desc {
+  font-size: 12.5px; line-height: 1.5; color: var(--muted); margin: 6px 0 0;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+a.vd-dl {
+  display: inline-flex; align-items: center; gap: 8px; margin-top: 14px;
+  background: var(--accent); color: var(--panel) !important; text-decoration: none !important;
+  font: 600 13px 'Inter', sans-serif; padding: 9px 14px; border-radius: 5px;
+}
+a.vd-dl:hover { background: var(--text); }
+a.vd-about {
+  display: table; margin-top: 12px; font: 500 13px 'Inter', sans-serif;
+  color: var(--accent) !important; text-decoration: none !important;
+  border-bottom: 1px solid rgba(var(--accent-rgb), 0.4); padding-bottom: 1px;
+}
+a.vd-about:hover { border-bottom-color: var(--accent); }
+:root[data-theme="light"] .vd-src { background: #f3f8fc; border-color: var(--card-border); }
+.panel-header.panel-header-flush { padding-bottom: 0; }
+.panel-header .panel-coords:empty, .panel-header .panel-depth-summary:empty { display: none; }
+.panel-info-block.vd > :first-child { margin-top: 0; }
+:root[data-theme="light"] .panel-header .panel-back-btn { border: none; background: none; box-shadow: none; font-weight: 500; }
+@media (max-width: 480px) {
+  .panel-header .panel-station-id, .vd-title { font-size: 19px; }
+}
+.panel-coords-text { font-family: 'Inter', sans-serif; font-size: 13px; color: var(--muted); }
+/* the pooled-regions table lines up with the dataset box under it */
+.panel-info-block.vd > .spinfo-note.region-card { margin: 22px -10px 0; }
+.region-card .pooled-links { margin: 12px 0 0; }
+/* the small gold "eDNA" after an eDNA taxon's name (see isEdnaTaxon) */
+.edna-tag { margin-left: 6px; font-weight: 500; font-size: .78em; font-style: normal; letter-spacing: .3px; color: var(--accent2); }
+.vd-keep-case { text-transform: none; letter-spacing: 0.4px; }
+
+/* ============================================
+   LIGHT MODE CONTRAST (Betty, 2026-10-22)
+   Every pairing already passed 4.5:1, but the page read washed out: white
+   panel on white page, faint dividers, small mid-grey text, and dark-on-light
+   text reading thinner than light-on-dark. Chosen from mockups on localhost:
+   darker greys, a grey-blue ground so the white cards stand out, small body
+   text one weight heavier, and a grey-blue variable/station panel whose white
+   card is the dataset box. Text sizes unchanged (larger "too big").
+   ============================================ */
+:root[data-theme="light"] {
+  --muted: #39434f;        /* was #4b5560 */
+  --muted-2: #444f5c;      /* was #5a6675 */
+  --deep: #dfe6ee;         /* page ground, was #eef2f7 */
+  --border: #bcc7d3;       /* was #cfd8e2 */
+  --rule: #a9b6c4;         /* was #b8c4d0 */
+  --card-border: rgba(150, 164, 182, 0.9);
+}
+:root[data-theme="light"] #side-panel { border-left: 1px solid var(--rule); box-shadow: -3px 0 10px rgba(23, 40, 60, 0.07); }
+:root[data-theme="light"] .year-slider, :root[data-theme="light"] .search-input { box-shadow: 0 1px 3px rgba(23, 40, 60, 0.10); }
+:root[data-theme="light"] .map-wrapper, :root[data-theme="light"] #map { box-shadow: 0 1px 4px rgba(23, 40, 60, 0.12); }
+:root[data-theme="light"] .search-input::placeholder { color: #57626f; }
+/* category list */
+:root[data-theme="light"] .inventory-subtitle { color: #2c3642; }
+:root[data-theme="light"] .inventory-view-tabs { background: #d9e2ec; }
+:root[data-theme="light"] .inventory-view-tab { color: #26303b; }
+:root[data-theme="light"] .inventory-label, :root[data-theme="light"] .inventory-subitem-name { color: #0b1a30; }
+:root[data-theme="light"] .inventory-row { border-bottom-color: #c3cdd8; }
+:root[data-theme="light"] .inventory-count { background: #cddff0; color: #00395a; }
+:root[data-theme="light"] .inventory-arrow { color: #1f2a36; }
+:root[data-theme="light"] .inventory-subitem-meta,
+:root[data-theme="light"] .inventory-family-method { font-size: 11.5px; color: #2c3642; }
+:root[data-theme="light"] .inventory-subcategory-header { color: #9e5f00; }
+:root[data-theme="light"] .data-link-desc { color: #2c3642; }
+/* the open category's list on a soft tint joined to its header ("less just white") */
+:root[data-theme="light"] .inventory-row-open { border-radius: 8px 8px 0 0; }
+:root[data-theme="light"] .inventory-row-open + .inventory-sublist {
+  background: #f1f5f9; border-radius: 0 0 8px 8px; margin-bottom: 8px; padding-bottom: 6px;
+  border: 1px solid #dbe3ec; border-top: none;
+}
+:root[data-theme="light"] .inventory-row-open + .inventory-sublist .inventory-subitem:hover { background: #e3ecf5; }
+/* variable / station / region panel */
+:root[data-theme="light"] .vd-desc, :root[data-theme="light"] .vd-hint, :root[data-theme="light"] .vd-src-desc { color: #2c3642; }
+:root[data-theme="light"] .vd-eyebrow, :root[data-theme="light"] .vd-code { color: #9e5f00; }
+:root[data-theme="light"] .vd-src { background: #ffffff; border-color: var(--rule); box-shadow: 0 1px 3px rgba(23, 40, 60, 0.08); }
+/* the panel turns grey-blue once a variable, station or region is open; the
+   home category list stays white ("category list not need to be grey-blue").
+   #panel-empty is shown and hidden by an inline display style. */
+:root[data-theme="light"] #side-panel:has(#panel-empty[style*="display: none"]),
+:root[data-theme="light"] #side-panel:has(#panel-empty[style*="display: none"]) > .panel { background: #edf1f6; }
+/* dark-on-light reads thinner than light-on-dark: small body text one step heavier */
+:root[data-theme="light"] .vd-desc, :root[data-theme="light"] .vd-hint, :root[data-theme="light"] .vd-src-desc,
+:root[data-theme="light"] .vd-num-label, :root[data-theme="light"] .spinfo-note-years,
+:root[data-theme="light"] .inventory-subtitle, :root[data-theme="light"] .inventory-subitem-meta,
+:root[data-theme="light"] .inventory-family-method, :root[data-theme="light"] .data-link-desc,
+:root[data-theme="light"] .panel-back-btn, :root[data-theme="light"] .search-banner { font-weight: 500; }
+:root[data-theme="light"] .vd-title, :root[data-theme="light"] .panel-station-id { font-weight: 700; }
+/* search bar in Inter, medium weight, instead of thin Space Mono (both themes) */
+.search-input { font-family: 'Inter', sans-serif; font-weight: 500; letter-spacing: 0; }
+.search-input::placeholder { font-family: 'Inter', sans-serif; font-weight: 400; }
+:root[data-theme="light"] .search-input { color: #0b1a30; }
+/* the gold years on the grey-blue panel fell to 4.3:1 at #a16207 */
+:root[data-theme="light"] .spinfo-note-years-year { color: #9e5f00; }
+/* search banner, light mode: it read faint from a distance (Betty,
+   2026-10-22) — the dataset-coloured name, the accent-blue highlights and the
+   gold note were each mid-tone on white. Body text navy, the highlights a
+   deep blue, the variable name its dataset hue but much darker, the note a
+   dark gold; slightly larger */
+:root[data-theme="light"] .search-banner { font-size: 12.5px; letter-spacing: 0.2px; color: #0b1a30; }
+:root[data-theme="light"] .search-banner b { color: #003a5c; font-weight: 700; }
+:root[data-theme="light"] .search-banner > b:first-child { filter: none; }   /* bannerInk() in app.js darkens it just enough */
+:root[data-theme="light"] .search-banner .banner-note { color: #2c3642; }
+:root[data-theme="light"] .search-banner .banner-note.species-specific { color: #a86400; font-weight: 700; }   /* gold that still reads gold, 4.7:1 */
+/* the eDNA tag looked bold on the dark ocean and thin on white at the same
+   weight (Betty, 2026-10-22): one step heavier and a darker gold in light mode */
+:root[data-theme="light"] .edna-tag { font-weight: 700; color: #9e5f00; }
+/* the regions table and the dataset box pulled back a little from the panel
+   edges (Betty, 2026-10-22: "shrink these boxes a little more empty space");
+   was -10px, reaching into the panel's padding */
+.vd-src, .panel-info-block.vd > .spinfo-note.region-card { margin-left: -2px; margin-right: -2px; }
+/* light-mode gold text (labels, years, eDNA tag, section headers) brightened
+   from #855104, which read brown ("the yellow in light mode too dark", Betty,
+   2026-10-22); #9e5f00 is the brightest gold still at 4.5:1 on the grey-blue panel */
+/* section labels inside an open list ("ZOOPLANKTON", "PHYLLOSOMA ...") read
+   faint at 10px (Betty, 2026-10-22: "blends in"): larger and heavier (a
+   marigold mark beside them was tried and dropped) */
+:root[data-theme="light"] .inventory-subcategory-header {
+  font-size: 11px; font-weight: 800; letter-spacing: 1.1px; color: #9a5c00;
+}
+:root[data-theme="light"] .vd-eyebrow { font-weight: 800; font-size: 11px; color: #9a5c00; }
+/* A-Z jump: a letter dropdown (see jumpNav in app.js); replaces the keypad */
+.inventory-jumpnav { display: flex; align-items: center; gap: 10px; padding: 8px 4px 10px; flex-wrap: wrap; }
+.inventory-jumpnav-label, .inventory-jumpnav-count { font: 500 12.5px 'Inter', sans-serif; color: var(--muted); }
+.inventory-jumpnav-select {
+  font: 600 13px 'Inter', sans-serif; color: var(--text); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; cursor: pointer;
+}
+.inventory-jumpnav-select:focus { outline: 2px solid rgba(var(--accent-rgb), 0.35); outline-offset: 1px; }
+:root[data-theme="light"] .inventory-jumpnav-select { background: #ffffff; border-color: var(--rule); }
+/* section labels in light mode: deep blue instead of gold. Every gold that
+   holds contrast on white reads mustard/brown, every brighter one is faint
+   (Betty, 2026-10-22: "the mustard color hard to read"); the panel's gold
+   eyebrow at the top stays gold */
+:root[data-theme="light"] .inventory-subcategory-header { color: #00507e; }
+/* the foldable section labels (Phytoplankton's groups) are <button>s, which
+   take the browser's Arial rather than the page's Inter, so at weight 800
+   they rendered much thicker than every other label (Betty, 2026-10-22:
+   "why only bold here ... too thick"): same font everywhere, and 700 */
+.inventory-subcategory-header, button.inventory-subcategory-header { font-family: 'Inter', sans-serif; }
+:root[data-theme="light"] .inventory-subcategory-header { font-weight: 700; }
+/* section labels, final (Betty, 2026-10-22): back to gold, the brightest
+   that still reads on the list tint (#a16207, 4.5:1), at 600 so they aren't
+   the one bold line in a list of regular-weight names (chosen from mockups
+   over amber, deep gold, old gold and the interim deep blue) */
+:root[data-theme="light"] .inventory-subcategory-header { color: #a16207; font-weight: 600; }

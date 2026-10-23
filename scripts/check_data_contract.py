@@ -44,7 +44,9 @@ CONTRACT = {
                  "source_names"},
         "optional": False,
     },
-    # indexed as dataset_key + '::' + aphia_id, with `years` feeding the year slider
+    # indexed as dataset_key + '::' + aphia_id (or 'tk:' + taxon_key for a taxon
+    # with no WoRMS id — a column the files carry from the 2026-10-22 build on),
+    # with `years` feeding the year slider
     "taxon_coverage.json.gz": {
         "keys": {"dataset_key", "grid_key", "aphia_id", "years"},
         "optional": True,
@@ -177,8 +179,13 @@ def main():
                     f"{sorted(entries[0].keys())}"
                 )
             for key in ("dataset_key", "aphia_id"):
-                if key in keys and any(e.get(key) is None for e in entries):
-                    n = sum(1 for e in entries if e.get(key) is None)
+                # a taxon with no WoRMS id is filed by taxon_key instead
+                # (app.js taxonCovId) — a null aphia_id is only the
+                # 'undefined' bug when there is no taxon_key to fall back to
+                bad = [e for e in entries if e.get(key) is None
+                       and not (key == "aphia_id" and e.get("taxon_key"))]
+                if key in keys and bad:
+                    n = len(bad)
                     errors.append(
                         f"{name}.{col}[]: {n} entr(ies) have a null {key}, which "
                         f"app.js would index as the literal string 'undefined'"

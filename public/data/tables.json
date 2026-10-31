@@ -1,21 +1,21 @@
 {
- "version": "v2026.10.21",
+ "version": "v2026.10.30",
  "layout": "canonical",
  "tables": {
   "obs": {
    "urls": [
     "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_2022-edna/f4bd530899502d593fd4a585/data_0.parquet",
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_bottle-derived/4f8d256e5eb2cfceb9d25495/data_0.parquet",
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_bottle/1a4b49dffd45864c88098c49/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_bottle-derived/263cd5982746f41c725024fc/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_bottle/eb6daf65bc3023436b81f441/data_0.parquet",
     "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_ctd-cast/dbf398841fe8731e60aaf836/data_0.parquet",
     "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_ctd-derived/039a0f3d598825ccbcd9aaee/data_0.parquet",
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_dic/5e51473b5a1a45c4496017a0/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_dic/8abdc8a6f9329375dec4fecc/data_0.parquet",
     "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_mets/347028248df9b5e14649e111/data_0.parquet",
     "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_phyllosoma/ade454e9802bc824144f7f48/data_0.parquet",
     "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=calcofi_phytoplankton/dae4bc332c929c5bbf8e26ee/data_0.parquet",
     "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=cce-lter_euphausiids/347a7dc0b7afda4fa04cde30/data_0.parquet",
     "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=cce-lter_iron/de1ec356e734ebeca9b5eb9d/data_0.parquet",
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=cce-lter_picoplankton-bacteria/190c4dfeab3f09d318a462c1/data_0.parquet",
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=cce-lter_picoplankton-bacteria/e09d5cd94fa8180b58751aa7/data_0.parquet",
     "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=cce-lter_zoodb/ec8222662276a4d489f21c97/data_0.parquet",
     "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=cce-lter_zooscan/5bbd00dbf11433966d806213/data_0.parquet",
     "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/dataset_key=cdfw_dungeness-crab/1bd58153aefc8147fac7c598/data_0.parquet",
@@ -27,11 +27,11 @@
    "hive": true,
    "canonical": true,
    "partition_by": "dataset_key",
-   "single_file": "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/02c570b7e974fb538faf085c/obs.parquet"
+   "single_file": "https://storage.googleapis.com/calcofi-db/ducklake/tables/obs/2a401dd686965b431a8aadf0/obs.parquet"
   },
   "taxon": {
    "urls": [
-    "https://storage.googleapis.com/calcofi-db/ducklake/tables/taxon/3cbbd71f6cbbfd53c00ccdd4/taxon.parquet"
+    "https://storage.googleapis.com/calcofi-db/ducklake/tables/taxon/a8d4b1d4f614e9a9085fe616/taxon.parquet"
    ],
    "hive": false,
    "canonical": true,

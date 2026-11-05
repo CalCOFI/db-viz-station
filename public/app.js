@@ -532,6 +532,7 @@ function sourceNamesDiffering(v) {
   return v.source_names.filter(n => normName(n) !== normName(v.name));
 }
 function groupCommonName(v) {
+  if (isAllTaxaVar(v)) return 'every taxon in the dataset';
   if (v.variable_type === 'taxon_group') return 'functional-group total';
   const g = v.taxon_group;
   if (!g) return '';
@@ -1112,6 +1113,7 @@ loadDataVersion().then(() => Promise.all([
   VARS = VARS.concat(regionGroupVars());
   // before anything renders — dsMeta()/officialNameFor()/datasetUrlFor() all read it
   (dsMetaRows || []).forEach(r => { DATASETS_META[r.dataset_key] = r; });
+  VARS = VARS.concat(datasetAllTaxaVars());
   (dm || []).forEach(r => { ((DECADES[r.dataset_key] ||= {})[r.station_id] ||= []).push(r); });
   // taxon_coverage.json rows are (dataset_key, grid_key, aphia_id, …, years).
   // `years` is the {y, n} list the year slider filters on; it is LEFT-JOINed in
@@ -1529,6 +1531,30 @@ function regionGroupVars() {
     });
   }));
   return out;
+}
+// One leading "All taxa" row per station-resolved dataset that has taxa: the
+// dataset's whole footprint — every station with any record of it, whatever
+// the taxon. The same synthetic taxon_group shape as the phytoplankton group
+// totals, so every label/panel/station path already knows it; stationsForVar()
+// finds no per-taxon coverage for it and takes its whole-dataset fallback.
+// Without it the `?dataset=` entry point (every calcofi.io dataset page and the
+// private previews) opened a bio dataset on whichever species came first in
+// variables.json — the cetacean sightings preview landed on Minke Whale and
+// drew only its stations (Erin, 2026-11-05: "thought we would want it for all
+// taxa"). Pooled datasets are left alone: their footprint is regions, not
+// stations, and their group totals already lead.
+const ALL_TAXA_GROUP = 'all';
+const isAllTaxaVar = v => v.variable_type === 'taxon_group' && v.taxon_group === ALL_TAXA_GROUP;
+function datasetAllTaxaVars() {
+  const seen = new Set();
+  return VARS.filter(v => v.variable_type === 'taxon' && !isRegionPooled(v.dataset_key) && !seen.has(v.dataset_key) && seen.add(v.dataset_key))
+    .map(v => ({
+      variable_id: `${v.dataset_key}::group:${ALL_TAXA_GROUP}`, dataset_key: v.dataset_key, realm: 'bio',
+      variable_type: 'taxon_group', name: 'All taxa', display_name: 'All taxa', units: null,
+      description: `Every station with any ${dsMeta(v.dataset_key).label} record, whatever the taxon — the dataset's whole footprint. Pick a taxon below to narrow to the stations where it was recorded.`,
+      aphia_id: null, rank: null, common_name: null, taxon_group: ALL_TAXA_GROUP,
+      source_order: -1000,   // ahead of every taxon and group total
+    }));
 }
 // Polygons are created once and left off the map. A pooled dataset is 1 of 16,
 // so showing four large polygons over the station grid at all times would be
@@ -3117,7 +3143,9 @@ function inventoryVarsFor(key) {
     if (key === 'calcofi_bottle_cast') return CANON_VARS.filter(v => v.dataset_key === 'calcofi_bottle' && CAST_SIDE_BOTTLE_FIELDS.has(v.name));
     return CANON_VARS.filter(v => v.dataset_key === key);
   }
-  return CANON_VARS.filter(v => categoryOf(v) === key);
+  // the "All taxa" rows belong to a dataset, not a category — a category list
+  // mixes datasets, where "All taxa" would read as the category's total
+  return CANON_VARS.filter(v => categoryOf(v) === key && !isAllTaxaVar(v));
 }
 // Renders a group's variable list, nesting anything that matches a
 // PARAMETER_FAMILIES member under one expandable umbrella row instead of
@@ -4690,6 +4718,9 @@ function scopeNoteHtml(v, isAggregateSpan, yearAware, isFallback) {
     }
     return '';
   }
+  if (isAllTaxaVar(v)) {
+    return ` — <span class="banner-note" title="Every station with any ${datasetLabelFor(v)} record, whatever the taxon.">Dataset-Wide</span>`;
+  }
   // Measurement-type parameter: skip this note when another note already
   // covers the same ground — "(dataset span)" for aggregate datasets, or
   // "(all years)" when there's no year breakdown at all.
@@ -5041,7 +5072,9 @@ function showVariablePanel(v) {
        ${fallbackNote}
        <span class="spinfo-note-hint">${v.variable_type === 'taxon'
          ? `Click a highlighted station to see the years ${resolvedPlainLabel(v)} was recorded there.`
-         : `Click a highlighted station to see the years ${resolvedPlainLabel(v)} was sampled there.`}</span>`;
+         : isAllTaxaVar(v)
+           ? `Click a highlighted station to see the years ${datasetLabelFor(v)} sampled there.`
+           : `Click a highlighted station to see the years ${resolvedPlainLabel(v)} was sampled there.`}</span>`;
   document.getElementById('panel-content').innerHTML = `
     <div class="panel-info-block">
       ${pooled ? pooledInfoLinksHtml(v) : ''}
@@ -5375,9 +5408,12 @@ function applyDatasetFromUrl() {
   renderInventoryPanel();
   document.querySelector(`.inventory-row[data-key="${attrEsc(panelKey)}"]`)
     ?.scrollIntoView({ block: 'nearest' });
-  // the panel's own first row for this dataset — the same variable a person
-  // lands on when they open the group and click the top entry
-  const first = inventoryVarsFor(panelKey)[0];
+  // the panel's own top row for this dataset — the same variable a person
+  // lands on when they open the group and click the top entry: its "All taxa"
+  // row where it has taxa (the whole dataset, not whichever species sorts
+  // first), else its first variable
+  const vars = inventoryVarsFor(panelKey);
+  const first = vars.find(isAllTaxaVar) || vars[0];
   if (first) selectVariable(first.variable_id);
 }
 

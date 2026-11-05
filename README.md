@@ -25,7 +25,7 @@ The application is fully static and deployable on Vercel, GitHub Pages, Netlify,
 
 | parameter | what it does |
 |---|---|
-| `?dataset=<dataset_key>` | opens on one dataset: the inventory panel in **By Dataset** mode with that dataset's group open and its first variable selected, which is what draws its stations on the map. Exactly the state a person reaches by opening the group and clicking the top row. |
+| `?dataset=<dataset_key>` | opens on one dataset: the inventory panel in **By Dataset** mode with that dataset's group open and its top row selected, which is what draws its stations on the map. For a dataset with taxa the top row is **All taxa** — every station with any record of it, whatever the taxon (a species row narrows to where that species was recorded); otherwise its first variable. Exactly the state a person reaches by opening the group and clicking the top row. |
 | `?theme=dark` / `?theme=light` | brand v2 contract; `theme.js` owns it |
 | `?tour=off` (also `false`, `0`, `no`) | suppresses the walkthrough for this visit, so a screenshot shows the interface |
 

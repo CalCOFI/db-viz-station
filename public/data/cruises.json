@@ -839,5 +839,6 @@
 	{"cruise_key":"2025-11-33P4","date_min":"2025-11-09","ship_name":"SALLY RIDE"},
 	{"cruise_key":"2026-01-33UD","date_min":"2026-01-07","ship_name":"REUBEN LASKER"},
 	{"cruise_key":"2026-04-3322","date_min":"2026-04-01","ship_name":"BELL M. SHIMADA"},
-	{"cruise_key":"2026-07-3322","date_min":"2026-06-30","ship_name":"BELL M. SHIMADA"}
+	{"cruise_key":"2026-07-3322","date_min":"2026-06-30","ship_name":"BELL M. SHIMADA"},
+	{"cruise_key":"2026-11-33P4","date_min":"2026-10-31","ship_name":"SALLY RIDE"}
 ]
